@@ -14,14 +14,14 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "https://vision-mysuru-2050.vercel.app",
+      "https://www.visionmysuru2050.in/",
       "http://localhost:5000",
       "http://localhost:5173",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 app.use(helmet());
 app.use(morgan("dev"));
