@@ -10,10 +10,12 @@ const HeroSection = () => {
           initial={{ scale: 1.1 }}
           animate={{ scale: 1 }}
           transition={{ duration: 0.8, ease: "easeInOut" }}
-          src="https://res.cloudinary.com/dqlqxcwqr/image/upload/v1768013750/mysuru2_daz3p4.jpg"
+          src="https://res.cloudinary.com/dqlqxcwqr/image/upload/f_auto,q_auto/v1768013750/mysuru2_daz3p4.jpg"
           alt="Future vision of Mysuru city"
           className="h-full w-full scale-x-[-1] object-cover"
-      />
+          loading="eager"
+          fetchPriority="high"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--bg)] via-black/10 to-red-600/10" />
       </div>
 
