@@ -1,11 +1,29 @@
 import React from "react";
 
-const StatCard = ({ title, count, color }) => (
-  <div className={`rounded-xl border-2 ${color} bg-[var(--surface)] p-6`}>
+const StatCard = ({ title, count, color, isTotal }) => (
+  <div
+    className={`rounded-3xl p-6 transition-all  duration-300 ${
+      isTotal
+        ? "bg-[var(--primary)]/15 border-y-4 border border-[var(--primary)]  transform hover:-translate-y-1"
+        : `bg-[var(--surface)] border-y-4 border-[var(--border)] border ${color} `
+    }`}
+  >
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-[var(--muted)]">{title}</p>
-        <p className="mt-2 text-3xl font-bold text-[var(--text)]">{count}</p>
+        <p
+          className={`text-sm font-medium ${
+            isTotal ? "text-black/60" : "text-[var(--muted)]"
+          }`}
+        >
+          {title}
+        </p>
+        <p
+          className={`mt-2 text-3xl font-bold ${
+            isTotal ? "text-black/80" : "text-[var(--text)]"
+          }`}
+        >
+          {count}
+        </p>
       </div>
     </div>
   </div>
@@ -19,12 +37,8 @@ const Stats = ({ submissions }) => {
   }, {});
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard
-        title="Total Submissions"
-        count={total}
-        color="border-blue-500"
-      />
+    <div className="grid gap-3 max-w-5xl mx-auto sm:grid-cols-2 lg:grid-cols-4">
+      <StatCard title="Total Submissions" count={total} isTotal />
       <StatCard
         title="Students"
         count={byCategory["students"] || 0}
