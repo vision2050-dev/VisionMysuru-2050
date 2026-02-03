@@ -14,7 +14,7 @@ const STATUS_COLORS = {
 
 const SubmissionTable = ({ submissions, onView }) => {
   return (
-    <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-[var(--accent)]/80 text-white">
