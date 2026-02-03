@@ -1,6 +1,12 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 const sendSubmissionEmail = async ({
   leaderEmail,
@@ -10,9 +16,9 @@ const sendSubmissionEmail = async ({
   solutionName,
   organizationName,
 }) => {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn("⚠️ RESEND_API_KEY not set. Email skipped.");
-    return { success: false, reason: "missing_api_key" };
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn("⚠️ Gmail credentials not set. Email skipped.");
+    return { success: false, reason: "missing_credentials" };
   }
 
   if (!leaderEmail) {
@@ -90,20 +96,15 @@ const sendSubmissionEmail = async ({
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: "Vision Mysuru 2050 <onboarding@resend.dev>",
-      to: [leaderEmail],
+    const info = await transporter.sendMail({
+      from: `"Vision Mysuru 2050" <${process.env.GMAIL_USER}>`,
+      to: leaderEmail,
       subject: `Submission Successful – Vision Mysuru 2050 (Team ID: ${teamId})`,
       html: htmlContent,
     });
 
-    if (error) {
-      console.error("❌ Resend error:", error);
-      return { success: false, error };
-    }
-
-    console.log("✅ Email sent successfully:", data.id);
-    return { success: true, messageId: data.id };
+    console.log("✅ Email sent successfully:", info.messageId);
+    return { success: true, messageId: info.messageId };
   } catch (err) {
     console.error("❌ Unexpected email failure:", err);
     return { success: false, error: err };
