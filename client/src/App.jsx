@@ -32,8 +32,8 @@ const App = () => {
           duration: 3000,
           style: {
             fontSize: "14px",
-            padding: "10px 24px",
-            borderRadius: 50,
+            padding: "10px 12px",
+            borderRadius: 20,
             background: "rgba(255, 255, 255, 0.9)",
             color: "#111827",
             boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
@@ -49,6 +49,7 @@ const App = () => {
             style: {
               borderLeft: "4px solid #22c55e",
               borderRight: "4px solid #22c55e",
+              backgroundColor: "#d1fae5",
             },
           },
           error: {
@@ -59,6 +60,7 @@ const App = () => {
             style: {
               borderLeft: "4px solid #ef4444",
               borderRight: "4px solid #ef4444",
+              backgroundColor: "#fee2e2",
             },
           },
         }}

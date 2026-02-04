@@ -1,14 +1,8 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  FiX,
-  FiDownload,
-  FiExternalLink,
-  FiUser,
-  FiPhone,
-  FiMail,
-} from "react-icons/fi";
+import { FiX, FiExternalLink, FiUser, FiPhone, FiMail } from "react-icons/fi";
 import { STATUS_STYLES, STATUS_GROUPS } from "../constants/content";
+import { FaFilePdf } from "react-icons/fa6";
 
 const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
   if (!submission) return null;
@@ -21,13 +15,13 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ duration: 0.2 }}
-          className="relative max-h-[90vh] w-full max-w-7xl overflow-y-auto rounded-4xl bg-[var(--surface)] border-4 border-black/70 shadow-2xl"
+          className="relative max-h-[90vh] w-full max-w-7xl overflow-y-auto rounded-4xl bg-[var(--surface)] border-y-4 border-2 border-black/70 shadow-2xl"
         >
           <div className="sticky top-0 z-10 bg-[var(--surface)] px-4 py-4 flex tracking-tight items-center justify-between">
             <div className="gap-0.5 flex">
               <div className="text-md  text-white font-medium text-[var(--text)]">
                 <span className="bg-black inline-block py-2 px-3 rounded-bl rounded-tl-2xl ">
-                  ID
+                  #
                 </span>
                 <span className="bg-black/60 inline-block px-2 rounded-r py-2 ">
                   {submission.teamId}
@@ -41,6 +35,14 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                   {submission.teamName}
                 </span>
               </div>
+              <div className="text-md  text-white font-medium text-[var(--text)]">
+                <span className="bg-black inline-block py-2 rounded-l px-3 ">
+                  Theme
+                </span>
+                <span className="bg-black/60 inline-block rounded-r px-2 py-2 ">
+                  {submission.theme}
+                </span>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -52,7 +54,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
           </div>
 
           <div className="flex gap-2 px-4 pb-6 pt-2">
-            <div className="space-y-2  w-90">
+            <div className="space-y-2  w-80">
               <Card title="Team Details">
                 <InfoGrid
                   items={[
@@ -103,7 +105,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                         />
                         <span className="font-semibold text-sm">{m.name}</span>
                         {m.isLeader && (
-                          <span className="ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[var(--accent)] text-white">
+                          <span className="ml-auto text-[10px] font-bold uppercase px-2 py-0.5  rounded bg-[var(--accent)] text-white">
                             Leader
                           </span>
                         )}
@@ -124,10 +126,9 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
             </div>
 
             <div className="space-y-2 w-2xl">
-              <Card title="Project Title & Theme">
-                <h2 className="text-md font-medium text-[var(--text)]">
-                  {submission.solutionName} <span className="px-3">•</span>{" "}
-                  {submission.theme}
+              <Card title="Project Title ">
+                <h2 className="text-lg tracking-tight font-medium text-[var(--text)]">
+                  {submission.solutionName}
                 </h2>
               </Card>
               <Card title="Solution Summary">
@@ -145,15 +146,13 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                     className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 hover:border-[var(--accent)] transition"
                   >
                     <div className="rounded bg-red-100 p-2 text-red-600">
-                      <FiDownload />
+                      <FaFilePdf />
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-[var(--text)]">
                         {submission.idea_document.name || "Project PDF"}
                       </p>
-                      <p className="text-xs text-[var(--muted)]">
-                        View / Download
-                      </p>
+                      <p className="text-xs text-[var(--muted)]">View</p>
                     </div>
                   </a>
                 ) : (
@@ -163,7 +162,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                 )}
               </Card>
             </div>
-            <div className="space-y-2 w-70 ">
+            <div className="space-y-2 w-80 ">
               <Card title="Current Status">
                 {updating ? (
                   <div className="flex mt-10 items-center justify-center">
@@ -188,7 +187,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                                   onUpdateStatus(
                                     submission._id,
                                     status,
-                                    submission.category
+                                    submission.category,
                                   )
                                 }
                                 className={`w-full rounded-xl px-4 items-center justify-center flex py-2 cursor-pointer text-[13px] tracking-normal  font-semibold  border transition text-left
