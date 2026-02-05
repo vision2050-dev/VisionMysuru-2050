@@ -8,6 +8,7 @@ import { CATEGORY } from "../constants/content";
 import StudentForm from "../Components/Submission/forms/StudentForm";
 import CorporateForm from "../Components/Submission/forms/CorporateForm";
 import NGOForm from "../Components/Submission/forms/NGOForm";
+import FaqsSection from "../Components/FaqsSection";
 
 const Toggle = ({ active, onChange }) => {
   const tabs = [
@@ -69,8 +70,10 @@ const SubmitIdeaPage = () => {
             {renderForm()}
           </div>
         </div>
+        <FaqsSection />
+
+        <FooterSection />
       </main>
-      <FooterSection />
     </motion.div>
   );
 };

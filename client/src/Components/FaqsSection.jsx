@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FiChevronDown } from "react-icons/fi";
-import { FAQS } from "../../constants/faqs";
-import { Section } from "./Section.jsx";
+import { FAQS } from "../constants/faqs";
+import { Section } from "./landing/Section.jsx";
 
 const FaqsSection = () => {
   const [openIndex, setOpenIndex] = useState(null);
