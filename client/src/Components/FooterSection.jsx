@@ -134,7 +134,6 @@ const FooterSection = () => {
           </div>
         </div>
 
-        {/* Footer Bottom */}
         <div className="mt-24 flex flex-col items-center justify-between gap-6 border-t border-zinc-900 pt-8 md:flex-row">
           <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
             © 2026 Mysuru Vision 2050 · Future Ready
