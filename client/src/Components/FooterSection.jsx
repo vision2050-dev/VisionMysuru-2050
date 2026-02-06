@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Mail, Phone, MapPin, Globe } from "lucide-react";
+import { Instagram, Linkedin, Facebook } from "lucide-react";
 
 const FooterSection = () => {
   const quickLinks = [
@@ -99,6 +100,33 @@ const FooterSection = () => {
                   <Phone className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm">+91 821 2425 820</span>
+              </a>
+              <a 
+                href=""
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <Instagram className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">Instagram</span>
+              </a>
+              <a
+                href=""
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <LinkedIn className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">LinkedIn</span>
+              </a>
+              <a
+                href=""
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <Facebook className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">Facebook</span>
               </a>
             </div>
           </div>
