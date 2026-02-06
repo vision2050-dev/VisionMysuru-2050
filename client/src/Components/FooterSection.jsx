@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Mail, Phone, MapPin, Globe } from "lucide-react";
+import { FaInstagram } from "react-icons/fa6";
+import { FaLinkedin } from "react-icons/fa";
+import { FaFacebook } from "react-icons/fa";
 
 const FooterSection = () => {
   const quickLinks = [
@@ -70,7 +73,7 @@ const FooterSection = () => {
             </h3>
             <div className="mt-6 space-y-5">
               <div className="flex items-start gap-4">
-                <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800">
+                <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800">
                   <MapPin className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm leading-6">
@@ -84,7 +87,7 @@ const FooterSection = () => {
                 href="mailto:vision2050@sdmimd.ac.in"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
                   <Mail className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm">vision2050@sdmimd.ac.in</span>
@@ -95,10 +98,37 @@ const FooterSection = () => {
                 href="tel:+918212425820"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
                   <Phone className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm">+91 821 2425 820</span>
+              </a>
+              <a
+                href=""
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <FaInstagram className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">Instagram</span>
+              </a>
+              <a
+                href=""
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <FaFacebook className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">Facebook</span>
+              </a>
+              <a
+                href="tel:+918212425820"
+                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
+                  <FaLinkedin className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="text-sm">LinkedIn</span>
               </a>
             </div>
           </div>
