@@ -21,7 +21,7 @@ const LandingPage = () => {
         <Participants />
         <TopicsSection />
         <TimelineSection />
-        <Gallery />
+        {/* <Gallery /> */}
         <FooterSection />
       </div>
     </>
