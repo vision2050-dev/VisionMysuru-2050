@@ -58,10 +58,10 @@ const createSubmission = async (req, res) => {
         category === "student"
           ? "ST"
           : category === "corporate"
-          ? "CO"
-          : category === "ngo"
-          ? "NG"
-          : "NA"
+            ? "CO"
+            : category === "ngo"
+              ? "NG"
+              : "NA"
       }-${randomUUID().slice(0, 6).toUpperCase()}`,
       teamName,
       city,

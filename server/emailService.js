@@ -17,12 +17,12 @@ const sendSubmissionEmail = async ({
   organizationName,
 }) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn("⚠️ Gmail credentials not set. Email skipped.");
+    console.warn("Gmail credentials not set. Email skipped.");
     return { success: false, reason: "missing_credentials" };
   }
 
   if (!leaderEmail) {
-    console.warn("⚠️ Leader email missing. Email skipped.");
+    console.warn("Leader email missing. Email skipped.");
     return { success: false, reason: "missing_recipient" };
   }
 
