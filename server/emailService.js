@@ -74,7 +74,7 @@ const sendSubmissionEmail = async ({
         </p>
 
         <a
-          href="https://vision-mysuru-2050.vercel.app/"
+          href="https://www.visionmysuru2050.in"
           style="display:inline-block;margin-top:14px;padding:10px 18px;background:#f59e0b;color:#111827;text-decoration:none;border-radius:6px;font-weight:bold;"
         >
           Visit Official Website
@@ -97,7 +97,7 @@ const sendSubmissionEmail = async ({
 
   try {
     const info = await transporter.sendMail({
-      from: `"Vision Mysuru 2050" <${process.env.GMAIL_USER}>`,
+      from: `"Vision Mysuru 2050" <${process.env.EMAIL_USER}>`,
       to: leaderEmail,
       subject: `Submission Successful – Vision Mysuru 2050 (Team ID: ${teamId})`,
       html: htmlContent,
