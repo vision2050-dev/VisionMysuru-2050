@@ -104,7 +104,7 @@ const FooterSection = () => {
                 <span className="text-sm">+91 821 2425 820</span>
               </a>
               <a
-                href=""
+                href="https://www.instagram.com/visionmysuru2050"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
@@ -122,7 +122,7 @@ const FooterSection = () => {
                 <span className="text-sm">Facebook</span>
               </a>
               <a
-                href="tel:+918212425820"
+                href="https://www.linkedin.com/company/vision-mysuru-2050/"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
