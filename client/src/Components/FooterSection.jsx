@@ -113,7 +113,7 @@ const FooterSection = () => {
                 <span className="text-sm">Instagram</span>
               </a>
               <a
-                href=""
+                href="https://www.facebook.com/profile.php?id=61588072445207"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
