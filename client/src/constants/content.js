@@ -134,6 +134,7 @@ const CATEGORY = {
   STUDENT: "student",
   CORPORATE: "corporate",
   NGO: "ngo",
+  GENERAL: "general",
 };
 
 const TOPIC_OPTIONS = [
@@ -273,6 +274,44 @@ const GUIDELINES = {
         "Represent citizen realities",
         "Validate grassroots issues",
         "Ensure inclusivity and social balance in policy",
+      ],
+      submissionComponents: [
+        {
+          title: "Community Problem Description",
+          details: [
+            "Must include: Area / locality name",
+            "Nature of community impact",
+            "Duration of the issue",
+          ],
+        },
+        {
+          title: "Evidence of Ground Engagement",
+          details: [
+            "Any one of: Photographic evidence, Community petition summary, Prior representations to authorities",
+          ],
+        },
+        {
+          title: "Suggested Intervention",
+          details: [
+            "Practical and community-oriented",
+            "Can involve: Awareness programs, Infrastructure support, Policy reform suggestions",
+          ],
+        },
+      ],
+    },
+    {
+      id: "general",
+      title: "General Category",
+      subtitle: "OPEN TO ALL CITIZENS",
+      eligibility: [
+        "Open to any individual or informal group interested in civic improvement",
+        "No organizational affiliation required",
+        "Team Size: 1–3 members (individual submissions allowed)",
+      ],
+      purpose: [
+        "Encourage citizen-driven ideas",
+        "Capture diverse perspectives from all walks of life",
+        "Enable individuals to contribute to Mysuru's future",
       ],
       submissionComponents: [
         {

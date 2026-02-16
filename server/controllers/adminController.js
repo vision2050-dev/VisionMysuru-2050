@@ -1,6 +1,7 @@
 import Student from "../models/Student.js";
 import Corporate from "../models/Corporate.js";
 import NGO from "../models/NGO.js";
+import General from "../models/General.js";
 import Admin from "../models/Admin.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -61,7 +62,7 @@ export const adminLogin = async (req, res) => {
     const token = jwt.sign(
       { id: admin._id, username: admin.username },
       process.env.JWT_SECRET || "fallback_secret",
-      { expiresIn: "1d" }
+      { expiresIn: "1d" },
     );
 
     return res.status(200).json({ token, username: admin.username });
@@ -77,6 +78,7 @@ export const getAllSubmissions = async (req, res) => {
     const students = await Student.find().lean();
     const corporates = await Corporate.find().lean();
     const ngos = await NGO.find().lean();
+    const generals = await General.find().lean();
 
     const formattedStudents = students.map((s) => ({
       ...s,
@@ -87,16 +89,21 @@ export const getAllSubmissions = async (req, res) => {
       category: "corporates",
     }));
     const formattedNgos = ngos.map((s) => ({ ...s, category: "ngos" }));
+    const formattedGenerals = generals.map((s) => ({
+      ...s,
+      category: "general",
+    }));
 
     const allSubmissions = [
       ...formattedStudents,
       ...formattedCorporates,
       ...formattedNgos,
+      ...formattedGenerals,
     ];
 
     // Sort by createdAt desc
     allSubmissions.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     );
 
     res.status(200).json(allSubmissions);
@@ -121,39 +128,52 @@ export const updateSubmissionStatus = async (req, res) => {
       updatedSubmission = await Student.findByIdAndUpdate(
         id,
         { status },
-        { new: true }
+        { new: true },
       );
     } else if (category === "corporates") {
       updatedSubmission = await Corporate.findByIdAndUpdate(
         id,
         { status },
-        { new: true }
+        { new: true },
       );
     } else if (category === "ngos") {
       updatedSubmission = await NGO.findByIdAndUpdate(
         id,
         { status },
-        { new: true }
+        { new: true },
+      );
+    } else if (category === "general") {
+      updatedSubmission = await General.findByIdAndUpdate(
+        id,
+        { status },
+        { new: true },
       );
     } else {
       // Fallback: Try to find by ID in all (inefficient but safe)
       updatedSubmission = await Student.findByIdAndUpdate(
         id,
         { status },
-        { new: true }
+        { new: true },
       );
       if (!updatedSubmission) {
         updatedSubmission = await Corporate.findByIdAndUpdate(
           id,
           { status },
-          { new: true }
+          { new: true },
         );
       }
       if (!updatedSubmission) {
         updatedSubmission = await NGO.findByIdAndUpdate(
           id,
           { status },
-          { new: true }
+          { new: true },
+        );
+      }
+      if (!updatedSubmission) {
+        updatedSubmission = await General.findByIdAndUpdate(
+          id,
+          { status },
+          { new: true },
         );
       }
     }

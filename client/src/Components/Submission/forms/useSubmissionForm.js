@@ -5,7 +5,8 @@ import { toast } from "react-hot-toast";
 const MAX_PDF_BYTES = 2 * 1024 * 1024;
 export const createEmptyMember = () => ({ name: "", email: "", phone: "" });
 
-export const useSubmissionForm = (initialState, validateFn) => {
+export const useSubmissionForm = (initialState, validateFn, options = {}) => {
+  const { minMembers = 2 } = options;
   const [form, setForm] = useState(initialState);
   const [status, setStatus] = useState({ state: "idle", message: "" });
 
@@ -34,7 +35,7 @@ export const useSubmissionForm = (initialState, validateFn) => {
 
   const removeMember = (index) =>
     setForm((prev) => {
-      if (prev.members.length <= 2) return prev;
+      if (prev.members.length <= minMembers) return prev;
 
       const members = prev.members.filter((_, i) => i !== index);
       const leaderIndex = index === +prev.leaderIndex ? "0" : prev.leaderIndex;
@@ -74,8 +75,8 @@ export const useSubmissionForm = (initialState, validateFn) => {
           ...m,
           email: m.email?.toLowerCase().trim(),
           isLeader: i === +form.leaderIndex,
-        }))
-      )
+        })),
+      ),
     );
 
     form.pdfFile && fd.append("pdfFile", form.pdfFile);
@@ -99,7 +100,7 @@ export const useSubmissionForm = (initialState, validateFn) => {
     } catch (err) {
       setStatusWithToast(
         "error",
-        err.response?.data?.message || "Failed to submit. Please try again."
+        err.response?.data?.message || "Failed to submit. Please try again.",
       );
     }
   };
@@ -118,6 +119,7 @@ export const useSubmissionForm = (initialState, validateFn) => {
   return {
     form,
     status,
+    minMembers,
     set: setField,
     setMember: setMemberField,
     addMember,

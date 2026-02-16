@@ -37,7 +37,7 @@ const Stats = ({ submissions }) => {
   }, {});
 
   return (
-    <div className="grid gap-3 max-w-5xl mx-auto sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 max-w-5xl mx-auto sm:grid-cols-2 lg:grid-cols-5">
       <StatCard title="Total Submissions" count={total} isTotal />
       <StatCard
         title="Students"
@@ -53,6 +53,11 @@ const Stats = ({ submissions }) => {
         title="NGOs"
         count={byCategory["ngos"] || 0}
         color="border-orange-500"
+      />
+      <StatCard
+        title="General"
+        count={byCategory["general"] || 0}
+        color="border-sky-500"
       />
     </div>
   );

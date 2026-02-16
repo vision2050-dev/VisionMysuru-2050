@@ -26,10 +26,13 @@ export const TeamMembers = ({
   removeMember,
   setLeader,
   setMember,
+  minMembers = 2,
 }) => (
   <div className="rounded-2xl bg-[var(--surface-2)] p-4 space-y-4">
     <div className="flex items-center justify-between">
-      <p className="text-sm font-bold">Team Members (Min 2, Max 3)</p>
+      <p className="text-sm font-bold">
+        Team Members (Min {minMembers}, Max 3)
+      </p>
     </div>
     {form.members.map((m, idx) => (
       <div
@@ -52,7 +55,7 @@ export const TeamMembers = ({
               <span className="text-sm font-medium">Leader</span>
             </label>
 
-            {form.members.length > 2 && (
+            {form.members.length > minMembers && (
               <button
                 type="button"
                 onClick={() => removeMember(idx)}

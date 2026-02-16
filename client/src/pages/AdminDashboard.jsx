@@ -109,7 +109,7 @@ const AdminDashboard = () => {
       });
 
       setSubmissions((prev) =>
-        prev.map((sub) => (sub._id === id ? { ...sub, status } : sub))
+        prev.map((sub) => (sub._id === id ? { ...sub, status } : sub)),
       );
 
       // Update selected submission if open
@@ -192,6 +192,7 @@ const AdminDashboard = () => {
               <option value="students">Students</option>
               <option value="corporates">Corporates</option>
               <option value="ngos">NGOs</option>
+              <option value="general">General</option>
             </select>
 
             <select
