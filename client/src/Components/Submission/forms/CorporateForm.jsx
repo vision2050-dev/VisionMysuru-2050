@@ -17,7 +17,7 @@ const CorporateForm = () => {
     industry: "",
     city: "Mysuru",
     leaderIndex: "0",
-    members: [createEmptyMember(), createEmptyMember()],
+    members: [createEmptyMember()],
     theme: TOPIC_OPTIONS[0],
     solutionName: "",
     shortDescription: "",
@@ -30,10 +30,10 @@ const CorporateForm = () => {
     if (!form.companyName.trim()) return "Company name is required.";
 
     const filledMembers = form.members.filter(
-      (m) => m.name.trim() && m.email.trim() && m.phone.trim()
+      (m) => m.name.trim() && m.email.trim() && m.phone.trim(),
     );
-    if (filledMembers.length < 2)
-      return "At least 2 team members are required with complete details.";
+    if (filledMembers.length < 1)
+      return "At least 1 team member is required with complete details.";
 
     const leader = form.members[parseInt(form.leaderIndex)];
     if (!leader.name.trim() || !leader.email.trim() || !leader.phone.trim())
@@ -49,6 +49,7 @@ const CorporateForm = () => {
   const {
     form,
     status,
+    minMembers,
     set,
     setMember,
     addMember,
@@ -59,7 +60,7 @@ const CorporateForm = () => {
     confirmSubmit,
     cancelSubmit,
     resetForm,
-  } = useSubmissionForm(initialState, validate);
+  } = useSubmissionForm(initialState, validate, { minMembers: 1 });
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -104,6 +105,7 @@ const CorporateForm = () => {
         removeMember={removeMember}
         setLeader={setLeader}
         setMember={setMember}
+        minMembers={minMembers}
       />
 
       <ProjectDetails form={form} set={set} onPickPdf={onPickPdf} />
