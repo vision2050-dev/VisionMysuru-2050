@@ -20,7 +20,7 @@ const Toggle = ({ active, onChange }) => {
   ];
 
   return (
-    <div className="inline-flex w-full flex-row gap-2  sm:flex-row">
+    <div className="inline-flex w-full flex-wrap overflow-x-auto gap-2 sm:flex-row">
       {tabs.map((t) => (
         <button
           key={t.key}
