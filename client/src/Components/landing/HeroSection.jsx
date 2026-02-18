@@ -21,17 +21,17 @@ const HeroSection = () => {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-24 sm:px-6">
         <div className="max-w-2xl  text-start">
-          <div className="mb-6 flex items-center gap-2">
+          <div className="mb-6 flex items-center gap-1">
             <img
               src="/logo_final.png"
               alt="Vision Mysuru 2050 Logo"
               className="h-17 rounded-full  w-auto mb-4"
             />
-            <p className="text-xs md:text-sm tracking-tighter">Hosted by</p>
+            <p className="text-xs pt-5 md:text-sm tracking-tighter">Hosted by</p>
             <img
-              src="/Spons/sdm.jpeg"
+              src="/Spons/smd2.png"
               alt="Vision Mysuru 2050 Logo"
-              className="h-12"
+              className="h-22"
             />
           </div>
           <h1 className="flex flex-col gap-2 font-bold oswald uppercase tracking-tighter text-white text-4xl leading-tight md:text-6xl">
