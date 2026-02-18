@@ -34,6 +34,16 @@ const Participants = () => {
         "Collaboration with academic institutions on solutions",
       ],
     },
+    {
+      title: "General Public",
+      subtitle: "People Participation",
+      image: "/general.jpg",
+      who: "Citizens of Mysuru who want their city to change and grow.",
+      why: [
+        "To stop Bengaluru-fication of Mysuru",
+        "Turn your coffee shop ideas into Government policy",
+      ],
+    },
   ];
 
   return (
@@ -45,7 +55,7 @@ const Participants = () => {
       <div
         className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2
         sm:-mx-6 sm:px-6
-        lg:mx-0 lg:grid lg:snap-none lg:grid-cols-3 lg:overflow-visible lg:px-0 lg:pb-0"
+        lg:mx-0 lg:grid lg:snap-none lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0"
       >
         {categories.map((c) => {
           return (
