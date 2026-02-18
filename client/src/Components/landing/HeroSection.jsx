@@ -27,7 +27,7 @@ const HeroSection = () => {
               alt="Vision Mysuru 2050 Logo"
               className="h-17 rounded-full  w-auto mb-4"
             />
-            <p className="text-sm tracking-tighter">Hosted by</p>
+            <p className="text-xs md:text-sm tracking-tighter">Hosted by</p>
             <img
               src="/Spons/sdm.jpeg"
               alt="Vision Mysuru 2050 Logo"
