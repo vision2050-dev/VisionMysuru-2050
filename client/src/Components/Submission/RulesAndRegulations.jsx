@@ -1,19 +1,10 @@
 import { useState } from "react";
-import {
-  FiAlertCircle,
-  FiUsers,
-  FiMapPin,
-  FiCheck,
-  FiTarget,
-  FiAward,
-  FiBriefcase,
-  FiLayers,
-} from "react-icons/fi";
+import { FiAlertCircle, FiCheck } from "react-icons/fi";
 import { GUIDELINES } from "../../constants/content.js";
 import { motion, AnimatePresence } from "framer-motion";
 
 const RulesAndRegulations = () => {
-  const [activeTab, setActiveTab] = useState("student");
+  const [activeTab, setActiveTab] = useState("general");
   const activeCategory = GUIDELINES.categories.find((c) => c.id === activeTab);
 
   return (

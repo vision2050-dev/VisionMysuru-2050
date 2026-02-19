@@ -3,6 +3,16 @@ import { Section } from "./Section.jsx";
 const Participants = () => {
   const categories = [
     {
+      title: "General Public",
+      subtitle: "People Participation",
+      image: "/general.jpg",
+      who: "Citizens of Mysuru who want their city to change and grow.",
+      why: [
+        "To stop Bengaluru-fication of Mysuru",
+        "Turn your coffee shop ideas into Government policy",
+      ],
+    },
+    {
       title: "College Students",
       subtitle: "Innovation Challenge",
       image: "/students.jpg",
@@ -34,23 +44,13 @@ const Participants = () => {
         "Collaboration with academic institutions on solutions",
       ],
     },
-    {
-      title: "General Public",
-      subtitle: "People Participation",
-      image: "/general.jpg",
-      who: "Citizens of Mysuru who want their city to change and grow.",
-      why: [
-        "To stop Bengaluru-fication of Mysuru",
-        "Turn your coffee shop ideas into Government policy",
-      ],
-    },
   ];
 
   return (
     <Section
       id="participation"
       eyebrow="Participation"
-      title="Who can participate in Mysuru Vision 2050"
+      title="Who can participate in Mysuru Vision 2050?"
     >
       <div
         className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2

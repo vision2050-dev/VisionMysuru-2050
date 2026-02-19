@@ -7,7 +7,7 @@ import FooterSection from "../Components/FooterSection.jsx";
 import Participants from "../Components/landing/Participants.jsx";
 import About from "../Components/landing/About.jsx";
 import Sponsors from "../Components/landing/Sponsors.jsx";
-import Gallery from "../Components/landing/Gallery.jsx";
+import BrandAmbassador from "../Components/landing/BrandAmbassador.jsx";
 
 const LandingPage = () => {
   return (
@@ -15,13 +15,13 @@ const LandingPage = () => {
       <div className="overflow-hidden flex flex-col dm-sans bg-[var(--bg)] text-[var(--text)]">
         <TopNav />
         <HeroSection />
+        <BrandAmbassador />
         <About />
         <Sponsors />
         <ObjectivesSection />
         <Participants />
         <TopicsSection />
         <TimelineSection />
-        {/* <Gallery /> */}
         <FooterSection />
       </div>
     </>

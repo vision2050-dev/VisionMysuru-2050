@@ -96,14 +96,14 @@ const TIMELINE = [
   {
     title: "Registration Opens",
     date: "Feb 01, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
     detail:
       "Registrations open for all participants to identify on-ground urban challenges across key city domains.",
   },
   {
     title: "Phase 1: Online Screening",
     date: "Feb 01 – Mar 05, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
     detail:
       "Evidence-based screening with geotagged field proof and a short solution abstract. Only authentic, relevant ideas are shortlisted.",
   },
@@ -117,24 +117,24 @@ const TIMELINE = [
   {
     title: "Round 2: The Corporate Summit (Convergence Round)",
     date: "Mar 14, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
     detail:
       "Students refine ideas through mentorship, while corporates and NGOs present deployment-ready, scalable solutions.",
   },
   {
     title: "Round 3: The Grand Conclave & White Paper Handover",
     date: "Mar 15, 2026",
-    eligibleFor: ["Finalist Students", "Corporates", "NGOs"],
+    eligibleFor: ["Finalist Students", "Corporates", "NGOs", "General"],
     detail:
       "Final policy pitch to city leadership. Selected ideas are compiled into the Mysuru Vision 2050 White Paper.",
   },
 ];
 
 const CATEGORY = {
+  GENERAL: "general",
   STUDENT: "student",
   CORPORATE: "corporate",
   NGO: "ngo",
-  GENERAL: "general",
 };
 
 const TOPIC_OPTIONS = [
@@ -174,6 +174,44 @@ const CORE_OBJECTIVES = [
 
 const GUIDELINES = {
   categories: [
+    {
+      id: "general",
+      title: "General Category",
+      subtitle: "OPEN TO ALL CITIZENS",
+      eligibility: [
+        "Open to any individual or informal group interested in civic improvement",
+        "No organizational affiliation required",
+        "Team Size: 1–3 members (individual submissions allowed)",
+      ],
+      purpose: [
+        "Encourage citizen-driven ideas",
+        "Capture diverse perspectives from all walks of life",
+        "Enable individuals to contribute to Mysuru's future",
+      ],
+      submissionComponents: [
+        {
+          title: "Community Problem Description",
+          details: [
+            "Must include: Area / locality name",
+            "Nature of community impact",
+            "Duration of the issue",
+          ],
+        },
+        {
+          title: "Evidence of Ground Engagement",
+          details: [
+            "Any one of: Photographic evidence, Community petition summary, Prior representations to authorities",
+          ],
+        },
+        {
+          title: "Suggested Intervention",
+          details: [
+            "Practical and community-oriented",
+            "Can involve: Awareness programs, Infrastructure support, Policy reform suggestions",
+          ],
+        },
+      ],
+    },
     {
       id: "student",
       title: "Student Category",
@@ -299,44 +337,6 @@ const GUIDELINES = {
         },
       ],
     },
-    {
-      id: "general",
-      title: "General Category",
-      subtitle: "OPEN TO ALL CITIZENS",
-      eligibility: [
-        "Open to any individual or informal group interested in civic improvement",
-        "No organizational affiliation required",
-        "Team Size: 1–3 members (individual submissions allowed)",
-      ],
-      purpose: [
-        "Encourage citizen-driven ideas",
-        "Capture diverse perspectives from all walks of life",
-        "Enable individuals to contribute to Mysuru's future",
-      ],
-      submissionComponents: [
-        {
-          title: "Community Problem Description",
-          details: [
-            "Must include: Area / locality name",
-            "Nature of community impact",
-            "Duration of the issue",
-          ],
-        },
-        {
-          title: "Evidence of Ground Engagement",
-          details: [
-            "Any one of: Photographic evidence, Community petition summary, Prior representations to authorities",
-          ],
-        },
-        {
-          title: "Suggested Intervention",
-          details: [
-            "Practical and community-oriented",
-            "Can involve: Awareness programs, Infrastructure support, Policy reform suggestions",
-          ],
-        },
-      ],
-    },
   ],
 };
 const STATUS_STYLES = {
@@ -378,6 +378,46 @@ const STATUS_GROUPS = [
   },
 ];
 
+const GROUPS = [
+  {
+    title: "Media Partners",
+    items: [
+      { name: "Star of Mysore", src: "/Spons/starmys.jpeg" },
+      { name: "Vijay Karnataka", src: "/Spons/vk.jpeg" },
+    ],
+  },
+  {
+    title: "Institutes",
+    items: [
+      { name: "SDMIMD", src: "/Spons/sdm.jpeg" },
+      { name: "JSS", src: "/Spons/jss.jpeg" },
+      { name: "NIE", src: "/Spons/nie.jpeg" },
+      { name: "VVCE", src: "/Spons/vvce.jpeg" },
+    ],
+  },
+  {
+    title: "Organisations",
+    items: [
+      { name: "BS", src: "/Spons/bs.jpeg" },
+      { name: "TIE", src: "/Spons/tie.png" },
+      { name: "MGP", src: "/Spons/mgp.jpeg" },
+    ],
+  },
+  {
+    title: "Corporate Partners",
+    items: [
+      {
+        name: "Edin Synergy",
+        src: "/Spons/edinsynergy.png",
+      },
+      {
+        name: "Edin Industries",
+        src: "/Spons/edin.png",
+      },
+    ],
+  },
+];
+
 export {
   TOPICS,
   TIMELINE,
@@ -387,4 +427,5 @@ export {
   GUIDELINES,
   STATUS_STYLES,
   STATUS_GROUPS,
+  GROUPS,
 };

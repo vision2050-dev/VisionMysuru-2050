@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const HeroSection = () => {
   return (
-    <section className="relative min-h-[92vh] overflow-hidden">
+    <section className="relative min-h-[96vh] overflow-hidden">
       <div className="absolute border-b-6 border-[var(--accent)] inset-0 z-0">
         <motion.img
           initial={{ scale: 1.1 }}
@@ -19,20 +19,24 @@ const HeroSection = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--bg)] via-black/10 to-red-600/10" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-24 sm:px-6">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-20 sm:px-6">
         <div className="max-w-2xl  text-start">
-          <div className="mb-6 flex items-center gap-1">
+          <div className="mb-2 flex items-end justify-between ">
             <img
               src="/logo_final.png"
               alt="Vision Mysuru 2050 Logo"
-              className="h-17 rounded-full  w-auto mb-4"
+              className="h-16 md:h-20 rounded-full "
             />
-            <p className="text-xs pt-5 md:text-sm tracking-tighter">Hosted by</p>
-            <img
-              src="/Spons/smd2.png"
-              alt="Vision Mysuru 2050 Logo"
-              className="h-22"
-            />
+            <div className=" pr-10 flex-row flex gap-2 ">
+              <p className="text-xs pt-5 md:text-sm tracking-tighter">
+                Powered by,
+              </p>
+              <img
+                src="/Spons/smd2.png"
+                alt="Vision Mysuru 2050 Logo"
+                className="h-16  rounded-full "
+              />
+            </div>
           </div>
           <h1 className="flex flex-col gap-2 font-bold oswald uppercase tracking-tighter text-white text-4xl leading-tight md:text-6xl">
             <span className="inline-block w-fit  bg-white px-3  text-[var(--accent)]">

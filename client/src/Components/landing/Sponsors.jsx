@@ -1,40 +1,14 @@
 import { Section } from "./Section.jsx";
-
-const GROUPS = [
-  {
-    title: "Media Partners",
-    items: [
-      { name: "Star of Mysore", src: "/Spons/starmys.jpeg" },
-      { name: "Vijay Karnataka", src: "/Spons/vk.jpeg" },
-    ],
-  },
-  {
-    title: "Institutes",
-    items: [
-      { name: "SDMIMD", src: "/Spons/sdm.jpeg" },
-      { name: "JSS", src: "/Spons/jss.jpeg" },
-      { name: "NIE", src: "/Spons/nie.jpeg" },
-      { name: "VVCE", src: "/Spons/vvce.jpeg" },
-    ],
-  },
-  {
-    title: "Organisations",
-    items: [
-      { name: "BS", src: "/Spons/bs.jpeg" },
-      { name: "MFE", src: "/Spons/mfe.jpeg" },
-      { name: "MGP", src: "/Spons/mgp.jpeg" },
-    ],
-  },
-];
+import { GROUPS } from "../../constants/content.js";
 
 const LogoCard = ({ name, src }) => {
   return (
-    <div className="flex items-center justify-center ">
+    <div className="flex items-center p-2 justify-center ">
       <img
         src={src}
         alt={name}
         loading="lazy"
-        className="h-12 w-auto object-contain"
+        className="h-12 w-auto scale-[1.5] object-contain"
       />
     </div>
   );
