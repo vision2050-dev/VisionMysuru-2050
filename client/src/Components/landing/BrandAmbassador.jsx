@@ -18,7 +18,7 @@ const BrandAmbassador = () => {
               <p>Chairman, SDM Educational Trust</p>
             </div>
 
-            <div className="mt-4 space-y-3 text-sm leading-relaxed text-[var(--muted)]">
+            <div className="mt-4 space-y-3 text-md  text-[var(--muted)]">
               <p>
                 Dr. D. Veerendra Heggade shares his appreciation for the Vision
                 Mysuru 2050 initiative and commends the students of SDMIMD for
@@ -43,7 +43,7 @@ const BrandAmbassador = () => {
               </p>
             </div>
 
-            <p className="mt-4 text-sm font-semibold italic text-[var(--text)]">
+            <p className="mt-4 text-md font-semibold italic text-[var(--text)]">
               "Don't just live in Mysuru. Lead Mysuru."
             </p>
           </div>

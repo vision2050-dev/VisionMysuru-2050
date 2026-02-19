@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const HeroSection = () => {
   return (
-    <section className="relative min-h-[96vh] overflow-hidden">
+    <section className="relative min-h-[92vh] overflow-hidden">
       <div className="absolute border-b-6 border-[var(--accent)] inset-0 z-0">
         <motion.img
           initial={{ scale: 1.1 }}
@@ -51,7 +51,7 @@ const HeroSection = () => {
             development blueprint for Mysuru's next 25 years
           </p>
 
-          <div className="mt-20 md:mt-20 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-32 md:mt-24 flex flex-col gap-3 sm:flex-row">
             <Link
               to="/submit"
               className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
