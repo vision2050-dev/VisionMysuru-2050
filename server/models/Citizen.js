@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const GeneralSchema = new mongoose.Schema(
+const CitizenSchema = new mongoose.Schema(
   {
     teamId: { type: String, required: true, unique: true },
     teamName: { type: String, required: true },
@@ -39,6 +39,6 @@ const GeneralSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const General = mongoose.model("General", GeneralSchema);
+const Citizen = mongoose.model("Citizen", CitizenSchema);
 
-export default General;
+export default Citizen;

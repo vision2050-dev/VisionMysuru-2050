@@ -4,11 +4,14 @@ import { Section } from "./Section.jsx";
 
 const About = () => {
   return (
-    <Section id="about" title="Mysuru Vision 2050">
+    <Section id="about" title="Vision Mysuru 2050">
+      <div className="text-lg font-semibold italic text-[var(--text)]">
+        “Don't Just Live in Mysuru, Lead Mysuru.”
+      </div>
       <div className="flex flex-col gap-6 md:flex-row md:gap-12">
         <div className=" max-w-xl mx-auto py-3 md:py-6">
           <p className="text-md text-[var(--muted)]">
-            Mysuru Vision 2050 is not just an event; it is a city-wide movement.
+            Vision Mysuru 2050 is not just an event; it is a city-wide movement.
             Bridging the gap between academic theory and civic reality, this
             initiative transforms students into “City Consultants”. Over a
             60-day rapid innovation cycle, participants will identify
@@ -21,14 +24,6 @@ const About = () => {
             roadmap for the city — anchored in clear problem definition,
             evidence, feasibility, and measurable impact.
           </p>
-          <div className="mt-6 px-5 py-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-              Our Motto
-            </div>
-            <div className="mt-2 text-lg font-semibold italic text-[var(--text)]">
-              “Don't Just Live in Mysuru. Lead It.”
-            </div>
-          </div>
 
           <div className="mt-6">
             <div className="mt-3 grid gap-2 sm:grid-cols-3">

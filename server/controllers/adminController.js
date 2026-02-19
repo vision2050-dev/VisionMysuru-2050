@@ -1,7 +1,7 @@
 import Student from "../models/Student.js";
 import Corporate from "../models/Corporate.js";
 import NGO from "../models/NGO.js";
-import General from "../models/General.js";
+import Citizen from "../models/Citizen.js";
 import Admin from "../models/Admin.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -74,11 +74,13 @@ export const adminLogin = async (req, res) => {
 };
 
 export const getAllSubmissions = async (req, res) => {
+  
   try {
+    
     const students = await Student.find().lean();
     const corporates = await Corporate.find().lean();
     const ngos = await NGO.find().lean();
-    const generals = await General.find().lean();
+    const citizens = await Citizen.find().lean();
 
     const formattedStudents = students.map((s) => ({
       ...s,
@@ -89,16 +91,16 @@ export const getAllSubmissions = async (req, res) => {
       category: "corporates",
     }));
     const formattedNgos = ngos.map((s) => ({ ...s, category: "ngos" }));
-    const formattedGenerals = generals.map((s) => ({
+    const formattedCitizens = citizens.map((s) => ({
       ...s,
-      category: "general",
+      category: "citizens",
     }));
 
     const allSubmissions = [
       ...formattedStudents,
       ...formattedCorporates,
       ...formattedNgos,
-      ...formattedGenerals,
+      ...formattedCitizens,
     ];
 
     // Sort by createdAt desc
@@ -142,8 +144,8 @@ export const updateSubmissionStatus = async (req, res) => {
         { status },
         { new: true },
       );
-    } else if (category === "general") {
-      updatedSubmission = await General.findByIdAndUpdate(
+    } else if (category === "citizens") {
+      updatedSubmission = await Citizen.findByIdAndUpdate(
         id,
         { status },
         { new: true },
@@ -170,7 +172,7 @@ export const updateSubmissionStatus = async (req, res) => {
         );
       }
       if (!updatedSubmission) {
-        updatedSubmission = await General.findByIdAndUpdate(
+        updatedSubmission = await Citizen.findByIdAndUpdate(
           id,
           { status },
           { new: true },

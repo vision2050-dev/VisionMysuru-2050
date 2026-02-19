@@ -2,7 +2,7 @@ import fs from "fs";
 import Student from "../models/Student.js";
 import NGO from "../models/NGO.js";
 import Corporate from "../models/Corporate.js";
-import General from "../models/General.js";
+import Citizen from "../models/Citizen.js";
 import { uploadToCloudinary } from "../cloudinary.js";
 import { randomUUID } from "crypto";
 import sendSubmissionEmail from "../emailService.js";
@@ -62,8 +62,8 @@ const createSubmission = async (req, res) => {
             ? "CO"
             : category === "ngo"
               ? "NG"
-              : category === "general"
-                ? "GN"
+              : category === "citizens"
+                ? "CT"
                 : "NA"
       }-${randomUUID().slice(0, 6).toUpperCase()}`,
       teamName,
@@ -102,8 +102,8 @@ const createSubmission = async (req, res) => {
         });
         break;
 
-      case "general":
-        submission = new General({
+      case "citizens":
+        submission = new Citizen({
           ...basePayload,
         });
         break;
@@ -149,10 +149,10 @@ const getWinners = async (req, res) => {
     const students = await Student.find({ status: "winner" });
     const corporates = await Corporate.find({ status: "winner" });
     const ngos = await NGO.find({ status: "winner" });
-    const generals = await General.find({ status: "winner" });
+    const citizens = await Citizen.find({ status: "winner" });
 
     //combine all winners
-    const totalWinners = [...students, ...corporates, ...ngos, ...generals];
+    const totalWinners = [...students, ...corporates, ...ngos, ...citizens];
 
     res.status(200).json({ totalWinners });
   } catch (error) {

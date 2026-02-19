@@ -19,7 +19,7 @@ const ObjectivesSection = () => {
             Core Objectives
           </p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">
-            What Mysuru Vision 2050 is designed to achieve?
+            What Vision Mysuru 2050 is designed to achieve?
           </h2>
         </div>
 

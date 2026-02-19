@@ -3,7 +3,7 @@ import { Section } from "./Section.jsx";
 
 const BrandAmbassador = () => {
   return (
-    <Section id="ambassador" title="A Message from Our Brand Ambassador">
+    <Section id="ambassador" title="Message from Our Brand Ambassador">
       <div className="flex flex-col  gap-4 md:flex-row ">
         <div className=" md:w-3/5">
           <div className="bg-[var(--surface)] ">
@@ -43,9 +43,7 @@ const BrandAmbassador = () => {
               </p>
             </div>
 
-            <p className="mt-4 text-md font-semibold italic text-[var(--text)]">
-              "Don't just live in Mysuru. Lead Mysuru."
-            </p>
+            <p className="mt-4 text-md font-semibold italic text-[var(--text)]"></p>
           </div>
         </div>
         <div className="w-full  md:w-3/7">

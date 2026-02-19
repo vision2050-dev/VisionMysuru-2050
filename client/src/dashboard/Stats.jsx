@@ -55,8 +55,8 @@ const Stats = ({ submissions }) => {
         color="border-orange-500"
       />
       <StatCard
-        title="General"
-        count={byCategory["general"] || 0}
+        title="Citizens"
+        count={byCategory["citizens"] || 0}
         color="border-sky-500"
       />
     </div>

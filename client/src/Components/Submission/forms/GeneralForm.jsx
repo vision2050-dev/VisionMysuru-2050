@@ -11,7 +11,7 @@ import {
 
 const GeneralForm = () => {
   const initialState = {
-    category: CATEGORY.GENERAL,
+    category: CATEGORY.CITIZENS,
     teamName: "",
     city: "Mysuru",
     leaderIndex: "0",

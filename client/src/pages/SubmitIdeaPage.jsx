@@ -8,7 +8,7 @@ import { CATEGORY } from "../constants/content";
 import StudentForm from "../Components/Submission/forms/StudentForm";
 import CorporateForm from "../Components/Submission/forms/CorporateForm";
 import NGOForm from "../Components/Submission/forms/NGOForm";
-import GeneralForm from "../Components/Submission/forms/GeneralForm";
+import CitizensForm from "../Components/Submission/forms/CitizensForm";
 import FaqsSection from "../Components/FaqsSection";
 
 const Toggle = ({ active, onChange }) => {
@@ -16,9 +16,9 @@ const Toggle = ({ active, onChange }) => {
     { key: CATEGORY.STUDENT, label: "Students" },
     { key: CATEGORY.CORPORATE, label: "Corporates" },
     { key: CATEGORY.NGO, label: "NGOs" },
-    { key: CATEGORY.GENERAL, label: "General" },
+    { key: CATEGORY.CITIZENS, label: "Citizens" },
   ];
-
+ 
   return (
     <div className="inline-flex w-full flex-wrap overflow-x-auto gap-2 sm:flex-row">
       {tabs.map((t) => (
@@ -50,8 +50,8 @@ const SubmitIdeaPage = () => {
         return <CorporateForm />;
       case CATEGORY.NGO:
         return <NGOForm />;
-      case CATEGORY.GENERAL:
-        return <GeneralForm />;
+      case CATEGORY.CITIZENS:
+        return <CitizensForm />;
       default:
         return <StudentForm />;
     }

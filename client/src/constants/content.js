@@ -96,14 +96,14 @@ const TIMELINE = [
   {
     title: "Registration Opens",
     date: "Feb 01, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Registrations open for all participants to identify on-ground urban challenges across key city domains.",
   },
   {
     title: "Phase 1: Online Screening",
     date: "Feb 01 – Mar 05, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Evidence-based screening with geotagged field proof and a short solution abstract. Only authentic, relevant ideas are shortlisted.",
   },
@@ -117,21 +117,21 @@ const TIMELINE = [
   {
     title: "Round 2: The Corporate Summit (Convergence Round)",
     date: "Mar 14, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs", "General"],
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Students refine ideas through mentorship, while corporates and NGOs present deployment-ready, scalable solutions.",
   },
   {
     title: "Round 3: The Grand Conclave & White Paper Handover",
     date: "Mar 15, 2026",
-    eligibleFor: ["Finalist Students", "Corporates", "NGOs", "General"],
+    eligibleFor: ["Finalist Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Final policy pitch to city leadership. Selected ideas are compiled into the Mysuru Vision 2050 White Paper.",
   },
 ];
 
 const CATEGORY = {
-  GENERAL: "general",
+  CITIZENS: "citizens",
   STUDENT: "student",
   CORPORATE: "corporate",
   NGO: "ngo",
@@ -175,8 +175,8 @@ const CORE_OBJECTIVES = [
 const GUIDELINES = {
   categories: [
     {
-      id: "general",
-      title: "General Category",
+      id: "citizens",
+      title: "Citizens Category",
       subtitle: "OPEN TO ALL CITIZENS",
       eligibility: [
         "Open to any individual or informal group interested in civic improvement",
@@ -200,7 +200,7 @@ const GUIDELINES = {
         {
           title: "Evidence of Ground Engagement",
           details: [
-            "Any one of: Photographic evidence, Community petition summary, Prior representations to authorities",
+            "Suggested Evidences(if applicable): Photographic evidence, Community petition summary, Prior representations to authorities",
           ],
         },
         {
@@ -381,26 +381,22 @@ const STATUS_GROUPS = [
 const GROUPS = [
   {
     title: "Media Partners",
-    items: [
-      { name: "Star of Mysore", src: "/Spons/starmys.jpeg" },
-      { name: "Vijay Karnataka", src: "/Spons/vk.jpeg" },
-    ],
+    items: [{ name: "Star of Mysore", src: "/Spons/starmys.jpeg" }],
   },
   {
-    title: "Institutes",
+    title: "Academic Partners",
     items: [
-      { name: "SDMIMD", src: "/Spons/sdm.jpeg" },
       { name: "JSS", src: "/Spons/jss.jpeg" },
       { name: "NIE", src: "/Spons/nie.jpeg" },
       { name: "VVCE", src: "/Spons/vvce.jpeg" },
     ],
   },
   {
-    title: "Organisations",
+    title: "Association Partners",
     items: [
-      { name: "BS", src: "/Spons/bs.jpeg" },
-      { name: "TIE", src: "/Spons/tie.png" },
       { name: "MGP", src: "/Spons/mgp.jpeg" },
+      { name: "CII", src: "/Spons/cii.png" },
+      { name: "TIE", src: "/Spons/tie.png" },
     ],
   },
   {

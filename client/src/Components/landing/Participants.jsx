@@ -50,7 +50,7 @@ const Participants = () => {
     <Section
       id="participation"
       eyebrow="Participation"
-      title="Who can participate in Mysuru Vision 2050?"
+      title="Who can participate in Vision Mysuru 2050?"
     >
       <div
         className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2

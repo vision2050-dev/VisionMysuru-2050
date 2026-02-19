@@ -42,13 +42,13 @@ const HeroSection = () => {
             <span className="inline-block w-fit  bg-white px-3  text-[var(--accent)]">
               Vision Mysuru 2050
             </span>
-            <span className="text-3xl md:text-5xl">
-              Build the future of Mysuru
+            <span className="text-3xl italic md:text-5xl">
+              Don't just live in Mysuru, Lead Mysuru
             </span>
           </h1>
-          <p className="mt-6 text-lg text-white/90 leading-tight">
-            Mission Statement: A city-wide strategic initiative to draft the
-            development blueprint for Mysuru's next 25 years
+          <p className="mt-6 text-lg text-white/90  leading-tight">
+            A city-wide strategic initiative to draft the development blueprint
+            for Mysuru's next 25 years!
           </p>
 
           <div className="mt-32 md:mt-24 flex flex-col gap-3 sm:flex-row">

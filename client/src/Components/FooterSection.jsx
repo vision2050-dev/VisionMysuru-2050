@@ -22,16 +22,19 @@ const FooterSection = () => {
       <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-start flex flex-col gap-3">
               <span className="text-xl font-bold tracking-tighter text-white uppercase">
-                MysuruVisison <span className="text-yellow-400">2050</span>
+                Vision Mysuru <span className="text-yellow-400">2050</span>
+              </span>
+              <span className="text-sm  tracking-tighter text-white ">
+                Key connects
+                <p>
+                  M.S. Shrivathsa 98457 43337 <br />
+                  H.R. Badarinath 82773 48958 <br />
+                  R. Thejas 77952 84171
+                </p>
               </span>
             </div>
-            <p className="mt-6 max-w-sm text-base leading-relaxed text-zinc-400">
-              A strategic blueprint for urban evolution. We are redefining
-              Mysuru’s landscape through sustainable infrastructure and
-              citizen-centric governance.
-            </p>
           </div>
 
           <div className="lg:col-span-3">
@@ -77,32 +80,34 @@ const FooterSection = () => {
                   <MapPin className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm leading-6">
-                  SDMIMD, Chamundi Hill Road,
+                  Shri Dharmasthala Manjunatheshwara <br />
+                  Institute for Management Development{" "}
+                </span>
+                <span className="text-sm leading-6">
+                  SDMIMD No. 1, Chamundi Hill Rd, Post, Siddhartha Layout,
                   <br />
-                  Siddharthanagar, Mysuru, KA
+                  Mysuru, Karnataka 570010
                 </span>
               </div>
 
               <a
-                href="mailto:vision2050@sdmimd.ac.in"
+                href="mailto: visionmysuru2050@gmail.com"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
                   <Mail className="h-4 w-4 text-yellow-400" />
                 </div>
-                <span className="text-sm">vision2050@sdmimd.ac.in</span>
+                <span className="text-sm">visionmysuru2050@gmail.com</span>
                 <ArrowUpRight className="h-3 w-3 opacity-0 -translate-y-1 transition-all group-hover:opacity-100 group-hover:translate-y-0" />
               </a>
 
-              <a
-                href="tel:+918212425820"
-                className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
-              >
+              <div className="group flex items-center gap-4 hover:text-yellow-400 transition-colors">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg  border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
                   <Phone className="h-4 w-4 text-yellow-400" />
                 </div>
-                <span className="text-sm">+91 821 2425 820</span>
-              </a>
+                <span className="text-sm">0821 2429 722</span>
+                <span className="text-sm">0821 2420 490</span>
+              </div>
               <a
                 href="https://www.instagram.com/visionmysuru2050"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
@@ -136,7 +141,7 @@ const FooterSection = () => {
 
         <div className="mt-24 flex flex-col items-center justify-between gap-6 border-t border-zinc-900 pt-8 md:flex-row">
           <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
-            © 2026 Mysuru Vision 2050 · Future Ready
+            © 2026 Vision Mysuru 2050 · Future Ready
           </p>
 
           <div className="flex items-center gap-8">

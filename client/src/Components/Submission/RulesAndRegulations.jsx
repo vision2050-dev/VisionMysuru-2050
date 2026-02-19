@@ -4,7 +4,7 @@ import { GUIDELINES } from "../../constants/content.js";
 import { motion, AnimatePresence } from "framer-motion";
 
 const RulesAndRegulations = () => {
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState("citizens");
   const activeCategory = GUIDELINES.categories.find((c) => c.id === activeTab);
 
   return (
@@ -125,32 +125,7 @@ const RulesAndRegulations = () => {
         </AnimatePresence>
 
         <div>
-          <div className=" grid md:grid-cols-2 gap-6">
-            <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
-              <div className="flex items-center gap-3 mb-4">
-                <FiAlertCircle className="text-red-500" size={24} />
-                <h4 className="text-lg font-bold text-red-700">
-                  Disqualification Criteria
-                </h4>
-              </div>
-              <ul className="space-y-2 text-sm text-red-600/80">
-                <li className="flex gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                  Stock or AI-generated images
-                </li>
-                <li className="flex gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                  Plagiarized ideas
-                </li>
-                <li className="flex gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                  Submissions without geotagged evidence
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-6 flex  font-medium items-center bg-[var(--bg)] border border-[var(--border)] p-4 rounded-xl">
+          <div className="mt-4 flex  font-medium items-center bg-[var(--bg)] border border-[var(--border)] p-4 rounded-xl">
             {" "}
             -Submission File - PDF • Max 2MB
             <br />

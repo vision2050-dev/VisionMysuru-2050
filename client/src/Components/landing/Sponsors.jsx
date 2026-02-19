@@ -16,8 +16,12 @@ const LogoCard = ({ name, src }) => {
 
 const Sponsors = () => {
   return (
-    <Section id="sponsors" eyebrow="Partners" title="Sponsors & Partners">
-      <div className="verflow-hidden">
+    <Section
+      id="sponsors"
+      eyebrow="In Collaboration with"
+      title="Sponsors & Partners"
+    >
+      <div className="overflow-hidden">
         <div className="marquee">
           <div className="marquee__track">
             {[...GROUPS, ...GROUPS].map((group, idx) => (
