@@ -6,13 +6,12 @@ import {
   registerAdmin,
 } from "../controllers/adminController.js";
 import auth from "../middlewares/auth.js";
-import { loginLimiter } from "../middlewares/rateLimiters.js";
 
 const router = express.Router();
 
 // Public route for login and registration
-router.post("/login", loginLimiter, adminLogin);
-router.post("/register", loginLimiter, registerAdmin);
+router.post("/login", adminLogin);
+router.post("/register", registerAdmin);
 
 // Protected routes
 router.get("/submissions", auth, getAllSubmissions);
