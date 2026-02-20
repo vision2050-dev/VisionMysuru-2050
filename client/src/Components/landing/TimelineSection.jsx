@@ -16,7 +16,7 @@ const useInView = () => {
           observer.disconnect();
         }
       },
-      { threshold: 0.2 }
+      { threshold: 0.2 },
     );
 
     observer.observe(ref.current);
@@ -185,10 +185,11 @@ const TimelineSection = () => {
     >
       <div className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden">
         <img
-          src="/mysurutimeline.jpg"
+          src="https://res.cloudinary.com/dqlqxcwqr/image/upload/v1771552632/mysurutimeline_y1p3wy.jpg"
           alt=""
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
         />
 
         <div
