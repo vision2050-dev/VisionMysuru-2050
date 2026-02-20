@@ -46,7 +46,7 @@ const HeroSection = () => {
               Don't just live in Mysuru, Lead Mysuru
             </span>
           </h1>
-          <p className="mt-6 text-lg text-white/90  leading-tight">
+          <p className="mt-6 text-lg text-white/90 font-medium  leading-tight">
             A city-wide strategic initiative to draft the development blueprint
             for Mysuru's next 25 years!
           </p>

@@ -2,11 +2,12 @@ import React from "react";
 
 const SubmissionHeader = () => {
   return (
-    <div className="relative mb-10 h-[400px] w-full overflow-hidden">
+    <div className="relative mb-8 h-[400px] w-full overflow-hidden">
       <img
-        src="https://res.cloudinary.com/dqlqxcwqr/image/upload/v1767590972/idea21_r4dpdm.jpg"
+        src="https://res.cloudinary.com/dqlqxcwqr/image/upload/v1771551663/sdmclg_hqeqab.jpg"
         alt="Submit Idea"
         className="absolute inset-0 h-full w-full object-cover"
+        lazyload="eager"
       />
 
       <div
@@ -18,9 +19,9 @@ const SubmissionHeader = () => {
         }}
       />
 
-      <div className="relative z-10 flex h-full items-center pl-10 md:pl-20">
+      <div className="relative z-10 flex h-full items-start justify-center pt-20">
         <h1 className="oswald text-3xl font-bold text-white sm:text-4xl md:text-5xl">
-          Submit your <br /> Idea
+          Submit Your Idea
         </h1>
       </div>
     </div>

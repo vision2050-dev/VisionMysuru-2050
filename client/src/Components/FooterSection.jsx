@@ -29,9 +29,9 @@ const FooterSection = () => {
               <span className="text-sm  tracking-tighter text-white ">
                 Key connects
                 <p>
-                  M.S. Shrivathsa 98457 43337 <br />
-                  H.R. Badarinath 82773 48958 <br />
-                  R. Thejas 77952 84171
+                  M.S. Shrivathsa : 98457 43337 <br />
+                  H.R. Badarinath : 82773 48958 <br />
+                  R. Thejas : 77952 84171
                 </p>
               </span>
             </div>
@@ -75,19 +75,21 @@ const FooterSection = () => {
               Connect
             </h3>
             <div className="mt-6 space-y-5">
-              <div className="flex items-start gap-4">
+              <div className="flex items-start flow-row gap-4">
                 <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800">
                   <MapPin className="h-4 w-4 text-yellow-400" />
                 </div>
-                <span className="text-sm leading-6">
-                  Shri Dharmasthala Manjunatheshwara <br />
-                  Institute for Management Development{" "}
-                </span>
-                <span className="text-sm leading-6">
-                  SDMIMD No. 1, Chamundi Hill Rd, Post, Siddhartha Layout,
-                  <br />
-                  Mysuru, Karnataka 570010
-                </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm leading-6">
+                    Shri Dharmasthala Manjunatheshwara <br />
+                    Institute for Management Development{" "}
+                  </span>
+                  <span className="text-sm leading-6">
+                    SDMIMD No. 1, Chamundi Hill Rd, Post, Siddhartha Layout,
+                    <br />
+                    Mysuru, Karnataka 570010
+                  </span>
+                </div>
               </div>
 
               <a
@@ -106,6 +108,7 @@ const FooterSection = () => {
                   <Phone className="h-4 w-4 text-yellow-400" />
                 </div>
                 <span className="text-sm">0821 2429 722</span>
+                <span>/</span>
                 <span className="text-sm">0821 2420 490</span>
               </div>
               <a

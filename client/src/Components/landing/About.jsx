@@ -4,7 +4,10 @@ import { Section } from "./Section.jsx";
 
 const About = () => {
   return (
-    <Section id="about" title="Vision Mysuru 2050">
+    <Section id="about">
+      <p className="text-3xl font-semibold dm-sans tracking-tight text-[var(--accent)] ">
+        Vision Mysuru 2050
+      </p>
       <div className="text-lg font-semibold italic text-[var(--text)]">
         “Don't Just Live in Mysuru, Lead Mysuru.”
       </div>
