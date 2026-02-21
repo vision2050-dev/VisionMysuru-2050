@@ -138,12 +138,15 @@ const CATEGORY = {
 };
 
 const TOPIC_OPTIONS = [
-  "Smart & Sustainable City",
-  "Environment & Climate Resilience",
-  "Inclusive Growth & Livelihoods",
-  "Culture, Tourism & Heritage",
-  "Health, Education & Wellbeing",
-  "Rural–Urban Linkages",
+  "Urban Infrastructure & Mobility",
+  "Environmental Sustainability",
+  "Economic Development",
+  "Digital Governance & Smart City",
+  "Education & Healthcare",
+  "Heritage Conservation",
+  "Social Equity & Inclusion",
+  "Disaster Resilience",
+  "Tourism & Culture",
 ];
 
 const CORE_OBJECTIVES = [
