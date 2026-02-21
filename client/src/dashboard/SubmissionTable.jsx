@@ -16,7 +16,7 @@ const SubmissionTable = ({ submissions, onView }) => {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-center text-sm">
           <thead className="bg-[var(--accent)]/80 text-white">
             <tr>
               <th className="px-6 py-4 font-semibold">Team ID</th>
@@ -45,7 +45,10 @@ const SubmissionTable = ({ submissions, onView }) => {
                   </span>
                 </td>
                 <td className="px-6 py-4 font-semibold text-black">
-                  {sub.organizationName}
+                  {sub.category === "citizens" ? <p>NA</p> : <></>}
+                  {sub.category === "ngos" && sub.ngoName && (
+                    <div>{sub.ngoName}</div>
+                  )}
                   {sub.category === "students" && sub.institution && (
                     <div>{sub.institution}</div>
                   )}

@@ -13,12 +13,12 @@ import FaqsSection from "../Components/FaqsSection";
 
 const Toggle = ({ active, onChange }) => {
   const tabs = [
+    { key: CATEGORY.CITIZENS, label: "Citizens" },
     { key: CATEGORY.STUDENT, label: "Students" },
     { key: CATEGORY.CORPORATE, label: "Corporates" },
     { key: CATEGORY.NGO, label: "NGOs" },
-    { key: CATEGORY.CITIZENS, label: "Citizens" },
   ];
- 
+
   return (
     <div className="inline-flex w-full flex-wrap overflow-x-auto gap-2 sm:flex-row">
       {tabs.map((t) => (
@@ -29,7 +29,7 @@ const Toggle = ({ active, onChange }) => {
           className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
             active === t.key
               ? "bg-[var(--primary)] text-white"
-              : "text-[var(--muted)] hover:bg-[var(--surface-2)]"
+              : "text-[var(--muted)] bg-[var(--surface-2)] hover:bg-[var(--primary)]/20"
           }`}
         >
           {t.label}
@@ -40,7 +40,7 @@ const Toggle = ({ active, onChange }) => {
 };
 
 const SubmitIdeaPage = () => {
-  const [activeCategory, setActiveCategory] = useState(CATEGORY.STUDENT);
+  const [activeCategory, setActiveCategory] = useState(CATEGORY.CITIZENS);
 
   const renderForm = () => {
     switch (activeCategory) {
