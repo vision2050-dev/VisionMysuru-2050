@@ -403,15 +403,15 @@ const GROUPS = [
     ],
   },
   {
-    title: "Corporate Partners",
+    title: "Industry-Academia Partner",
     items: [
       {
-        name: "Edin Synergy",
-        src: "/Spons/edinsynergy.png",
+        name: "Edin Foundation",
+        src: "/Spons/edin2.png",
       },
       {
-        name: "Edin Industries",
-        src: "/Spons/edin.png",
+        name: "Mysore CHRO Forum",
+        src: "/Spons/MCF.png",
       },
     ],
   },

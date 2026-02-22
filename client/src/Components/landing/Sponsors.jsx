@@ -3,12 +3,12 @@ import { GROUPS } from "../../constants/content.js";
 
 const LogoCard = ({ name, src }) => {
   return (
-    <div className="flex items-center p-2 justify-center ">
+    <div className="flex items-center  justify-center ">
       <img
         src={src}
         alt={name}
         loading="lazy"
-        className="h-12 w-auto scale-[1.5] object-contain"
+        className="h-14 w-auto  object-contain"
       />
     </div>
   );
