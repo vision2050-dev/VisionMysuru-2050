@@ -78,7 +78,7 @@ export const useSubmissionForm = (initialState, validateFn, options = {}) => {
       }))
       .filter((m) => m.name && m.email && m.phone);
 
-    fd.append("members", JSON.stringify(filledMembers));
+    fd.append("members", JSON.stringify(filledMembers))
 
     form.pdfFile && fd.append("pdfFile", form.pdfFile);
 

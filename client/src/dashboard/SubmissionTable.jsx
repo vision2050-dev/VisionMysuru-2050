@@ -16,10 +16,10 @@ const SubmissionTable = ({ submissions, onView }) => {
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="overflow-x-auto">
-        <table className="w-full text-center text-sm">
+        <table className="w-full text-start text-sm">
           <thead className="bg-[var(--accent)]/80 text-white">
             <tr>
-              <th className="px-6 py-4 font-semibold">Team ID</th>
+              <th className="px-4 py-4 font-semibold">Team ID</th>
               <th className="px-6 py-4 font-semibold">Team Name</th>
               <th className="px-6 py-4 font-semibold">Category</th>
               <th className="px-6 py-4 font-semibold">Org /College /Company</th>
@@ -35,7 +35,7 @@ const SubmissionTable = ({ submissions, onView }) => {
                 key={sub._id}
                 className="hover:bg-[var(--surface-2)] transition-colors"
               >
-                <td className="px-6 py-4 font-bold text-sm ">{sub.teamId}</td>
+                <td className=" px-4 py-4 font-bold text-sm ">{sub.teamId}</td>
                 <td className="px-6 py-4 font-medium text-sm ">
                   {sub.teamName}
                 </td>
