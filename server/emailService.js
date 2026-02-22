@@ -64,7 +64,7 @@ const sendSubmissionEmail = async ({
           </tr>
           <tr>
             <td style="padding:6px 0;color:#374151;"><strong>Organization</strong></td>
-            <td style="padding:6px 0;">${organizationName}</td>
+            <td style="padding:6px 0;">${organizationName ?? "N/A"}</td>
           </tr>
         </table>
 
@@ -82,8 +82,8 @@ const sendSubmissionEmail = async ({
 
         <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;color:#374151;">
           📩 For queries, contact
-          <a href="mailto:vision2050@sdmimd.ac.in" style="color:#b45309;text-decoration:none;">
-            vision2050@sdmimd.ac.in
+          <a href="mailto:visionmysuru2050@gmail.com" style="color:#b45309;text-decoration:none;">
+            visionmysuru2050@gmail.com
           </a>
         </div>
 
