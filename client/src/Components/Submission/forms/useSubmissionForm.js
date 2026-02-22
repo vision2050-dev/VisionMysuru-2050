@@ -68,16 +68,17 @@ export const useSubmissionForm = (initialState, validateFn, options = {}) => {
       value && fd.append(key, value);
     });
 
-    fd.append(
-      "members",
-      JSON.stringify(
-        form.members.map((m, i) => ({
-          ...m,
-          email: m.email?.toLowerCase().trim(),
-          isLeader: i === +form.leaderIndex,
-        })),
-      ),
-    );
+    const filledMembers = form.members
+      .map((m, i) => ({
+        ...m,
+        name: m.name.trim(),
+        email: m.email?.toLowerCase().trim(),
+        phone: m.phone.trim(),
+        isLeader: i === +form.leaderIndex,
+      }))
+      .filter((m) => m.name && m.email && m.phone);
+
+    fd.append("members", JSON.stringify(filledMembers));
 
     form.pdfFile && fd.append("pdfFile", form.pdfFile);
 
