@@ -3,11 +3,12 @@ import Student from "../models/Student.js";
 import NGO from "../models/NGO.js";
 import Corporate from "../models/Corporate.js";
 import Citizen from "../models/Citizen.js";
-import { uploadToCloudinary } from "../cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../cloudinary.js";
 import { randomUUID } from "crypto";
 import sendSubmissionEmail from "../emailService.js";
 
 const createSubmission = async (req, res) => {
+  let uploadResult;
   try {
     const {
       category,
@@ -41,12 +42,13 @@ const createSubmission = async (req, res) => {
       return res.status(400).json({ message: "Invalid members format" });
     }
 
-    let uploadResult;
     try {
       uploadResult = await uploadToCloudinary(req.file.path, "submissions");
-    } finally {
+    } catch (err) {
       fs.unlink(req.file.path, () => {});
+      throw err;
     }
+    fs.unlink(req.file.path, () => {});
 
     const idea_document = {
       name: req.file.originalname,
@@ -135,6 +137,10 @@ const createSubmission = async (req, res) => {
       submission,
     });
   } catch (error) {
+    if (uploadResult?.public_id) {
+      await deleteFromCloudinary(uploadResult.public_id);
+    }
+
     console.error(error);
     res.status(500).json({
       message: "Internal server error",

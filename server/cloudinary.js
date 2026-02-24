@@ -28,4 +28,12 @@ const uploadToCloudinary = async (path, folder = "visionMysuru2050") => {
   }
 };
 
-export { cloudinary, uploadToCloudinary };
+const deleteFromCloudinary = async (publicId) => {
+  try {
+    await cloudinary.uploader.destroy(publicId);
+  } catch (err) {
+    console.error("Cloudinary cleanup failed:", err.message);
+  }
+};
+
+export { cloudinary, uploadToCloudinary, deleteFromCloudinary };
