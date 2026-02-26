@@ -123,7 +123,7 @@ const TIMELINE = [
   },
   {
     title: "Round 3: The Grand Conclave & White Paper Handover",
-    date: "Mar 15, 2026",
+    date: "Mar 16, 2026",
     eligibleFor: ["Finalist Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Final policy pitch to city leadership. Selected ideas are compiled into the Mysuru Vision 2050 White Paper.",
