@@ -92,6 +92,7 @@ const TOPICS = [
     ],
   },
 ];
+
 const TIMELINE = [
   {
     title: "Registration Opens",

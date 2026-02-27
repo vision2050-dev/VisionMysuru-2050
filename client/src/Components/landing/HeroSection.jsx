@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const HeroSection = () => {
   return (
-    <section className="relative min-h-[92vh] overflow-hidden">
+    <section className="relative min-h-[95vh] overflow-hidden">
       <div className="absolute border-b-6 border-[var(--accent)] inset-0 z-0">
         <motion.img
           initial={{ scale: 1.1 }}
@@ -25,7 +25,7 @@ const HeroSection = () => {
             <img
               src="/logo_final.png"
               alt="Vision Mysuru 2050 Logo"
-              className="h-16 md:h-20 rounded-full "
+              className="h-14 md:h-18 rounded-full "
             />
             <div className=" pr-10 flex-row flex gap-2 ">
               <p className="text-xs pt-5 md:text-sm tracking-tighter">
@@ -34,7 +34,7 @@ const HeroSection = () => {
               <img
                 src="/Spons/smd2.png"
                 alt="Vision Mysuru 2050 Logo"
-                className="h-16  rounded-full "
+                className="h-14 rounded-full "
               />
             </div>
           </div>
@@ -47,11 +47,15 @@ const HeroSection = () => {
             </span>
           </h1>
           <p className="mt-6 text-lg text-white/90 font-medium  leading-tight">
-            A city-wide strategic initiative to draft the development blueprint
-            for Mysuru's next 25 years!
+            Vision Mysuru 2050 is a long term collaboration initiative uniting
+            citizens, institutes, policy makers and industry leaders to build a
+            sustainable and inclusive future for the city!
+          </p>
+          <p className="font-bold text-white italic mt-2">
+            Mysuru 2050 starts with you!
           </p>
 
-          <div className="mt-32 md:mt-24 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-28 md:mt-20 flex flex-col gap-3 sm:flex-row">
             <Link
               to="/submit"
               className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
