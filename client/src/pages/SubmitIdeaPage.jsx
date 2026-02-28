@@ -68,7 +68,38 @@ const SubmitIdeaPage = () => {
       <main className=" ">
         <SubmissionHeader />
         <RulesAndRegulations />
-        <div className=" max-w-6xl mx-auto my-10 px-4 md:px-0">
+
+        <div className="max-w-6xl mx-auto mt-10 mb-4 px-4 md:px-0">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--accent)] bg-[var(--surface-2)]/10 p-5 text-center">
+            <p className="text-sm text-[var(--muted)]">
+              Please read the submission guidelines carefully before filling out
+              the form.
+            </p>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-[var(--muted)]">
+                Submission Guidelines:
+              </span>
+              <a
+                href="https://drive.google.com/file/d/1B31uwnp9X_ykP8_-pcy97Y7bA56lIoR5/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
+              >
+                English
+              </a>
+              <a
+                href="https://drive.google.com/file/d/11NXxIfWzfx2f-cdwHWcMO5Qpj4js6o95/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
+              >
+                ಕನ್ನಡ (Kannada)
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className=" max-w-6xl mx-auto mb-10 px-4 md:px-0">
           <Toggle active={activeCategory} onChange={setActiveCategory} />
           <div className="mt-3 rounded-3xl border-y-4 border border-[var(--accent)] p-6 sm:p-8">
             {renderForm()}

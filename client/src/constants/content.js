@@ -96,7 +96,7 @@ const TOPICS = [
 const TIMELINE = [
   {
     title: "Registration Opens",
-    date: "Feb 01, 2026",
+    date: "Feb 01, 2026", 
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Registrations open for all participants to identify on-ground urban challenges across key city domains.",
@@ -107,6 +107,13 @@ const TIMELINE = [
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Evidence-based screening with geotagged field proof and a short solution abstract. Only authentic, relevant ideas are shortlisted.",
+  },
+  {
+    title: "Last Date for Submission",
+    date: "Mar 10, 2026",
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
+    detail:
+      "Final deadline to submit your ideas. Ensure all required documents and field evidence are uploaded before this date.",
   },
   {
     title: "Round 1: The Elimination (Student Qualifiers)",
