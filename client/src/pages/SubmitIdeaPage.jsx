@@ -81,7 +81,7 @@ const SubmitIdeaPage = () => {
                 Submission Guidelines:
               </span>
               <a
-                href="https://drive.google.com/file/d/1B31uwnp9X_ykP8_-pcy97Y7bA56lIoR5/view?usp=sharing"
+                href="https://drive.google.com/file/d/1sEnGX7O6kani_s_fxr6k5Dm-FxzCo-OY/view?usp=sharing"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
@@ -90,7 +90,7 @@ const SubmitIdeaPage = () => {
                 English
               </a>
               <a
-                href="https://drive.google.com/file/d/11NXxIfWzfx2f-cdwHWcMO5Qpj4js6o95/view?usp=sharing"
+                href="https://drive.google.com/file/d/1wRQleCJJ_RtUFBNzFcCaVSt0dFhlbifC/view?usp=sharing"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
