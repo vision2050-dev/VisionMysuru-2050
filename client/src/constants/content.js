@@ -417,6 +417,10 @@ const GROUPS = [
         name: "Edin Foundation",
         src: "/Spons/edin2.png",
       },
+    ],
+  },{
+    title: "HR Partner",
+    items : [
       {
         name: "Mysore CHRO Forum",
         src: "/Spons/MCF.png",
