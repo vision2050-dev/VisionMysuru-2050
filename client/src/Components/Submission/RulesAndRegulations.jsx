@@ -1,16 +1,8 @@
-import { useState } from "react";
-import { FiAlertCircle, FiCheck } from "react-icons/fi";
-import { GUIDELINES } from "../../constants/content.js";
-import { motion, AnimatePresence } from "framer-motion";
-
 const RulesAndRegulations = () => {
-  const [activeTab, setActiveTab] = useState("citizens");
-  const activeCategory = GUIDELINES.categories.find((c) => c.id === activeTab);
-
   return (
     <section className="m-1 md:m-4 px-4 dm-sans">
       <main className="mx-auto max-w-6xl space-y-2">
-        <header className="mb-6">
+        <header className="mb-4">
           <h2 className="mt-2 text-2xl font-bold text-[var(--text)]">
             Category Guidelines
           </h2>
@@ -19,7 +11,7 @@ const RulesAndRegulations = () => {
             submitting your idea.
           </p>
         </header>
-
+        {/* 
         <div className="flex overflow-x-auto whitespace-nowrap pb-3">
           {GUIDELINES.categories.map((cat) => (
             <button
@@ -132,7 +124,7 @@ const RulesAndRegulations = () => {
             -Ensure the details like EMAIL, PHONE, TEAM NAME are clearly
             mentioned and valid in the submission file.
           </div>
-        </div>
+        </div> */}
       </main>
     </section>
   );
