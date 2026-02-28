@@ -46,7 +46,7 @@ const HeroSection = () => {
               INK YOUR IDEAS!💡{" "}
             </span>
           </h1>
-          <p className="mt-6 text-lg text-white/90 font-medium  leading-tight">
+          <p className="mt-6 text-lg text-white/90 font-medium  leading-[0.94]">
             Vision Mysuru 2050 is a long term collaboration initiative uniting
             citizens, institutes, policy makers and industry leaders to build a
             sustainable and inclusive future for the city!
