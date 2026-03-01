@@ -1,5 +1,5 @@
 import React, { Suspense, memo } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./Components/ProtectedRoute";
 
@@ -7,6 +7,7 @@ const LandingPage = React.lazy(() => import("./pages/LandingPage.jsx"));
 const SubmitIdeaPage = React.lazy(() => import("./pages/SubmitIdeaPage.jsx"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage.jsx"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard.jsx"));
+const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
 
 const App = () => {
   return (
@@ -22,7 +23,7 @@ const App = () => {
               element={<AdminDashboard />}
             />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
 
