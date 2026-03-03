@@ -8,6 +8,7 @@ import Participants from "../Components/landing/Participants.jsx";
 import About from "../Components/landing/About.jsx";
 import Sponsors from "../Components/landing/Sponsors.jsx";
 import BrandAmbassador from "../Components/landing/BrandAmbassador.jsx";
+import PrizesSection from "../Components/landing/PrizesSection.jsx";
 
 const LandingPage = () => {
   return (
@@ -22,6 +23,7 @@ const LandingPage = () => {
         <Participants />
         <TopicsSection />
         <TimelineSection />
+        <PrizesSection />
         <FooterSection />
       </div>
     </>
