@@ -18,12 +18,10 @@ const NotFoundPage = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
-        className="relative z-10 mt-1 text-2xl smd:text-3xl font-semibold text-[var(--text)] dm-sans"
+        className="relative z-10 mt-1 text-xl md:text-3xl font-semibold text-[var(--text)] dm-sans"
       >
         Oops! Page Not Found
       </motion.h2>
-
-      {/* Description */}s
       <motion.p
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
