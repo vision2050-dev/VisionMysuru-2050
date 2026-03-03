@@ -11,19 +11,19 @@ const NotFoundPage = () => {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="relative z-10 text-[8rem] md:text-[10rem] leading-none font-extrabold tracking-tight oswald bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] bg-clip-text text-transparent"
       >
-        &lt; 404 &gt;
+        404
       </motion.h1>
 
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
-        className="relative z-10 mt-1 text-2xl md:text-3xl font-semibold text-[var(--text)] dm-sans"
+        className="relative z-10 mt-1 text-2xl smd:text-3xl font-semibold text-[var(--text)] dm-sans"
       >
         Oops! Page Not Found
       </motion.h2>
 
-      {/* Description */}
+      {/* Description */}s
       <motion.p
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
