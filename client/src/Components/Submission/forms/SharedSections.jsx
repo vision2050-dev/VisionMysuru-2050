@@ -28,7 +28,7 @@ export const TeamMembers = ({
   setMember,
   minMembers = 2,
 }) => (
-  <div className="rounded-2xl bg-[var(--surface-2)] p-4 space-y-4">
+  <div className="rounded-3xl bg-[var(--surface-2)] p-4 space-y-4">
     <div className="flex items-center justify-between">
       <p className="text-sm font-bold">
         Team Members (Min {minMembers}, Max 3)
@@ -93,7 +93,7 @@ export const TeamMembers = ({
       <button
         type="button"
         onClick={addMember}
-        className="flex items-center bg-[var(--accent)] gap-1 text-sm px-10  font-bold text-white px-4 py-2 rounded-xl hover:underline"
+        className="flex items-center bg-[var(--accent)] gap-1 text-sm px-8  font-medium text-white px-4 py-2 rounded-bl-2xl rounded-md hover:underline"
       >
         <FiPlus /> Add Member
       </button>
@@ -159,7 +159,7 @@ export const ProjectDetails = ({ form, set, onPickPdf }) => (
 export const SubmitButton = ({ status, confirmSubmit, cancelSubmit }) => {
   if (status.state === "confirming") {
     return (
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 space-y-4">
+      <div className="rounded-3xl border border-amber-200  p-5 space-y-4">
         <div className="flex items-start gap-3">
           <div>
             <p className="text-xl font-semibold text-amber-900">
@@ -200,7 +200,7 @@ export const SubmitButton = ({ status, confirmSubmit, cancelSubmit }) => {
     <button
       type="submit"
       disabled={status.state === "submitting" || status.state === "success"}
-      className="w-full rounded-xl bg-[var(--accent)] py-3 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      className="w-full rounded-b-3xl rounded-t-md bg-[var(--accent)] py-3 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
     >
       {status.state === "submitting" ? (
         <div className="w-4 h-4 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>

@@ -31,7 +31,7 @@ const StudentForm = () => {
     if (!form.department.trim()) return "Department is required.";
 
     const filledMembers = form.members.filter(
-      (m) => m.name.trim() && m.email.trim() && m.phone.trim()
+      (m) => m.name.trim() && m.email.trim() && m.phone.trim(),
     );
     if (filledMembers.length < 2)
       return "At least 2 team members are required with complete details.";

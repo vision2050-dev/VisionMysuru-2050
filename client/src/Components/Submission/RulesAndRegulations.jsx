@@ -1,4 +1,14 @@
+import { useEffect } from "react";
+import { FiExternalLink } from "react-icons/fi";
+import { useLocation } from "react-router";
+
 const RulesAndRegulations = () => {
+  const path = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [path]);
+
   return (
     <section className="m-1 md:m-4 px-4 dm-sans">
       <main className="mx-auto max-w-6xl space-y-2">
@@ -125,6 +135,37 @@ const RulesAndRegulations = () => {
             mentioned and valid in the submission file.
           </div>
         </div> */}
+        <div className="max-w-6xl mx-auto mt-5 mb-10 px-4 md:px-0">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--accent)] bg-[var(--surface-2)]/10 p-5 text-center">
+            <p className="text-sm text-[var(--muted)]">
+              Please read the submission guidelines carefully before filling out
+              the form.
+            </p>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-[var(--muted)]">
+                Submission Guidelines:
+              </span>
+              <a
+                href="https://drive.google.com/file/d/1sEnGX7O6kani_s_fxr6k5Dm-FxzCo-OY/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
+              >
+                <FiExternalLink className="inline" size={14} />
+                English
+              </a>
+              <a
+                href="https://drive.google.com/file/d/1wRQleCJJ_RtUFBNzFcCaVSt0dFhlbifC/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 underline underline-offset-4 hover:opacity-75 transition"
+              >
+                <FiExternalLink className="inline" size={14} />
+                ಕನ್ನಡ
+              </a>
+            </div>
+          </div>
+        </div>
       </main>
     </section>
   );
