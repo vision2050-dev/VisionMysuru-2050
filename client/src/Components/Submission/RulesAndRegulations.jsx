@@ -135,7 +135,7 @@ const RulesAndRegulations = () => {
             mentioned and valid in the submission file.
           </div>
         </div> */}
-        <div className="max-w-6xl mx-auto mt-5 mb-10 px-4 md:px-0">
+        <div className="max-w-6xl mx-auto mt-5 mb-10  md:px-0">
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--accent)] bg-[var(--surface-2)]/10 p-5 text-center">
             <p className="text-sm text-[var(--muted)]">
               Please read the submission guidelines carefully before filling out
