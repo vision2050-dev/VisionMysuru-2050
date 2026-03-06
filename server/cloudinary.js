@@ -18,6 +18,7 @@ const uploadToCloudinary = async (path, folder = "visionMysuru2050") => {
   try {
     const data = await cloudinary.uploader.upload(path, {
       folder: folder,
+      resource_type: "auto",
       use_filename: true,
       unique_filename: false,
     });
