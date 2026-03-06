@@ -96,45 +96,52 @@ const TOPICS = [
 const TIMELINE = [
   {
     title: "Registration Opens",
-    date: "Feb 01, 2026", 
+    date: "Feb 01, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Registrations open for all participants to identify on-ground urban challenges across key city domains.",
   },
   {
-    title: "Phase 1: Online Screening",
-    date: "Feb 01 – Mar 05, 2026",
-    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
-    detail:
-      "Evidence-based screening with geotagged field proof and a short solution abstract. Only authentic, relevant ideas are shortlisted.",
-  },
-  {
-    title: "Last Date for Submission",
+    title: "Registration Closes",
     date: "Mar 10, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Final deadline to submit your ideas. Ensure all required documents and field evidence are uploaded before this date.",
   },
   {
-    title: "Round 1: The Elimination (Student Qualifiers)",
-    date: "Mar 13, 2026",
-    eligibleFor: ["Students"],
-    detail:
-      "Student teams validate problem severity using real data and quantified impact before an expert jury.",
-  },
-  {
-    title: "Round 2: The Corporate Summit (Convergence Round)",
-    date: "Mar 14, 2026",
+    title: "Round Zero: Administrative Check",
+    date: "Mar 10, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Students refine ideas through mentorship, while corporates and NGOs present deployment-ready, scalable solutions.",
+      "All submissions undergo an administrative check to verify completeness and eligibility across all four categories.",
   },
   {
-    title: "Round 3: The Grand Conclave & White Paper Handover",
-    date: "Mar 16, 2026",
-    eligibleFor: ["Finalist Students", "Corporates", "NGOs", "Citizens"],
+    title: "Round 1: The Student Qualifier",
+    date: "Mar 10 – 11, 2026",
+    eligibleFor: ["Students"],
     detail:
-      "Final policy pitch to city leadership. Selected ideas are compiled into the Mysuru Vision 2050 White Paper.",
+      "Student teams are evaluated and the top 50 teams are shortlisted to advance to the next round.",
+  },
+  {
+    title: "Round 2: Expert Screening",
+    date: "Mar 11 – 12, 2026",
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
+    detail:
+      "Category experts review submissions. Top 10 teams from each category (40 in total) advance to the next round.",
+  },
+  {
+    title: "Round 3: Category Showdown",
+    date: "Mar 14 – 15, 2026",
+    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
+    detail:
+      "Physical presentation at SDMIMD Campus before category-specific experts. The top 10 highest scoring teams (regardless of category) advance to the Grand Finale.",
+  },
+  {
+    title: "Round 4: The Grand Finale",
+    date: "Mar 16, 2026",
+    eligibleFor: ["Top 10 Finalists"],
+    detail:
+      "Final pitch before high-ranking Government Representatives, Industry Leaders and Academic Directors. Attractive cash prizes for top 3 winners. Ideas of top 10 finalists will be published as a White Paper.",
   },
 ];
 
@@ -418,9 +425,10 @@ const GROUPS = [
         src: "/Spons/edin2.png",
       },
     ],
-  },{
+  },
+  {
     title: "HR Partner",
-    items : [
+    items: [
       {
         name: "Mysore CHRO Forum",
         src: "/Spons/MCF.png",
