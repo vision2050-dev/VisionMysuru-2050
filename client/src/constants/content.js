@@ -424,6 +424,10 @@ const GROUPS = [
         name: "Edin Foundation",
         src: "/Spons/edin2.png",
       },
+      {
+        name: "MCCI",
+        src: "/Spons/MCCI.jpg",
+      },
     ],
   },
   {
