@@ -435,6 +435,15 @@ const GROUPS = [
       },
     ],
   },
+  {
+    title: "Corporate Partner",
+    items: [
+      {
+        name: "ET MARK",
+        src: "/Spons/etmark.png",
+      },
+    ],
+  },
 ];
 
 export {
