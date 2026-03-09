@@ -103,35 +103,35 @@ const TIMELINE = [
   },
   {
     title: "Registration Closes",
-    date: "Mar 10, 2026",
+    date: "Mar 13, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Final deadline to submit your ideas. Ensure all required documents and field evidence are uploaded before this date.",
+      "Final deadline to submit your ideas. Extended due to overwhelming demand! Ensure all required documents and field evidence are uploaded before this date.",
   },
   {
     title: "Round Zero: Administrative Check",
-    date: "Mar 10, 2026",
+    date: "Mar 14, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "All submissions undergo an administrative check to verify completeness and eligibility across all four categories.",
   },
   {
     title: "Round 1: The Student Qualifier",
-    date: "Mar 10 – 11, 2026",
+    date: "Mar 14, 2026",
     eligibleFor: ["Students"],
     detail:
       "Student teams are evaluated and the top 50 teams are shortlisted to advance to the next round.",
   },
   {
     title: "Round 2: Expert Screening",
-    date: "Mar 11 – 12, 2026",
+    date: "Mar 14, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Category experts review submissions. Top 10 teams from each category (40 in total) advance to the next round.",
   },
   {
     title: "Round 3: Category Showdown",
-    date: "Mar 14 – 15, 2026",
+    date: "Mar 15, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Physical presentation at SDMIMD Campus before category-specific experts. The top 10 highest scoring teams (regardless of category) advance to the Grand Finale.",
