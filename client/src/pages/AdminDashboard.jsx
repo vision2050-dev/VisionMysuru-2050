@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import api from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { FiLogOut, FiFilter } from "react-icons/fi";
+import { FiLogOut, FiFilter, FiDownload } from "react-icons/fi";
+import * as XLSX from "xlsx";
 import Stats from "../dashboard/Stats";
 import SubmissionTable from "../dashboard/SubmissionTable";
 import DetailModal from "../dashboard/DetailModal";
@@ -92,6 +93,63 @@ const AdminDashboard = () => {
     fetchSubmissions();
   }, []);
 
+  // Download Excel (from already-loaded data)
+  const handleExportExcel = () => {
+    try {
+      const rows = submissions.map((sub) => {
+        const leader = sub.members?.find((m) => m.isLeader);
+        let org = "N/A";
+        if (sub.category === "students") org = sub.institution || "N/A";
+        else if (sub.category === "corporates") org = sub.companyName || "N/A";
+        else if (sub.category === "ngos") org = sub.organizationName || "N/A";
+
+        return {
+          "Leader Email": leader?.email || "N/A",
+          "Team Name": sub.teamName,
+          "Team ID": sub.teamId,
+          Category: sub.category,
+          "Project Title": sub.solutionName,
+          "College / Organization": org,
+          "Leader Contact Number": leader?.phone || "N/A",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Auto-fit column widths (capped at 50) and enable text wrap
+      const maxColWidth = 50;
+      const cols = Object.keys(rows[0] || {}).map((key) => {
+        const maxLen = Math.max(
+          key.length,
+          ...rows.map((r) => String(r[key] || "").length),
+        );
+        return { wch: Math.min(maxLen + 2, maxColWidth) };
+      });
+      ws["!cols"] = cols;
+
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          if (ws[addr]) {
+            ws[addr].s = {
+              ...(ws[addr].s || {}),
+              alignment: { wrapText: true, vertical: "top" },
+            };
+          }
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Submissions");
+      XLSX.writeFile(wb, "submissions.xlsx");
+      toast.success("Excel downloaded successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to export Excel");
+    }
+  };
+
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("adminToken");
@@ -165,6 +223,12 @@ const AdminDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
+            >
+              <FiDownload /> Export Excel
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-white hover:bg-red-100 dark:bg-red-800 "
