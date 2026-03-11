@@ -224,12 +224,6 @@ const AdminDashboard = () => {
           </div>
           <div className="flex items-center gap-4">
             <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
-            >
-              <FiDownload /> Export Excel
-            </button>
-            <button
               onClick={handleLogout}
               className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-white hover:bg-red-100 dark:bg-red-800 "
             >
@@ -239,8 +233,17 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <main className="py-8 px-4 space-y-4">
+      <main className="py-6 px-4 space-y-2">
         <Stats submissions={submissions} />
+        <div className="items-center justify-center flex">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
+          >
+            <FiDownload /> Export Excel
+          </button>
+        </div>
+
         <section className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <FiFilter className="text-[var(--muted)]" />
@@ -293,7 +296,7 @@ const AdminDashboard = () => {
               <option value="finalist">Finalist</option>
               <option value="winner">Winner</option>
             </select>
-            <div className=" border border-[var(--border)] bg-amber-200 px-4 py-1 rounded-xl">
+            <div className=" border border-[var(--border)] bg-amber-200 px-4 py-1 rounded-md">
               <p>
                 Count:{" "}
                 <span className="font-bold text-sm ">
