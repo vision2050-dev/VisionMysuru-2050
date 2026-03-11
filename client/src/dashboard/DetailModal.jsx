@@ -72,6 +72,11 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                       "Company",
                       submission.companyName,
                     ],
+                    submission.organizationName && [
+                      "Organization",
+                      submission.organizationName,
+                    ],
+                    submission.industry && ["Industry", submission.industry],
                     submission.department && [
                       "Department",
                       submission.department,

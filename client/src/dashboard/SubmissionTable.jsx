@@ -46,9 +46,7 @@ const SubmissionTable = ({ submissions, onView }) => {
                 </td>
                 <td className="px-6 py-4 font-semibold text-black">
                   {sub.category === "citizens" ? <p>NA</p> : <></>}
-                  {sub.category === "ngos" && sub.ngoName && (
-                    <div>{sub.ngoName}</div>
-                  )}
+                  {sub.category === "ngos" && <div>{sub.organizationName}</div>}
                   {sub.category === "students" && sub.institution && (
                     <div>{sub.institution}</div>
                   )}
