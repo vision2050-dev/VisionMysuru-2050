@@ -440,6 +440,15 @@ const GROUPS = [
     ],
   },
   {
+    title: "Cause Partner",
+    items: [
+      {
+        name: "Young India Foundation",
+        src: "/Spons/yi.jpeg",
+      },
+    ],
+  },
+  {
     title: "Corporate Partner",
     items: [
       {
