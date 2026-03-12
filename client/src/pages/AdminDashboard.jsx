@@ -62,6 +62,8 @@ const AdminDashboard = () => {
   });
   const [updating, setUpdating] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 30;
   const navigate = useNavigate();
 
   // Fetch data
@@ -195,6 +197,16 @@ const AdminDashboard = () => {
     });
   }, [submissions, filters]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
   if (loading)
     return (
       <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] dm-sans">
@@ -296,9 +308,13 @@ const AdminDashboard = () => {
               <option value="finalist">Finalist</option>
               <option value="winner">Winner</option>
             </select>
-            <div className=" border border-[var(--border)] bg-amber-200 px-4 py-1 rounded-md">
+            <div className=" border border-[var(--border)]  px-4 py-1 rounded-md">
               <p>
-                Count:{" "}
+                Showing{" "}
+                <span className="font-bold text-sm ">
+                  {paginatedData.length}
+                </span>{" "}
+                of{" "}
                 <span className="font-bold text-sm ">
                   {filteredData.length}
                 </span>
@@ -308,9 +324,31 @@ const AdminDashboard = () => {
         </section>
 
         <SubmissionTable
-          submissions={filteredData}
+          submissions={paginatedData}
           onView={setSelectedSubmission}
         />
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 py-4">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-1 text-sm font-semibold disabled:opacity-40 hover:bg-[var(--surface-2)] transition-colors"
+            >
+              Prev
+            </button>
+            <span className="text-sm text-[var(--muted)]">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-[var(--border)] bg-[var(--bg)]  px-4 py-1 text-sm font-semibold disabled:opacity-40 hover:bg-[var(--surface-2)] transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </main>
 
       {selectedSubmission && (
