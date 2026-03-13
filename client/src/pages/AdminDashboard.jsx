@@ -70,14 +70,15 @@ const AdminDashboard = () => {
         else if (sub.category === "ngos") org = sub.organizationName || "N/A";
 
         return {
-          "Leader Email": leader?.email || "N/A",
-          "Team Name": sub.teamName,
           "Team ID": sub.teamId,
-          Category: sub.category,
-          "Project Title": sub.solutionName,
+          "Team Name": sub.teamName,
+          Theme: sub.theme || "N/A",
+          "Idea Title": sub.solutionName,
           "Idea Description": sub.shortDescription || "N/A",
           "PDF Link": sub.idea_document?.public_url || "N/A",
+          Category: sub.category,
           "College / Organization": org,
+          "Leader Email": leader?.email || "N/A",
           "Leader Contact Number": leader?.phone || "N/A",
         };
       });
