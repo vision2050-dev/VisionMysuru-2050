@@ -162,8 +162,12 @@ const AdminDashboard = () => {
         filters.status === "All" || sub.status === filters.status;
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        String(sub.teamId || "").toLowerCase().includes(normalizedSearch) ||
-        String(sub.teamName || "").toLowerCase().includes(normalizedSearch);
+        String(sub.teamId || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        String(sub.teamName || "")
+          .toLowerCase()
+          .includes(normalizedSearch);
 
       return matchesCategory && matchesTheme && matchesStatus && matchesSearch;
     });
@@ -217,7 +221,7 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <main className="py-6 px-4 space-y-2">
+      <main className="py-4 px-4 space-y-2">
         <Stats submissions={submissions} />
         <div className="items-center justify-center flex">
           <button
@@ -228,9 +232,9 @@ const AdminDashboard = () => {
           </button>
         </div>
 
-        <section className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <FiFilter className="text-[var(--muted)]" />
+        <section className="flex mb-3  gap-4 pt-4 flex-wrap ">
+          <div className="flex flex-wrap  gap-2">
+            {/* <FiFilter className="text-[var(--muted)]" /> */}
 
             <div className="relative">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
@@ -239,7 +243,7 @@ const AdminDashboard = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Team ID or Team Name"
-                className="w-64 rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
+                className="w-64 rounded-lg border-2 border-[var(--border)] bg-[var(--bg)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
               />
             </div>
 
