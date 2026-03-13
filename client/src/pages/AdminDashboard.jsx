@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import api from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { FiLogOut, FiFilter, FiDownload } from "react-icons/fi";
+import { FiLogOut, FiFilter, FiDownload, FiSearch } from "react-icons/fi";
 import * as XLSX from "xlsx";
 import Stats from "../dashboard/Stats";
 import SubmissionTable from "../dashboard/SubmissionTable";
@@ -26,6 +26,7 @@ const AdminDashboard = () => {
   const [updating, setUpdating] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   const PAGE_SIZE = 30;
   const navigate = useNavigate();
 
@@ -74,6 +75,8 @@ const AdminDashboard = () => {
           "Team ID": sub.teamId,
           Category: sub.category,
           "Project Title": sub.solutionName,
+          "Idea Description": sub.shortDescription || "N/A",
+          "PDF Link": sub.idea_document?.public_url || "N/A",
           "College / Organization": org,
           "Leader Contact Number": leader?.phone || "N/A",
         };
@@ -148,6 +151,8 @@ const AdminDashboard = () => {
   };
 
   const filteredData = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+
     return submissions.filter((sub) => {
       const matchesCategory =
         filters.category === "All" || sub.category === filters.category;
@@ -155,14 +160,18 @@ const AdminDashboard = () => {
         filters.theme === "All" || sub.theme === filters.theme;
       const matchesStatus =
         filters.status === "All" || sub.status === filters.status;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        String(sub.teamId || "").toLowerCase().includes(normalizedSearch) ||
+        String(sub.teamName || "").toLowerCase().includes(normalizedSearch);
 
-      return matchesCategory && matchesTheme && matchesStatus;
+      return matchesCategory && matchesTheme && matchesStatus && matchesSearch;
     });
-  }, [submissions, filters]);
+  }, [submissions, filters, searchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [filters, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
   const paginatedData = filteredData.slice(
@@ -222,6 +231,17 @@ const AdminDashboard = () => {
         <section className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <FiFilter className="text-[var(--muted)]" />
+
+            <div className="relative">
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search Team ID or Team Name"
+                className="w-64 rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
+              />
+            </div>
 
             <select
               value={filters.category}
