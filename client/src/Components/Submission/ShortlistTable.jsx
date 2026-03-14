@@ -49,7 +49,7 @@ const ShortlistTable = ({ round }) => {
       <div className="mb-6 text-center">
         {round === "1" ? (
           <div className="mx-auto mt-4 max-w-4xl rounded-2xl ">
-            <p className="text-xl font-bold leading-tight tex-center text-green-700 sm:text-3xl">
+            <p className="text-2xl font-bold leading-tight text-center text-green-700 sm:text-3xl">
               Congratulations on Being Shortlisted for Round 2!🎊
             </p>
 

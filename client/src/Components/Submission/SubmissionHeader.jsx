@@ -2,7 +2,7 @@ import React from "react";
 
 const SubmissionHeader = () => {
   return (
-    <div className="relative mb-8 h-[400px] w-full overflow-hidden">
+    <div className="relative mb-8 h-[350px] w-full overflow-hidden">
       <img
         src="https://res.cloudinary.com/dqlqxcwqr/image/upload/v1771551663/sdmclg_hqeqab.jpg"
         alt="Submit Idea"
@@ -19,12 +19,10 @@ const SubmissionHeader = () => {
         }}
       />
 
-      <div className="relative z-10 flex h-full items-start justify-center pt-15">
-        <h1 className="oswald text-3xl font-bold text-white text-center sm:text-4xl md:text-5xl">
-          Round 1 shortlist announced! <br />
-          <span className="text-xl font-medium">
-            Check out the shortlisted teams below 👇
-          </span>
+      <div className="relative z-10 flex h-full items-start justify-center pt-17">
+        <h1 className="oswald text-3xl font-bold text-white text-center  md:text-5xl">
+          Round 1 shortlist <br />
+          announced!👇 <br />
         </h1>
       </div>
     </div>
