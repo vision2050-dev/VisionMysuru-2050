@@ -74,9 +74,7 @@ export const adminLogin = async (req, res) => {
 };
 
 export const getAllSubmissions = async (req, res) => {
-  
   try {
-    
     const students = await Student.find().lean();
     const corporates = await Corporate.find().lean();
     const ngos = await NGO.find().lean();
@@ -130,52 +128,52 @@ export const updateSubmissionStatus = async (req, res) => {
       updatedSubmission = await Student.findByIdAndUpdate(
         id,
         { status },
-        { new: true },
+        { returnDocument: "after" },
       );
     } else if (category === "corporates") {
       updatedSubmission = await Corporate.findByIdAndUpdate(
         id,
         { status },
-        { new: true },
+        { returnDocument: "after" },
       );
     } else if (category === "ngos") {
       updatedSubmission = await NGO.findByIdAndUpdate(
         id,
         { status },
-        { new: true },
+        { returnDocument: "after" },
       );
     } else if (category === "citizens") {
       updatedSubmission = await Citizen.findByIdAndUpdate(
         id,
         { status },
-        { new: true },
+        { returnDocument: "after" },
       );
     } else {
       // Fallback: Try to find by ID in all (inefficient but safe)
       updatedSubmission = await Student.findByIdAndUpdate(
         id,
         { status },
-        { new: true },
+        { returnDocument: "after" },
       );
       if (!updatedSubmission) {
         updatedSubmission = await Corporate.findByIdAndUpdate(
           id,
           { status },
-          { new: true },
+          { returnDocument: "after" },
         );
       }
       if (!updatedSubmission) {
         updatedSubmission = await NGO.findByIdAndUpdate(
           id,
           { status },
-          { new: true },
+          { returnDocument: "after" },
         );
       }
       if (!updatedSubmission) {
         updatedSubmission = await Citizen.findByIdAndUpdate(
           id,
           { status },
-          { new: true },
+          { returnDocument: "after" },
         );
       }
     }
