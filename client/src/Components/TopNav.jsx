@@ -47,12 +47,12 @@ export const TopNav = () => {
             In the News <FiRadio />
           </Link>
           <Link
-            to="/submit"
+            to="/shortlist"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
             bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
-            Submit <FiArrowRight />
+            Check Shortlist <FiArrowRight />
           </Link>
 
           <button

@@ -57,10 +57,10 @@ const HeroSection = () => {
 
           <div className="mt-28 md:mt-20 flex flex-col gap-3 sm:flex-row">
             <Link
-              to="/submit"
+              to="/shortlist"
               className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
             >
-              Submit your idea
+              Check Round 1 Shortlist
               <FiArrowRight className="transition-transform group-hover:translate-x-1" />
             </Link>
 

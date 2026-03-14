@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FiChevronDown } from "react-icons/fi";
-import { FAQS } from "../constants/faqs";
+import { FAQS } from "../constants/faqs.js";
 import { Section } from "./landing/Section.jsx";
 
 const FaqsSection = () => {

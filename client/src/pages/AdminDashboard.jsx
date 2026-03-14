@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -31,7 +31,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   // Fetch data
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("adminToken");
@@ -53,16 +53,24 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     fetchSubmissions();
-  }, []);
+  }, [fetchSubmissions]);
 
-  // Download Excel (from already-loaded data)
+  // Download Excel for round 1 shortlisted teams
   const handleExportExcel = () => {
     try {
-      const rows = submissions.map((sub) => {
+      const sourceRows = submissions.filter(
+        (sub) => sub.status === "round_1_shortlisted",
+      );
+      if (sourceRows.length === 0) {
+        toast.error("No Round 1 shortlisted teams available to export");
+        return;
+      }
+
+      const rows = sourceRows.map((sub) => {
         const leader = sub.members?.find((m) => m.isLeader);
         let org = "N/A";
         if (sub.category === "students") org = sub.institution || "N/A";
@@ -73,13 +81,11 @@ const AdminDashboard = () => {
           "Team ID": sub.teamId,
           "Team Name": sub.teamName,
           Theme: sub.theme || "N/A",
-          "Idea Title": sub.solutionName,
-          "Idea Description": sub.shortDescription || "N/A",
-          "PDF Link": sub.idea_document?.public_url || "N/A",
-          Category: sub.category,
           "College / Organization": org,
+          "Leader Name": leader?.name || "N/A",
           "Leader Email": leader?.email || "N/A",
           "Leader Contact Number": leader?.phone || "N/A",
+          Status: sub.status || "N/A",
         };
       });
 
@@ -110,9 +116,9 @@ const AdminDashboard = () => {
       }
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Submissions");
-      XLSX.writeFile(wb, "submissions.xlsx");
-      toast.success("Excel downloaded successfully");
+      XLSX.utils.book_append_sheet(wb, ws, "Round 1 Shortlist");
+      XLSX.writeFile(wb, "round-1-shortlist.xlsx");
+      toast.success("Round 1 shortlist Excel downloaded");
     } catch (error) {
       console.error(error);
       toast.error("Failed to export Excel");
@@ -224,14 +230,14 @@ const AdminDashboard = () => {
 
       <main className="py-4 px-4 space-y-2">
         <Stats submissions={submissions} />
-        <div className="items-center justify-center flex">
-          {/* <button
+        {/* <div className="items-center justify-center flex">
+          <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
           >
-            <FiDownload /> Export Excel
-          </button> */}
-        </div>
+            <FiDownload /> Download Round 1 Shortlist Excel
+          </button>
+        </div> */}
 
         <section className="flex mb-3  gap-4 pt-4 flex-wrap ">
           <div className="flex flex-wrap  gap-2">

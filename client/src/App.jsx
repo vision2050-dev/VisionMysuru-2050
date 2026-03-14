@@ -16,7 +16,7 @@ const App = () => {
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/submit" element={<SubmitIdeaPage />} />
+          <Route path="/shortlist" element={<SubmitIdeaPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/admin/secure/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>

@@ -5,6 +5,7 @@ import RulesAndRegulations from "../Components/Submission/RulesAndRegulations";
 import FooterSection from "../Components/FooterSection";
 import SubmissionHeader from "../Components/Submission/SubmissionHeader";
 import SubmissionNav from "../Components/Submission/SubmissionNav";
+import ShortlistTable from "../Components/Submission/ShortlistTable";
 // import { CATEGORY } from "../constants/content";
 // import StudentForm from "../Components/Submission/forms/StudentForm";
 // import CorporateForm from "../Components/Submission/forms/CorporateForm";
@@ -68,22 +69,7 @@ const SubmitIdeaPage = () => {
       <SubmissionNav />
       <main className=" ">
         <SubmissionHeader />
-        <RulesAndRegulations />
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <div className="max-w-lg mx-auto rounded-2xl border border-[var(--accent)] bg-[var(--surface-2)] p-10 ">
-            <div className="flex justify-center mb-4">
-              <FiLock className="text-5xl text-[var(--primary)]" />
-            </div>
-            <h2 className="text-3xl font-bold text-[var(--primary)] mb-3">
-              Submissions Closed
-            </h2>
-            <p className="text-[var(--muted)] text-base leading-relaxed">
-              Thank you for your interest in Vision Mysuru 2050. The submission
-              window has now closed. We appreciate all the ideas and
-              contributions received.
-            </p>
-          </div>
-        </div>
+        <ShortlistTable round="1" />
         <FaqsSection />
         <FooterSection />
       </main>
