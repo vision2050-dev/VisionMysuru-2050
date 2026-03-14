@@ -15,6 +15,9 @@ import {
   TableSkeleton,
 } from "../Components/SkeletonLoaders/Loaders";
 
+let adminSubmissionsCache = null;
+let adminSubmissionsInFlight = null;
+
 const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,23 +33,40 @@ const AdminDashboard = () => {
   const PAGE_SIZE = 30;
   const navigate = useNavigate();
 
-  // Fetch data
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("adminToken");
       if (!token) {
-        navigate("/admin/login");
+        navigate("/admin/secure/login");
         return;
       }
 
-      const { data } = await api.get("/api/v1/admin/submissions");
+      if (adminSubmissionsCache) {
+        setSubmissions(adminSubmissionsCache);
+        return;
+      }
+
+      if (!adminSubmissionsInFlight) {
+        adminSubmissionsInFlight = api
+          .get("/api/v1/admin/submissions")
+          .then(({ data }) => {
+            adminSubmissionsCache = data;
+            return data;
+          })
+          .finally(() => {
+            adminSubmissionsInFlight = null;
+          });
+      }
+
+      const data = await adminSubmissionsInFlight;
       setSubmissions(data);
     } catch (error) {
       console.error(error);
       if (error.response?.status === 401) {
+        adminSubmissionsCache = null;
         localStorage.removeItem("adminToken");
-        navigate("/admin/login");
+        navigate("/admin/secure/login");
       } else {
         toast.error("Failed to load submissions");
       }
@@ -60,73 +80,74 @@ const AdminDashboard = () => {
   }, [fetchSubmissions]);
 
   // Download Excel for round 1 shortlisted teams
-  const handleExportExcel = () => {
-    try {
-      const sourceRows = submissions.filter(
-        (sub) => sub.status === "round_1_shortlisted",
-      );
-      if (sourceRows.length === 0) {
-        toast.error("No Round 1 shortlisted teams available to export");
-        return;
-      }
+  // const handleExportExcel = () => {
+  //   try {
+  //     const sourceRows = submissions.filter(
+  //       (sub) => sub.status === "round_1_shortlisted",
+  //     );
+  //     if (sourceRows.length === 0) {
+  //       toast.error("No Round 1 shortlisted teams available to export");
+  //       return;
+  //     }
 
-      const rows = sourceRows.map((sub) => {
-        const leader = sub.members?.find((m) => m.isLeader);
-        let org = "N/A";
-        if (sub.category === "students") org = sub.institution || "N/A";
-        else if (sub.category === "corporates") org = sub.companyName || "N/A";
-        else if (sub.category === "ngos") org = sub.organizationName || "N/A";
+  //     const rows = sourceRows.map((sub) => {
+  //       const leader = sub.members?.find((m) => m.isLeader);
+  //       let org = "N/A";
+  //       if (sub.category === "students") org = sub.institution || "N/A";
+  //       else if (sub.category === "corporates") org = sub.companyName || "N/A";
+  //       else if (sub.category === "ngos") org = sub.organizationName || "N/A";
 
-        return {
-          "Team ID": sub.teamId,
-          "Team Name": sub.teamName,
-          Theme: sub.theme || "N/A",
-          "College / Organization": org,
-          "Leader Name": leader?.name || "N/A",
-          "Leader Email": leader?.email || "N/A",
-          "Leader Contact Number": leader?.phone || "N/A",
-          Status: sub.status || "N/A",
-        };
-      });
+  //       return {
+  //         "Team ID": sub.teamId,
+  //         "Team Name": sub.teamName,
+  //         Theme: sub.theme || "N/A",
+  //         "College / Organization": org,
+  //         "Leader Name": leader?.name || "N/A",
+  //         "Leader Email": leader?.email || "N/A",
+  //         "Leader Contact Number": leader?.phone || "N/A",
+  //         Status: sub.status || "N/A",
+  //       };
+  //     });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
+  //     const ws = XLSX.utils.json_to_sheet(rows);
 
-      // Auto-fit column widths (capped at 50) and enable text wrap
-      const maxColWidth = 50;
-      const cols = Object.keys(rows[0] || {}).map((key) => {
-        const maxLen = Math.max(
-          key.length,
-          ...rows.map((r) => String(r[key] || "").length),
-        );
-        return { wch: Math.min(maxLen + 2, maxColWidth) };
-      });
-      ws["!cols"] = cols;
+  //     // Auto-fit column widths (capped at 50) and enable text wrap
+  //     const maxColWidth = 50;
+  //     const cols = Object.keys(rows[0] || {}).map((key) => {
+  //       const maxLen = Math.max(
+  //         key.length,
+  //         ...rows.map((r) => String(r[key] || "").length),
+  //       );
+  //       return { wch: Math.min(maxLen + 2, maxColWidth) };
+  //     });
+  //     ws["!cols"] = cols;
 
-      const range = XLSX.utils.decode_range(ws["!ref"]);
-      for (let R = range.s.r; R <= range.e.r; R++) {
-        for (let C = range.s.c; C <= range.e.c; C++) {
-          const addr = XLSX.utils.encode_cell({ r: R, c: C });
-          if (ws[addr]) {
-            ws[addr].s = {
-              ...(ws[addr].s || {}),
-              alignment: { wrapText: true, vertical: "top" },
-            };
-          }
-        }
-      }
+  //     const range = XLSX.utils.decode_range(ws["!ref"]);
+  //     for (let R = range.s.r; R <= range.e.r; R++) {
+  //       for (let C = range.s.c; C <= range.e.c; C++) {
+  //         const addr = XLSX.utils.encode_cell({ r: R, c: C });
+  //         if (ws[addr]) {
+  //           ws[addr].s = {
+  //             ...(ws[addr].s || {}),
+  //             alignment: { wrapText: true, vertical: "top" },
+  //           };
+  //         }
+  //       }
+  //     }
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Round 1 Shortlist");
-      XLSX.writeFile(wb, "round-1-shortlist.xlsx");
-      toast.success("Round 1 shortlist Excel downloaded");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to export Excel");
-    }
-  };
+  //     const wb = XLSX.utils.book_new();
+  //     XLSX.utils.book_append_sheet(wb, ws, "Round 1 Shortlist");
+  //     XLSX.writeFile(wb, "round-1-shortlist.xlsx");
+  //     toast.success("Round 1 shortlist Excel downloaded");
+  //   } catch (error) {
+  //     console.error(error);
+  //     toast.error("Failed to export Excel");
+  //   }
+  // };
 
   // Handle logout
   const handleLogout = () => {
+    adminSubmissionsCache = null;
     localStorage.removeItem("adminToken");
     localStorage.removeItem("adminUser");
     navigate("/admin/login");
@@ -141,9 +162,13 @@ const AdminDashboard = () => {
         category,
       });
 
-      setSubmissions((prev) =>
-        prev.map((sub) => (sub._id === id ? { ...sub, status } : sub)),
-      );
+      setSubmissions((prev) => {
+        const next = prev.map((sub) =>
+          sub._id === id ? { ...sub, status } : sub,
+        );
+        adminSubmissionsCache = next;
+        return next;
+      });
 
       // Update selected submission if open
       if (selectedSubmission?._id === id) {
