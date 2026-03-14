@@ -58,7 +58,8 @@ const ShortlistTable = ({ round }) => {
               their relevance, creativity, and potential contribution to the
               future development of Mysuru. The selected participants will now
               move to the next stage of evaluation, which will be conducted
-              through a physical presentation at SDMIMD, Mysore.
+              through a physical presentation scheduled tomorrow i.e{" "}
+              <b>15th March 2026 from 10 AM onwards at SDMIMD, Mysore.</b>
             </p>
             <div className="mt-5 flex justify-center">
               <button
