@@ -189,3 +189,46 @@ export const updateSubmissionStatus = async (req, res) => {
     res.status(500).json({ message: "Failed to update status", error });
   }
 };
+
+export const getShortlist = async (req, res) => {
+  const { round } = req.query;
+
+  const roundStatusMap = {
+    1: "round_1_shortlisted",
+    // 2: "round_2_shortlisted",
+    // 3: "round_3_shortlisted",
+    // finale: "grand_finale_shortlisted",
+  };
+
+  const status = roundStatusMap[round];
+  if (!status) {
+    return res.status(400).json({ message: "Invalid round." });
+  }
+
+  const baseSelect =
+    "teamId teamName theme members.name members.email members.phone members.isLeader";
+
+  try {
+    const [students, corporates, ngos, citizens] = await Promise.all([
+      Student.find({ status }).select(baseSelect).lean(),
+      Corporate.find({ status }).select(baseSelect).lean(),
+      NGO.find({ status }).select(baseSelect).lean(),
+      Citizen.find({ status }).select(baseSelect).lean(),
+    ]);
+
+    const tag = (arr, category) => arr.map((doc) => ({ ...doc, category }));
+
+    const shortlist = [
+      ...tag(students, "students"),
+      ...tag(corporates, "corporates"),
+      ...tag(ngos, "ngos"),
+      ...tag(citizens, "citizens"),
+    ];
+
+    res.status(200).json({ round, total: shortlist.length, data: shortlist });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Failed to fetch shortlist", error: error.message });
+  }
+};

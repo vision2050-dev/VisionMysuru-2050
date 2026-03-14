@@ -29,7 +29,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 const MONGO_URI = process.env.MONGO_URI;
 
-// app.use("/api/v1/submissions", submissionRoutes);
+app.use("/api/v1", adminRoutes);
 app.use("/api/v1/winners", submissionRoutes);
 app.use("/api/v1/admin", adminRoutes);
 mongoose
