@@ -376,7 +376,7 @@ const STATUS_GROUPS = [
   },
   {
     key: "screening",
-    label: "Online Screening",
+    label: "Round 0 · Screening",
     statuses: ["screening_shortlisted", "screening_rejected"],
   },
   {
