@@ -136,7 +136,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
 
             <div className="space-y-2 w-2xl">
               <Card title="Project Title ">
-                <h2 className="text-lg tracking-tight font-medium text-[var(--text)]">
+                <h2 className="text-md tracking-tight font-medium text-[var(--text)]">
                   {submission.solutionName}
                 </h2>
               </Card>
@@ -171,7 +171,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                 )}
               </Card>
             </div>
-            <div className="space-y-2 w-80 ">
+            {/* <div className="space-y-2 w-80 ">
               <Card title="Current Status">
                 {updating ? (
                   <div className="flex mt-10 items-center justify-center">
@@ -216,7 +216,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                   </div>
                 )}
               </Card>
-            </div>
+            </div> */}
           </div>
         </motion.div>
       </div>
