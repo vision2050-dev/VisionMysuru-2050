@@ -37,7 +37,7 @@ const Stats = ({ submissions }) => {
   }, {});
 
   return (
-    <div className="grid gap-2 justify-center max-w-5xl mx-auto grid-cols-2 md:grid-cols-5">
+    <div className="grid gap-2 justify-center max-w-5xl mx-auto my-5 grid-cols-2 md:grid-cols-6">
       <StatCard title="Total Submissions" count={317} isTotal />
       <StatCard
         title="After initial review"
