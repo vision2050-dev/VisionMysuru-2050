@@ -7,7 +7,7 @@ import upload from "../middlewares/upload.js";
 
 const router = express.Router();
 
-router.post("/", upload.single("pdfFile"), createSubmission);
+// router.post("/", upload.single("pdfFile"), createSubmission);
 router.get("/winners", getWinners);
 
 export default router;
