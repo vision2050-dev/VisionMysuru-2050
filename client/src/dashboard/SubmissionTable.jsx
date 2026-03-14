@@ -3,12 +3,14 @@ import { FiEye } from "react-icons/fi";
 
 const STATUS_COLORS = {
   Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  screening_shortlisted: "bg-blue-100 text-blue-800 border-blue-200",
-  screening_rejected: "bg-red-100 text-red-800 border-red-200",
-  r1_shortlisted: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  r1_eliminated: "bg-red-100 text-red-800 border-red-200",
-  r2_eliminated: "bg-red-100 text-red-800 border-red-200",
-  finalist: "bg-purple-100 text-purple-800 border-purple-200",
+  round_1_shortlisted: "bg-blue-100 text-blue-800 border-blue-200",
+  round_1_rejected: "bg-red-100 text-red-800 border-red-200",
+  round_2_shortlisted: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  round_2_rejected: "bg-red-100 text-red-800 border-red-200",
+  round_3_shortlisted: "bg-purple-100 text-purple-800 border-purple-200",
+  round_3_rejected: "bg-red-100 text-red-800 border-red-200",
+  grand_finale_shortlisted:
+    "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
   winner: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
@@ -69,7 +71,7 @@ const SubmissionTable = ({ submissions, onView }) => {
                       STATUS_COLORS[sub.status] || "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {sub.status.replace("_", " ").toUpperCase()}
+                    {sub.status.replace(/_/g, " ").toUpperCase()}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">

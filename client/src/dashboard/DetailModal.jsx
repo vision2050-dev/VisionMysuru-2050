@@ -171,14 +171,14 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                 )}
               </Card>
             </div>
-            {/* <div className="space-y-2 w-80 ">
+            <div className="space-y-2 w-80 ">
               <Card title="Current Status">
                 {updating ? (
                   <div className="flex mt-10 items-center justify-center">
                     <div className="w-9 h-9 rounded-full animate-spin border-4 border-t-transparent border-[var(--accent)]" />
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {STATUS_GROUPS.map((group) => (
                       <div key={group.key}>
                         <p className="mb-1 text-xs font-bold  tracking-wide text-[var(--muted)]">
@@ -216,7 +216,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                   </div>
                 )}
               </Card>
-            </div> */}
+            </div>
           </div>
         </motion.div>
       </div>

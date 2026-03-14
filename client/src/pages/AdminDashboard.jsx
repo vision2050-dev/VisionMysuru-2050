@@ -285,15 +285,16 @@ const AdminDashboard = () => {
               className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
             >
               <option value="All">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="screening_shortlisted">
-                Screening-Shortlisted
+              <option value="Pending">Pending</option>
+              <option value="round_1_shortlisted">Round 1 Shortlisted</option>
+              <option value="round_1_rejected">Round 1 Rejected</option>
+              <option value="round_2_shortlisted">Round 2 Shortlisted</option>
+              <option value="round_2_rejected">Round 2 Rejected</option>
+              <option value="round_3_shortlisted">Round 3 Shortlisted</option>
+              <option value="round_3_rejected">Round 3 Rejected</option>
+              <option value="grand_finale_shortlisted">
+                Grand Finale Shortlisted
               </option>
-              <option value="screening_rejected">Screening-Rejected</option>
-              <option value="r1_shortlisted">R1 Shortlisted</option>
-              <option value="r1_eliminated">R1 Eliminated</option>
-              <option value="r2_eliminated">R2 Eliminated</option>
-              <option value="finalist">Finalist</option>
               <option value="winner">Winner</option>
             </select>
             <div className=" border border-[var(--border)]  px-4 py-1 rounded-md">
