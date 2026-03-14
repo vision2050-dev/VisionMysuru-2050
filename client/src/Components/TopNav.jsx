@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FiArrowRight, FiMenu, FiX } from "react-icons/fi";
+import { FiArrowRight, FiMenu, FiX, FiRadio } from "react-icons/fi";
 
 export const TopNav = () => {
   const [open, setOpen] = useState(false);
@@ -38,6 +38,15 @@ export const TopNav = () => {
         </nav>
 
         <div className="flex items-center gap-2">
+          <Link
+            to="/news"
+            className="hidden md:inline-flex items-center gap-2 rounded-xl border border-[var(--border)]
+            bg-[var(--surface)] px-4 py-2 text-sm font-semibold
+            text-[var(--text)] hover:bg-[var(--surface-2)]"
+          >
+            In the News <FiRadio />
+          </Link>
+
           <Link
             to="/submit"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
@@ -77,6 +86,16 @@ export const TopNav = () => {
               {item.label}
             </a>
           ))}
+
+          <Link
+            to="/news"
+            onClick={() => setOpen(false)}
+            className="inline-flex w-full items-center justify-center gap-2
+            rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold
+            text-[var(--text)] hover:bg-[var(--surface-2)]"
+          >
+            In the News <FiRadio />
+          </Link>
 
           <Link
             to="/submit"

@@ -225,12 +225,12 @@ const AdminDashboard = () => {
       <main className="py-4 px-4 space-y-2">
         <Stats submissions={submissions} />
         <div className="items-center justify-center flex">
-          <button
+          {/* <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
           >
             <FiDownload /> Export Excel
-          </button>
+          </button> */}
         </div>
 
         <section className="flex mb-3  gap-4 pt-4 flex-wrap ">
