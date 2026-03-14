@@ -46,7 +46,6 @@ export const TopNav = () => {
           >
             In the News <FiRadio />
           </Link>
-
           <Link
             to="/submit"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
@@ -67,8 +66,6 @@ export const TopNav = () => {
           </button>
         </div>
       </div>
-
-      {/* Mobile Dropdown */}
       <div
         className={`md:hidden overflow-hidden border-t border-[var(--border)]
         bg-[var(--bg)] transition-all duration-300 ease-out

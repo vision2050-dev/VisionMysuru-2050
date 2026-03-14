@@ -15,6 +15,11 @@ const formatDate = (value) => {
   });
 };
 
+const getLinkLabel = (link) => {
+  if (!link) return "Open link";
+  return link.includes("drive.google.com") ? "View clipping" : "Read article";
+};
+
 const NewsPage = () => {
   return (
     <motion.div
@@ -26,7 +31,7 @@ const NewsPage = () => {
       <SubmissionNav />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
-        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 ">
+        <section className="rounded-3xl bg-[var(--surface)] p-6 ">
           <div className="flex items-center gap-2 text-[var(--accent)]">
             <FiRadio className="text-lg" />
             <p className="text-sm font-semibold uppercase tracking-wide">
@@ -42,7 +47,7 @@ const NewsPage = () => {
           </p>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
+        <section className="mt-6 grid gap-2 md:grid-cols-2">
           {NEWS_COVERAGE.map((item, index) => (
             <motion.article
               key={item.id}
@@ -65,9 +70,11 @@ const NewsPage = () => {
                 {item.headline}
               </h2>
 
-              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-                {item.description}
-              </p>
+              {item.description ? (
+                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                  {item.description}
+                </p>
+              ) : null}
 
               <a
                 href={item.link}
@@ -75,7 +82,7 @@ const NewsPage = () => {
                 rel="noopener noreferrer"
                 className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--surface-2)]"
               >
-                Read coverage
+                {getLinkLabel(item.link)}
                 <FiArrowUpRight className="text-base transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </a>
             </motion.article>

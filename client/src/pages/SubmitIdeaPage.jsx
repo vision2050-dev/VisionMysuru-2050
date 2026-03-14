@@ -69,7 +69,6 @@ const SubmitIdeaPage = () => {
       <main className=" ">
         <SubmissionHeader />
         <RulesAndRegulations />
-
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
           <div className="max-w-lg mx-auto rounded-2xl border border-[var(--accent)] bg-[var(--surface-2)] p-10 ">
             <div className="flex justify-center mb-4">
@@ -85,15 +84,7 @@ const SubmitIdeaPage = () => {
             </p>
           </div>
         </div>
-
-        {/* <div className=" max-w-6xl mx-auto mb-10 px-4 md:px-0">
-          <Toggle active={activeCategory} onChange={setActiveCategory} />
-          <div className="mt-3 rounded-4xl border-y-4 border border-[var(--accent)] p-4 sm:p-6">
-            {renderForm()}
-          </div>
-        </div> */}
         <FaqsSection />
-
         <FooterSection />
       </main>
     </motion.div>

@@ -1,11 +1,74 @@
 export const NEWS_COVERAGE = [
-  // {
-  //   id: 1,
-  //   headline: "Vision Mysuru 2050: A City-Wide Movement to Shape the Future",
-  //   channel: "Star of Mysore",
-  //   date: "2025-12-15",
-  //   description:
-  //     "Star of Mysore covers the launch of Vision Mysuru 2050, highlighting how SDMIMD's initiative invites citizens, students, and corporates to co-create a sustainable roadmap for the city's next 25 years.",
-  //   link: "https://starofmysore.com",
-  // },
+  {
+    id: 1,
+    headline: "SDMIMD launches Vision Mysuru - 2050",
+    channel: "New India Express",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/1sfVWCkiqQNqmAZXtDPwPXUIRDrrBgY1k/view?usp=drive_link",
+  },
+  {
+    id: 2,
+    headline: "SDMIMD launches Vision Mysuru - 2050",
+    channel: "Star of Mysore",
+    date: "2026-03-02",
+    link: "https://drive.google.com/file/d/1R1X37yojgME2GnlNpVBTi89Zald8ZPmR/view?usp=drive_link",
+  },
+  {
+    id: 3,
+    headline: "SDMIMD asks Mysureans to Ink Ideas for 2050 roadmap",
+    channel: "Times of India",
+    date: "2026-03-02",
+    link: "https://drive.google.com/file/d/1rcyzdKe2n0zijxwkmqmvVAI7Z2gaxJUM/view?usp=drive_link",
+  },
+  {
+    id: 4,
+    headline: "SDMIMD launches 'Vision Mysuru-2050' to shape city's future",
+    channel: "PressReader",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/1KaHNxq4MCsK3BHoZjQ91dZXoTFI1u9oA/view?usp=drive_link",
+  },
+  {
+    id: 5,
+    headline: "Vision Mysuru-2050 summit from March 14",
+    channel: "The Hindu",
+    date: "2026-03-01",
+    description:
+      "The initiative under the theme 'Ink Your Ideas' aims to chart a strategic roadmap for the city's development over the next 25 years.",
+    link: "https://drive.google.com/file/d/1YiHFi7k5CMNawJUOj2dKGREwX6TozA5j/view?usp=drive_link",
+  },
+  {
+    id: 6,
+    headline: "SDMIMD launches Vision Mysuru-2050",
+    channel: "Times of India Web",
+    date: "2026-03-01",
+    link: "https://timesofindia.indiatimes.com/city/mysuru/sdmimd-launches-vision-mysuru2050/articleshow/128894762.cms",
+  },
+  {
+    id: 7,
+    headline: "SDMIMD launches Vision Mysuru - 2050 to Shape City's Future",
+    channel: "City Highlight",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/1VB09wtBVqwA-WwsJgNag9qUZWR7GPV-k/view?usp=drive_link",
+  },
+  {
+    id: 8,
+    headline: "ಎಸ್ ಡಿ ಎಂ ಐ ಎಂ ಡಿ ಇಂದ ವಿಷನ್ ಮೈಸೂರು - 2050 ಆಯೋಜನೆ",
+    channel: "Nijadani",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/1GQxuixi0XOdMHuwtBrbcLfIX-SFwmQQu/view?usp=drive_link",
+  },
+  {
+    id: 9,
+    headline: "SDMIMD launches Vision Mysuru - 2050",
+    channel: "Mysore Mail",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/1Sgb-GRi8WZr1ACTKaVMrsgDjQIFoYTsw/view?usp=drive_link",
+  },
+  {
+    id: 10,
+    headline: "ಮಾರ್ಚ್ 14 ರಿಂದ 16 ರವರೆಗೆ ವಿಷನ್ ಮೈಸೂರು - 2050 ರ ವಿಚಾರ ಸಂಕಿರಣ",
+    channel: "Andolana",
+    date: "2026-03-01",
+    link: "https://drive.google.com/file/d/123eDInBOr3laac6kfc5tgTLcW_YrW_Ki/view?usp=drive_link",
+  },
 ];

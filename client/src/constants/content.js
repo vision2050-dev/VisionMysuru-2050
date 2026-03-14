@@ -115,33 +115,34 @@ const TIMELINE = [
     detail:
       "All submissions undergo an administrative check to verify completeness and eligibility across all four categories.",
   },
+
   {
-    title: "Round 1: The Student Qualifier",
-    date: "Mar 14, 2026",
-    eligibleFor: ["Students"],
-    detail:
-      "Student teams are evaluated and the top 50 teams are shortlisted to advance to the next round.",
-  },
-  {
-    title: "Round 2: Expert Screening",
+    title: "Round 1: Expert Screening",
     date: "Mar 14, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Category experts review submissions. Top 10 teams from each category (40 in total) advance to the next round.",
   },
   {
-    title: "Round 3: Category Showdown",
+    title: "Round 2: Category Showdown",
     date: "Mar 15, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Physical presentation at SDMIMD Campus before category-specific experts. The top 10 highest scoring teams (regardless of category) advance to the Grand Finale.",
+      "Physical presentation at SDMIMD Campus before category-specific experts. The top 10 highest scoring teams (regardless of category) advance to the round 3",
   },
   {
-    title: "Round 4: The Grand Finale",
+    title: "Round 3: Proposal Presentation",
     date: "Mar 16, 2026",
     eligibleFor: ["Top 10 Finalists"],
     detail:
-      "Final pitch before high-ranking Government Representatives, Industry Leaders and Academic Directors. Attractive cash prizes for top 3 winners. Ideas of top 10 finalists will be published as a White Paper.",
+      "Presentation infront of 5 jury members (academia, industry, government) at SDMIMD Campus to select Top 5 teams for grand finale.",
+  },
+  {
+    title: "Grand Finale",
+    date: "Mar 23, 2026",
+    eligibleFor: ["Top 5 Finalists"],
+    detail:
+      "Final pitch before Mysuru district Authorities. Attractive cash prizes for top 3 winners. Ideas of top 10 finalists will be published as a White Paper",
   },
 ];
 
