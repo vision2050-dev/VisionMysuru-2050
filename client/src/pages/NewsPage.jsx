@@ -30,7 +30,7 @@ const NewsPage = () => {
     >
       <SubmissionNav />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
         <section className="rounded-3xl bg-[var(--surface)] p-6 ">
           <div className="flex items-center gap-2 text-[var(--accent)]">
             <FiRadio className="text-lg" />
@@ -50,12 +50,15 @@ const NewsPage = () => {
         <section className="mt-6 grid gap-2 md:grid-cols-2">
           {NEWS_COVERAGE.map((item, index) => (
             <motion.article
-              key={item.id}
+              key={item.id || index}
               className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:border-[var(--accent)]"
               initial={{ opacity: 0, y: 14 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.35, delay: index * 0.05 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.5,
+                delay: index * 0.15,
+                ease: "easeOut",
+              }}
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent)]">

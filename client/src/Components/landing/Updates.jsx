@@ -2,7 +2,7 @@ import { useState } from "react";
 import { updates } from "../../constants/updates.js";
 import { Section } from "./Section.jsx";
 
-const DESCRIPTION_LIMIT = 120;
+const DESCRIPTION_LIMIT = 240;
 
 const UpdateDescription = ({ description, isExpanded, onToggle }) => {
   const shouldTruncate = description.length > DESCRIPTION_LIMIT;
@@ -57,7 +57,7 @@ export const Updates = () => {
                 <article
                   key={item.id}
                   data-update-card
-                  className="group flex h-[24rem] w-[88%] shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)] md:w-[24rem]"
+                  className="group flex h-[30rem] w-[88%] shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)] md:w-[24rem]"
                 >
                   <div className="relative h-48 overflow-hidden">
                     <img
@@ -81,9 +81,9 @@ export const Updates = () => {
                     </div>
 
                     <div
-                      className={`min-h-[6.5rem] ${
+                      className={`${
                         expandedCards[item.id]
-                          ? "max-h-[9.5rem] overflow-y-auto pr-1"
+                          ? "max-h-[10.5rem] overflow-y-auto pr-1"
                           : "overflow-hidden"
                       }`}
                     >

@@ -47,21 +47,12 @@ const NotFoundPage = () => {
         </Link>
       </motion.div>
 
-      {/* Divider + secondary link */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.65 }}
         className="relative z-10 mt-6 text-sm text-[var(--muted-2)] dm-sans"
-      >
-        Or{" "}
-        <Link
-          to="/submit"
-          className="font-medium text-[var(--accent)] underline underline-offset-4 decoration-[var(--accent-soft)] transition-colors hover:text-[var(--primary)]"
-        >
-          submit your idea
-        </Link>
-      </motion.p>
+      ></motion.p>
     </div>
   );
 };

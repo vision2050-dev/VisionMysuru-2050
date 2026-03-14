@@ -50,26 +50,6 @@ const PrizesSection = () => {
             </div>
           </div>
         </motion.div>
-
-        {/* CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.6, delay: 0.45 }}
-          className="mt-12 text-center"
-        >
-          <Link
-            to="/submit"
-            className="group inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[var(--primary-soft)] transition-all hover:bg-[var(--primary-hover)] hover:shadow-xl hover:-translate-y-0.5"
-          >
-            Submit Your Idea Now
-            <FiArrowRight className="transition-transform group-hover:translate-x-1" />
-          </Link>
-          <p className="mt-3 text-sm text-[var(--muted-2)]">
-            Be a part of shaping the future of Mysuru
-          </p>
-        </motion.div>
       </div>
     </section>
   );

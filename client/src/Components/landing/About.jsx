@@ -64,15 +64,6 @@ const About = () => {
                 </div>
               </div>
             </div>
-
-            <div className="mt-6">
-              <Link
-                to="/submit"
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-[var(--button)] ring-1 ring-[var(--border)] hover:bg-[var(--primary-hover)]"
-              >
-                Submit your idea <FiArrowRight />
-              </Link>
-            </div>
           </div>
         </div>
 
