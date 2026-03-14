@@ -21,7 +21,7 @@ const SubmissionHeader = () => {
 
       <div className="relative z-10 flex h-full items-start justify-center pt-20">
         <h1 className="oswald text-3xl font-bold text-white sm:text-4xl md:text-5xl">
-          Submit Your Idea
+          Submission Closed!
         </h1>
       </div>
     </div>
