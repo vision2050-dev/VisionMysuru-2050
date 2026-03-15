@@ -27,7 +27,7 @@ const SubmissionHeader = () => {
           </h1>
         </div>
       </div>
-      <div className="mb-4 px-2 text-center">
+      <div className="px-2 text-center">
         <div className="mx-auto mt-4 max-w-4xl rounded-2xl ">
           <p className="text-2xl font-bold leading-tight text-center text-green-700 sm:text-3xl">
             Congratulations on Being Shortlisted for Round 3!🎊
@@ -40,7 +40,7 @@ const SubmissionHeader = () => {
             will be conducted through a{" "}
             <b>
               physical presentation before a five-member jury panel at SDMIMD,
-              Mysore on March 16, 2026.
+              Mysore on March 16, 2026 at 4:00 PM.
             </b>
           </p>
           <div className="mt-5 flex justify-center">
