@@ -100,7 +100,7 @@ const ShortlistTable = ({ round }) => {
       <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-[var(--accent)] text-white">
+            <tr className="bg-[var(--primary)] text-white">
               <th className="px-4 py-3 text-left font-semibold">#</th>
               <th className="px-4 py-3 text-left font-semibold">ID</th>
               <th className="px-4 py-3 text-left font-semibold">Team Name</th>
@@ -125,7 +125,7 @@ const ShortlistTable = ({ round }) => {
                   }
                 >
                   <td className="px-4 py-3 text-[var(--muted)]">{idx + 1}</td>
-                  <td className="px-4 py-3 min-w-[130px] font-mono text-md text-black">
+                  <td className="px-4 py-3 min-w-[130px] font-mono text-md font-semibold text-black">
                     {team.teamId}
                   </td>
                   <td className="px-4 py-3 font-semibold text-[var(--text)]">

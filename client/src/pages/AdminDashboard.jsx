@@ -101,6 +101,9 @@ const AdminDashboard = () => {
   //         "Team ID": sub.teamId,
   //         "Team Name": sub.teamName,
   //         Theme: sub.theme || "N/A",
+  //         "Idea Name": sub.solutionName || "N/A",
+  //         "Idea Description": sub.shortDescription || "N/A",
+  //         "PDF Link": sub.idea_document?.public_url || "N/A",
   //         "College / Organization": org,
   //         "Leader Name": leader?.name || "N/A",
   //         "Leader Email": leader?.email || "N/A",
@@ -253,21 +256,19 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <main className="py-4 px-4 space-y-2">
+      <main className="py-4 px-2 space-y-2">
         <Stats submissions={submissions} />
-        {/* <div className="items-center justify-center flex">
-          <button
+        <div className="items-center justify-center flex">
+          {/* <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
           >
             <FiDownload /> Download Round 1 Shortlist Excel
-          </button>
-        </div> */}
+          </button> */}
+        </div>
 
-        <section className="flex mb-3  gap-4 pt-4 flex-wrap ">
-          <div className="flex flex-wrap  gap-2">
-            {/* <FiFilter className="text-[var(--muted)]" /> */}
-
+        <section className="flex mb-6 justify-center gap-4 pt-4 flex-wrap ">
+          <div className="flex flex-wrap gap-2">
             <div className="relative">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
