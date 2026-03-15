@@ -95,13 +95,13 @@ export const TopNav = () => {
           </Link>
 
           <Link
-            to="/submit"
+            to="/shortlist"
             onClick={() => setOpen(false)}
             className="mt-3 inline-flex w-full items-center justify-center gap-2
             rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
-            Submit proposal <FiArrowRight />
+            Check Shortlist <FiArrowRight />
           </Link>
         </div>
       </div>

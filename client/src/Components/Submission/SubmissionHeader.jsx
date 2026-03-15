@@ -27,9 +27,9 @@ const SubmissionHeader = () => {
           </h1>
         </div>
       </div>
-      <div className="mb-4 text-center">
+      <div className="mb-4 px-2 text-center">
         <div className="mx-auto mt-4 max-w-4xl rounded-2xl ">
-          <p className="text-2xl font-bold leading-tight px-2 text-center text-green-700 sm:text-3xl">
+          <p className="text-2xl font-bold leading-tight text-center text-green-700 sm:text-3xl">
             Congratulations on Being Shortlisted for Round 2!🎊
           </p>
           <p className="mt-4 text-sm px-2 leading-tight text-[var(--muted)] sm:text-base">
@@ -54,7 +54,7 @@ const SubmissionHeader = () => {
           </div>
 
           {showInstructions && (
-            <div className="mt-5 rounded-xl border text-left border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+            <div className="mt-5 rounded-xl border  text-left border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
               <p className="text-base font-bold text-[var(--text)] sm:text-lg">
                 Instructions for Shortlisted Participants
               </p>

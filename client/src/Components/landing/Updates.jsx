@@ -2,7 +2,7 @@ import { useState } from "react";
 import { updates } from "../../constants/updates.js";
 import { Section } from "./Section.jsx";
 
-const DESCRIPTION_LIMIT = 240;
+const DESCRIPTION_LIMIT = 260;
 
 const UpdateDescription = ({ description, isExpanded, onToggle }) => {
   const shouldTruncate = description.length > DESCRIPTION_LIMIT;
@@ -52,12 +52,12 @@ export const Updates = () => {
       <div className="flex flex-row overflow-auto">
         {updates.length ? (
           <div className="relative mt-4">
-            <div className="-mx-2 flex snap-x snap-mandatory gap-4 overflow-x-auto px-2 pb-2 scroll-smooth">
+            <div className="-mx-2 flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 scroll-smooth">
               {updates.map((item) => (
                 <article
                   key={item.id}
                   data-update-card
-                  className="group flex h-[30rem] w-[88%] shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)] md:w-[24rem]"
+                  className="group flex h-[31rem] w-[88%] shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)] md:w-[24rem]"
                 >
                   <div className="relative h-48 overflow-hidden">
                     <img
@@ -67,16 +67,16 @@ export const Updates = () => {
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </div>
+                  <div className="rounded-full self-start inline-flex flex items-center mt-3 bg-[var(--accent-soft)]  px-4  mx-4 py-1 text-xs font-semibold text-[var(--accent)]">
+                    {item.time}
+                  </div>
 
-                  <div className="flex flex-1 flex-col space-y-4 px-4 py-5 sm:px-4 sm:py-6">
+                  <div className="flex flex-1 flex-col space-y-2 px-4 py-5 sm:px-4 sm:py-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="max-w-xl text-md font-semibold leading-tight tracking-tight text-black md:text-xl">
                           {item.title}
                         </p>
-                      </div>
-                      <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
-                        Live
                       </div>
                     </div>
 

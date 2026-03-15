@@ -1,6 +1,7 @@
 export const updates = [
   {
     id: 1,
+    time: "March 14, 2026",
     imageLink:
       "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1773477744/DSC_6030_1_agt7wo.jpg",
     title: "Vision Mysuru–2050 Moves into Idea Evaluation Stage",
@@ -9,6 +10,7 @@ export const updates = [
   },
   {
     id: 2,
+    time: "February 7, 2026",
     imageLink:
       "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1773478561/softlaunch_aaz2ip.jpg",
     title: "Vision Mysuru–2050 Moves into Idea Evaluation Stage",
