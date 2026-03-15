@@ -69,7 +69,7 @@ const SubmitIdeaPage = () => {
       <SubmissionNav />
       <main className=" ">
         <SubmissionHeader />
-        <ShortlistTable round="1" />
+        <ShortlistTable round="2" />
         <FaqsSection />
         <FooterSection />
       </main>

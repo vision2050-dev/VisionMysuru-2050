@@ -60,7 +60,7 @@ const HeroSection = () => {
               to="/shortlist"
               className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
             >
-              Check Round 1 Shortlist
+              Check Round 2 Shortlist
               <FiArrowRight className="transition-transform group-hover:translate-x-1" />
             </Link>
 
