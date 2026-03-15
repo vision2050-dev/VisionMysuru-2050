@@ -194,8 +194,8 @@ export const getShortlist = async (req, res) => {
   const { round } = req.query;
 
   const roundStatusMap = {
-    1: "round_1_shortlisted",
-    // 2: "round_2_shortlisted",
+    // 1: "round_1_shortlisted",
+    2: "round_2_shortlisted",
     // 3: "round_3_shortlisted",
     // finale: "grand_finale_shortlisted",
   };
