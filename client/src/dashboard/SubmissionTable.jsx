@@ -7,6 +7,7 @@ const STATUS_COLORS = {
   round_1_rejected: "bg-red-100 text-red-800 border-red-200",
   round_2_shortlisted: "bg-indigo-100 text-indigo-800 border-indigo-200",
   round_2_rejected: "bg-red-100 text-red-800 border-red-200",
+  track2_shortlisted: "bg-sky-100 text-sky-800 border-sky-200",
   round_3_shortlisted: "bg-purple-100 text-purple-800 border-purple-200",
   round_3_rejected: "bg-red-100 text-red-800 border-red-200",
   grand_finale_shortlisted:

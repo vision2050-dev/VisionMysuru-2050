@@ -361,11 +361,9 @@ const GUIDELINES = {
 const STATUS_STYLES = {
   Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
   round_1_shortlisted: "bg-blue-100 text-blue-800 border-blue-200",
-  round_1_rejected: "bg-red-100 text-red-800 border-red-200",
   round_2_shortlisted: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  round_2_rejected: "bg-red-100 text-red-800 border-red-200",
+  track_2_shortlisted: "bg-sky-100 text-sky-800 border-sky-200",
   round_3_shortlisted: "bg-purple-100 text-purple-800 border-purple-200",
-  round_3_rejected: "bg-red-100 text-red-800 border-red-200",
   grand_finale_shortlisted:
     "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
   winner: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -379,18 +377,23 @@ const STATUS_GROUPS = [
   },
   {
     key: "round1",
-    label: "Round 1 (40 shortlisted to round 2)",
-    statuses: ["round_1_shortlisted", "round_1_rejected"],
+    label: "Round 1 ",
+    statuses: ["round_1_shortlisted"],
   },
   {
     key: "round2",
-    label: "Round 2 (10 shortlisted) to Round 3",
-    statuses: ["round_2_shortlisted", "round_2_rejected"],
+    label: "Round 2 (Track 1)",
+    statuses: ["round_2_shortlisted"],
+  },
+  {
+    key: "track2",
+    label: "Round 2 (Track 2)",
+    statuses: ["track_2_shortlisted"],
   },
   {
     key: "round3 (5 shortlisted) to Grand Finale",
     label: "Round 3",
-    statuses: ["round_3_shortlisted", "round_3_rejected"],
+    statuses: ["round_3_shortlisted"],
   },
   {
     key: "grand-finale",

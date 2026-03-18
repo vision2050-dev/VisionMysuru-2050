@@ -14,7 +14,6 @@ const router = express.Router();
 router.post("/login", adminLogin);
 router.post("/register", registerAdmin);
 
-// Public shortlist route — ?round=1|2|3|finale
 router.get("/shortlist", getShortlist);
 
 // Protected routes

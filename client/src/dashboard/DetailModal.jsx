@@ -178,7 +178,7 @@ const DetailModal = ({ submission, onClose, onUpdateStatus, updating }) => {
                     <div className="w-9 h-9 rounded-full animate-spin border-4 border-t-transparent border-[var(--accent)]" />
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     {STATUS_GROUPS.map((group) => (
                       <div key={group.key}>
                         <p className="mb-1 text-xs font-bold  tracking-wide text-[var(--muted)]">

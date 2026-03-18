@@ -44,6 +44,7 @@ const CorporateSchema = new mongoose.Schema(
         "round_1_rejected",
         "round_2_shortlisted",
         "round_2_rejected",
+        "track_2_shortlisted",
         "round_3_shortlisted",
         "round_3_rejected",
         "grand_finale_shortlisted",

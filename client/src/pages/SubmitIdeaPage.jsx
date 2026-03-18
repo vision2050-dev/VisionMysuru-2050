@@ -1,7 +1,4 @@
 import { motion } from "framer-motion";
-// import { useState } from "react";
-import { FiLock } from "react-icons/fi";
-import RulesAndRegulations from "../Components/Submission/RulesAndRegulations";
 import FooterSection from "../Components/FooterSection";
 import SubmissionHeader from "../Components/Submission/SubmissionHeader";
 import SubmissionNav from "../Components/Submission/SubmissionNav";
@@ -69,7 +66,8 @@ const SubmitIdeaPage = () => {
       <SubmissionNav />
       <main className=" ">
         <SubmissionHeader />
-        <ShortlistTable round="2" />
+        <section className="mx-auto flex max-w-7xl items-center justify-end px-2 pt-4"></section>
+        <ShortlistTable round={2} />
         <FaqsSection />
         <FooterSection />
       </main>

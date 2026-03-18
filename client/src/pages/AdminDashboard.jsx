@@ -319,11 +319,9 @@ const AdminDashboard = () => {
               <option value="All">All Statuses</option>
               <option value="Pending">Pending</option>
               <option value="round_1_shortlisted">Round 1 Shortlisted</option>
-              <option value="round_1_rejected">Round 1 Rejected</option>
               <option value="round_2_shortlisted">Round 2 Shortlisted</option>
-              <option value="round_2_rejected">Round 2 Rejected</option>
+              <option value="track_2_shortlisted">Track 2 Shortlisted</option>
               <option value="round_3_shortlisted">Round 3 Shortlisted</option>
-              <option value="round_3_rejected">Round 3 Rejected</option>
               <option value="grand_finale_shortlisted">
                 Grand Finale Shortlisted
               </option>
