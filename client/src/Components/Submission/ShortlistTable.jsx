@@ -96,7 +96,7 @@ const ShortlistTable = ({ round }) => {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-2 py-6 ">
+    <section className="mx-auto max-w-7xl px-2 py-4">
       <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="min-w-full text-sm">
           <thead>

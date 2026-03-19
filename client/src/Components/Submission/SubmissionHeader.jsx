@@ -47,7 +47,7 @@ const SubmissionHeader = () => {
             </b>
           </p>
           <div className="mt-5 flex flex-col items-stretch gap-3 md:flex-row md:items-start md:justify-center">
-            <div className="inline-flex flex-row gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
+            <div className="inline-flex flex-row gap-2 rounded-2xl border border-[var(--border)] p-1">
               <button
                 type="button"
                 onClick={() => setShowTrack1Rules((prev) => !prev)}
@@ -82,7 +82,7 @@ const SubmissionHeader = () => {
           </div>
 
           {showTrack2Rules && (
-            <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-left text-sm text-[var(--muted)] sm:text-sm md:mx-auto md:max-w-xl">
+            <div className="mt-5 rounded-xl border  text-left border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
               <p className="font-semibold text-[var(--text)]">
                 Track 2: Presentation Format & Strict Rules
               </p>
