@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import FooterSection from "../Components/FooterSection";
 import SubmissionHeader from "../Components/Submission/SubmissionHeader";
@@ -39,6 +40,13 @@ import FaqsSection from "../Components/FaqsSection";
 // };
 
 const SubmitIdeaPage = () => {
+  const [activeTrack, setActiveTrack] = useState("track1");
+
+  const roundByTrack = {
+    track1: 2,
+    track2: 2.1,
+  };
+
   // const [activeCategory, setActiveCategory] = useState(CATEGORY.CITIZENS);
 
   // const renderForm = () => {
@@ -66,8 +74,33 @@ const SubmitIdeaPage = () => {
       <SubmissionNav />
       <main className=" ">
         <SubmissionHeader />
-        <section className="mx-auto flex max-w-7xl items-center justify-end px-2 pt-4"></section>
-        <ShortlistTable round={2} />
+        <section className="mx-auto max-w-7xl px-2 pt-4">
+          <div className="rounded-2xl gap-2 flex flex-row  justify-center items-center p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTrack("track1")}
+              className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition-colors sm:w-auto ${
+                activeTrack === "track1"
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              Track 1
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTrack("track2")}
+              className={`w-full rounded-xl px-4 py-2 text-sm items-center font-semibold transition-colors sm:mt-0 sm:w-auto ${
+                activeTrack === "track2"
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]"
+              }`}
+            >
+              Track 2
+            </button>
+          </div>
+        </section>
+        <ShortlistTable round={roundByTrack[activeTrack]} />
         <FaqsSection />
         <FooterSection />
       </main>
