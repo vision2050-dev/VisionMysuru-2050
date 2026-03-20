@@ -56,9 +56,7 @@ const SubmissionHeader = () => {
               aria-expanded={showTrack2Rules}
               aria-pressed={showTrack2Rules}
             >
-              {showTrack2Rules
-                ? "Hide Track 2 Rules"
-                : "Instructions for Grand Finale"}
+              {showTrack2Rules ? "Hide Rules" : "Instructions for Grand Finale"}
             </button>
           </div>
 
