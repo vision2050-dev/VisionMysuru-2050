@@ -121,8 +121,8 @@ const ShortlistTable = ({ round }) => {
                   key={team.teamId}
                   className="
                     border-b transition-colors
-                          border-green-100 hover:bg-yellow-50
-                       bg-yellow-50/60 border-[var(--border)] "
+                          border-[var(--border)] hover:bg-yellow-50
+                       bg-yellow-50/60 "
                 >
                   <td className="px-4 py-3 font-semibold  text-yellow-700">
                     {idx + 1}
