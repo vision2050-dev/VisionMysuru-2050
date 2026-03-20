@@ -97,10 +97,10 @@ const ShortlistTable = ({ round }) => {
 
   return (
     <section className="mx-auto max-w-7xl px-2 py-4">
-      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="min-w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border shadow-lg shadow-amber-100 border-[var(--border)]">
+        <table className="min-w-full text-sm ">
           <thead>
-            <tr className="bg-[var(--primary)] text-white">
+            <tr className="bg-gradient-to-r from-[var(--primary)] to-amber-600 text-white">
               <th className="px-4 py-3 text-left font-semibold">#</th>
               <th className="px-4 py-3 text-left font-semibold">ID</th>
               <th className="px-4 py-3 text-left font-semibold">Team Name</th>
@@ -115,31 +115,33 @@ const ShortlistTable = ({ round }) => {
           <tbody>
             {data.map((team, idx) => {
               const leader = team.members?.find((m) => m.isLeader);
+
               return (
                 <tr
                   key={team.teamId}
-                  className={
-                    idx % 2 === 0
-                      ? "bg-[var(--surface)]"
-                      : "bg-[var(--surface-2)]"
-                  }
+                  className="
+                    border-b transition-colors
+                          border-green-100 hover:bg-yellow-50
+                       bg-yellow-50/60 border-[var(--border)] "
                 >
-                  <td className="px-4 py-3 text-[var(--muted)]">{idx + 1}</td>
-                  <td className="px-4 py-3 min-w-[130px] font-mono text-md font-semibold text-black">
+                  <td className="px-4 py-3 font-semibold  text-yellow-700">
+                    {idx + 1}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap bg-amber-600 font-mono text-md font-semibold text-black">
                     {team.teamId}
                   </td>
-                  <td className="px-4 py-3 font-semibold text-[var(--text)]">
+                  <td className="px-4 py-3 whitespace-nowrap font-semibold text-[var(--text)]">
                     {team.teamName}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 w-full ">
                     <span className="rounded-full bg-[var(--primary-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--primary)]">
                       {CATEGORY_LABEL[team.category] ?? team.category}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[var(--muted)]">
+                  <td className="px-4 py-3 whitespace-nowrap text-[var(--muted)]">
                     {team.theme}
                   </td>
-                  <td className="px-4 py-3 text-[var(--muted-2)]">
+                  <td className="px-4 py-3 whitespace-nowrap text-[var(--muted-2)]">
                     {leader?.name ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-blue-800">
