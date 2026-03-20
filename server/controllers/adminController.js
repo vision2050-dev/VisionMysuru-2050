@@ -207,7 +207,7 @@ export const getShortlist = async (req, res) => {
   }
 
   const baseSelect =
-    "teamId teamName theme members.name members.email members.phone members.isLeader";
+    "teamId teamName theme members.name members.email members.isLeader";
 
   try {
     const [students, corporates, ngos, citizens] = await Promise.all([
@@ -217,7 +217,24 @@ export const getShortlist = async (req, res) => {
       Citizen.find({ status }).select(baseSelect).lean(),
     ]);
 
-    const tag = (arr, category) => arr.map((doc) => ({ ...doc, category }));
+    const tag = (arr, category) =>
+      arr.map((doc) => {
+        const leader = doc.members?.[0];
+
+        return {
+          _id: doc._id,
+          teamId: doc.teamId,
+          teamName: doc.teamName,
+          theme: doc.theme,
+          category,
+          leader: leader
+            ? {
+                name: leader.name,
+                email: leader.email,
+              }
+            : null,
+        };
+      });
 
     const shortlist = [
       ...tag(students, "students"),
