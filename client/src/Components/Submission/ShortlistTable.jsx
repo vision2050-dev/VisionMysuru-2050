@@ -114,7 +114,11 @@ const ShortlistTable = ({ round }) => {
           </thead>
           <tbody>
             {data.map((team, idx) => {
-              const leader = team.members?.[0];
+              const leader =
+                team.leader ??
+                team.members?.find((m) => m.isLeader) ??
+                team.members?.[0] ??
+                null;
 
               return (
                 <tr
