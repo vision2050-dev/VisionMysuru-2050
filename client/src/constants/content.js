@@ -133,9 +133,9 @@ const TIMELINE = [
   {
     title: "Round 3: Proposal Presentation",
     date: "Mar 16, 2026",
-    eligibleFor: ["Top 10 Finalists"],
+    eligibleFor: ["Top 10 Finalists", "Track 1", "Track 2"],
     detail:
-      "Presentation infront of 5 jury members (academia, industry, government) at SDMIMD Campus to select Top 5 teams for grand finale.",
+      "Presentation infront of 5 jury members (academia, industry, government) at SDMIMD Campus to select Top 5 teams for grand finale from the 10 shortlisted teams from Track 1 and Track 2",
   },
   {
     title: "Grand Finale",
