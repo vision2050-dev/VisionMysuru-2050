@@ -36,14 +36,9 @@ const AdminDashboard = () => {
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("adminToken");
-      if (!token) {
-        navigate("/admin/secure/login");
-        return;
-      }
-
       if (adminSubmissionsCache) {
         setSubmissions(adminSubmissionsCache);
+        setLoading(false);
         return;
       }
 
