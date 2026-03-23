@@ -21,6 +21,24 @@ const getLinkLabel = (link) => {
 };
 
 const NewsPage = () => {
+  const sortedNewsCoverage = [...NEWS_COVERAGE].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+
+    if (Number.isNaN(dateA) && Number.isNaN(dateB)) {
+      return (b.id ?? 0) - (a.id ?? 0);
+    }
+
+    if (Number.isNaN(dateA)) return 1;
+    if (Number.isNaN(dateB)) return -1;
+
+    if (dateB !== dateA) {
+      return dateB - dateA;
+    }
+
+    return (b.id ?? 0) - (a.id ?? 0);
+  });
+
   return (
     <motion.div
       className="overflow-hidden flex flex-col dm-sans bg-[var(--bg)] text-[var(--text)] min-h-screen"
@@ -48,7 +66,7 @@ const NewsPage = () => {
         </section>
 
         <section className="mt-6 grid gap-2 md:grid-cols-2">
-          {NEWS_COVERAGE.map((item, index) => (
+          {sortedNewsCoverage.map((item, index) => (
             <motion.article
               key={item.id || index}
               className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:border-[var(--accent)]"

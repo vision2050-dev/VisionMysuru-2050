@@ -60,12 +60,29 @@ export const Updates = () => {
                   className="group flex h-[31rem] w-[88%] shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition hover:border-[var(--accent)] md:w-[24rem]"
                 >
                   <div className="relative h-48 overflow-hidden">
-                    <img
-                      src={item.imageLink}
-                      alt={item.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
+                    {item.link ? (
+                      <a
+                        href={item.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open update: ${item.title}`}
+                        className="block h-full w-full"
+                      >
+                        <img
+                          src={item.imageLink}
+                          alt={item.title}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      </a>
+                    ) : (
+                      <img
+                        src={item.imageLink}
+                        alt={item.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    )}
                   </div>
                   <div className="rounded-full self-start inline-flex flex items-center mt-3 bg-[var(--accent-soft)]  px-4  mx-4 py-1 text-xs font-semibold text-[var(--accent)]">
                     {item.time}
@@ -92,6 +109,16 @@ export const Updates = () => {
                         isExpanded={Boolean(expandedCards[item.id])}
                         onToggle={() => toggleDescription(item.id)}
                       />
+                      {item.link ? (
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] transition hover:text-[var(--primary)]"
+                        >
+                          Watch on YouTube
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                 </article>
