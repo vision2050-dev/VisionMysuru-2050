@@ -66,7 +66,7 @@ const SubmissionHeader = () => {
             <div className="mt-5 rounded-xl border  text-left border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
               <ul className="mt-1 list-disc space-y-1 pl-4">
                 <li>
-                  Arrival: Be at the SDMIMD campus by 3:00 PM on March 24th for
+                  Arrival: Be at the SDMIMD campus by 3:00 PM on March 23th for
                   setup.
                 </li>
                 <li>
