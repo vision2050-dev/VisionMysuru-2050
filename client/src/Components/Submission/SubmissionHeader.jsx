@@ -40,7 +40,7 @@ const SubmissionHeader = () => {
             below carefully before your session, which will be conducted through
             a{" "}
             <b>
-              physical presentation at SDMIMD on March 24th, 2026 at 3:00 PM.
+              physical presentation at SDMIMD on March 23th, 2026 at 3:00 PM.
             </b>
           </p>
 
