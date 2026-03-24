@@ -185,7 +185,7 @@ const ShortlistTable = ({ round }) => {
       <div className="py-10 mt-20">
         <div className="flex flex-col items-center justify-center mb-6 mt-2 text-center">
           <h2 className="text-3xl md:text-4xl leading-tight font-extrabold tracking-tight text-[#6E1E1E] mb-2">
-            Top 5 Finalists
+            🎉Top 5 Finalists!🎉
           </h2>
           <p className="text-base md:text-lg leading-tight text-[var(--muted)]">
             Congratulations to all teams that reached the Grand Finale.
