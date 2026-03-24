@@ -52,7 +52,7 @@ export const TopNav = () => {
             bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
-            Check Shortlist <FiArrowRight />
+            Check winners <FiArrowRight />
           </Link>
 
           <button
@@ -101,7 +101,7 @@ export const TopNav = () => {
             rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
-            Check Shortlist <FiArrowRight />
+            Check Winners <FiArrowRight />
           </Link>
         </div>
       </div>

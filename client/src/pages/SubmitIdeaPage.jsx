@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import Confetti from "react-confetti";
+import { useWindowSize } from "react-use";
 import FooterSection from "../Components/FooterSection";
 import SubmissionHeader from "../Components/Submission/SubmissionHeader";
 import SubmissionNav from "../Components/Submission/SubmissionNav";
@@ -39,6 +42,14 @@ import FaqsSection from "../Components/FaqsSection";
 // };
 
 const SubmitIdeaPage = () => {
+  const { width, height } = useWindowSize();
+  const [showConfetti, setShowConfetti] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowConfetti(false), 9000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // const [activeCategory, setActiveCategory] = useState(CATEGORY.CITIZENS);
 
   // const renderForm = () => {
@@ -63,6 +74,16 @@ const SubmitIdeaPage = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
     >
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          numberOfPieces={400}
+          recycle={false}
+          gravity={0.24}
+          className="pointer-events-none z-50"
+        />
+      )}
       <SubmissionNav />
       <main className=" ">
         <SubmissionHeader />
