@@ -74,14 +74,12 @@ const AdminDashboard = () => {
     fetchSubmissions();
   }, [fetchSubmissions]);
 
-  // Download Excel for round 1 shortlisted teams
+  // Download Excel for all submissions
   // const handleExportExcel = () => {
   //   try {
-  //     const sourceRows = submissions.filter(
-  //       (sub) => sub.status === "round_1_shortlisted",
-  //     );
+  //     const sourceRows = submissions;
   //     if (sourceRows.length === 0) {
-  //       toast.error("No Round 1 shortlisted teams available to export");
+  //       toast.error("No submissions available to export");
   //       return;
   //     }
 
@@ -92,7 +90,17 @@ const AdminDashboard = () => {
   //       else if (sub.category === "corporates") org = sub.companyName || "N/A";
   //       else if (sub.category === "ngos") org = sub.organizationName || "N/A";
 
+  //       const teamMembers = Array.isArray(sub.members)
+  //         ? sub.members
+  //             .map(
+  //               (member) =>
+  //                 `${member?.name || "Unknown"} (${member?.email || "N/A"})`,
+  //             )
+  //             .join("; ")
+  //         : "N/A";
+
   //       return {
+  //         Category: (sub.category || "N/A").toUpperCase(),
   //         "Team ID": sub.teamId,
   //         "Team Name": sub.teamName,
   //         Theme: sub.theme || "N/A",
@@ -103,7 +111,11 @@ const AdminDashboard = () => {
   //         "Leader Name": leader?.name || "N/A",
   //         "Leader Email": leader?.email || "N/A",
   //         "Leader Contact Number": leader?.phone || "N/A",
-  //         Status: sub.status || "N/A",
+  //         "All Team Members": teamMembers,
+  //         Status: sub.status || "Pending",
+  //         "Submitted At": sub.createdAt
+  //           ? new Date(sub.createdAt).toLocaleString("en-IN")
+  //           : "N/A",
   //       };
   //     });
 
@@ -134,9 +146,9 @@ const AdminDashboard = () => {
   //     }
 
   //     const wb = XLSX.utils.book_new();
-  //     XLSX.utils.book_append_sheet(wb, ws, "Round 1 Shortlist");
-  //     XLSX.writeFile(wb, "round-1-shortlist.xlsx");
-  //     toast.success("Round 1 shortlist Excel downloaded");
+  //     XLSX.utils.book_append_sheet(wb, ws, "All Submissions");
+  //     XLSX.writeFile(wb, "all-submissions.xlsx");
+  //     toast.success("All submissions Excel downloaded");
   //   } catch (error) {
   //     console.error(error);
   //     toast.error("Failed to export Excel");
@@ -253,14 +265,14 @@ const AdminDashboard = () => {
 
       <main className="py-4 px-2 space-y-2">
         <Stats submissions={submissions} />
-        <div className="items-center justify-center flex">
-          {/* <button
+        {/* <div className="items-center justify-center flex">
+          <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
           >
-            <FiDownload /> Download Round 1 Shortlist Excel
-          </button> */}
-        </div>
+            <FiDownload /> Download All Submissions Excel
+          </button>
+        </div> */}
 
         <section className="flex mb-6 justify-center gap-4 pt-4 flex-wrap ">
           <div className="flex flex-wrap gap-2">
