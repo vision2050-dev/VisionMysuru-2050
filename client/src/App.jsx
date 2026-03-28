@@ -6,9 +6,6 @@ import ProtectedRoute from "./Components/ProtectedRoute";
 const LandingPage = React.lazy(() => import("./pages/LandingPage.jsx"));
 const SubmitIdeaPage = React.lazy(() => import("./pages/SubmitIdeaPage.jsx"));
 const NewsPage = React.lazy(() => import("./pages/NewsPage.jsx"));
-const CertificatesPage = React.lazy(
-  () => import("./pages/CertificatesPage.jsx"),
-);
 const LoginPage = React.lazy(() => import("./pages/LoginPage.jsx"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard.jsx"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
@@ -21,7 +18,6 @@ const App = () => {
           <Route path="/" element={<LandingPage />} />
           <Route path="/shortlist" element={<SubmitIdeaPage />} />
           <Route path="/news" element={<NewsPage />} />
-          <Route path="/certificates" element={<CertificatesPage />} />
           <Route path="/admin/secure/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
             <Route
