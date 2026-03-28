@@ -35,6 +35,13 @@ export const TopNav = () => {
               {item.label}
             </a>
           ))}
+
+          <Link
+            to="/certificates"
+            className="text-sm font-semibold text-[var(--primary)] hover:text-[var(--primary-hover)]"
+          >
+            Certificates
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -92,6 +99,16 @@ export const TopNav = () => {
             text-[var(--text)] hover:bg-[var(--surface-2)]"
           >
             In the News <FiRadio />
+          </Link>
+
+          <Link
+            to="/certificates"
+            onClick={() => setOpen(false)}
+            className="inline-flex w-full items-center justify-center gap-2
+            rounded-xl border border-[var(--primary)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold
+            text-[var(--primary)] hover:bg-[var(--surface-2)]"
+          >
+            Certificates
           </Link>
 
           <Link
