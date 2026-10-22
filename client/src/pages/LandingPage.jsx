@@ -16,7 +16,7 @@ import PrizesSection from "../Components/landing/PrizesSection.jsx";
 import { Updates } from "../Components/landing/Updates.jsx";
 
 const LandingPage = () => {
-  const [showCertificatesPopup, setShowCertificatesPopup] = useState(true);
+  const [showCertificatesPopup, setShowCertificatesPopup] = useState(false);
 
   return (
     <>
