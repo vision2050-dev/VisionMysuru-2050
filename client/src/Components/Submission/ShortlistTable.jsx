@@ -135,7 +135,7 @@ const ShortlistTable = ({ round }) => {
               className="flex flex-col items-center w-full sm:w-auto"
             >
               <div
-                className={`relative mt-2 sm:mt-3 bg-gradient-to-br ${prizeStyle.bgGradient} rounded-xl sm:rounded-2xl p-2 md:p-4 shadow-xl text-center w-36 sm:w-32 md:w-44 ${prizeStyle.shadowColor}`}
+                className={`relative mt-2 sm:mt-3 bg-gradient-to-br ${prizeStyle.bgGradient} rounded-xl sm:rounded-2xl p-2 md:p-4 shadow-xl text-center w-36 sm:w-32 md:w-44 ${prizeStyle.shadowColor} transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl`}
               >
                 <p className="text-sm font-bold bg-white rounded-full mb-2 text-gray-800">
                   # {winner.teamId}

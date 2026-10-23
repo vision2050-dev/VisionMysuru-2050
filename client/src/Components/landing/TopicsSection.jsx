@@ -24,8 +24,8 @@ const TopicsSection = () => {
         {TOPICS.map((t, idx) => (
           <div
             key={idx}
-            className="group overflow-hidden rounded-xl 
-            bg-[var(--surface)] transition hover:border-[var(--accent)]"
+            className="group overflow-hidden rounded-2xl border border-[var(--border)]
+            bg-[var(--surface)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[var(--accent)]"
           >
             <div className="relative h-56 overflow-hidden">
               <img

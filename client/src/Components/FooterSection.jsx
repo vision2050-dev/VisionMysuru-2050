@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Mail, Phone, MapPin, Globe } from "lucide-react";
+import { ArrowUpRight, Mail, Phone, MapPin, Globe, Navigation } from "lucide-react";
 import { FaInstagram } from "react-icons/fa6";
 import { FaLinkedin } from "react-icons/fa";
 import { FaFacebook } from "react-icons/fa";
@@ -91,6 +91,29 @@ const FooterSection = () => {
                     <br />
                     Mysuru, Karnataka 570010
                   </span>
+
+                  {/* Campus Directions Card */}
+                  <a
+                    href="https://maps.google.com/?q=SDMIMD+Mysuru"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 group/map relative block overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/90 p-2.5 transition-all duration-300 hover:border-yellow-500/50 hover:bg-zinc-800/90 hover:-translate-y-0.5 hover:shadow-lg"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-500/15 text-yellow-400">
+                          <Navigation className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-semibold text-white group-hover/map:text-yellow-400 transition-colors">
+                            Get Directions to SDMIMD Campus
+                          </p>
+                          <p className="text-[10px] text-zinc-400">Chamundi Hill Road · Google Maps</p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400 group-hover/map:text-yellow-400 group-hover/map:translate-x-0.5 group-hover/map:-translate-y-0.5 transition-all" />
+                    </div>
+                  </a>
                 </div>
               </div>
 

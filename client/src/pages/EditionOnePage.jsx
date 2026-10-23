@@ -14,6 +14,64 @@ import {
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
 
+const AnimatedStatValue = ({ value }) => {
+  const [displayValue, setDisplayValue] = React.useState(0);
+  const [inView, setInView] = React.useState(false);
+  const ref = React.useRef(null);
+
+  const match = String(value).match(/^([^\d]*)(\d+)([^\d]*)$/);
+  const prefix = match ? match[1] : "";
+  const target = match ? parseInt(match[2], 10) : 0;
+  const suffix = match ? match[3] : "";
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  React.useEffect(() => {
+    if (!inView || !target) return;
+    let startTime = null;
+    const duration = 1200;
+
+    const step = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.floor(easeProgress * target));
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setDisplayValue(target);
+      }
+    };
+
+    requestAnimationFrame(step);
+  }, [inView, target]);
+
+  if (!match) return <span>{value}</span>;
+
+  return (
+    <span ref={ref}>
+      {prefix}
+      {inView ? displayValue : 0}
+      {suffix}
+    </span>
+  );
+};
+
 const EDITION_ONE_STATS = [
   { label: "Total Submissions", value: "317+", icon: FiFileText, color: "border-yellow-500" },
   { label: "Jury Panel Members", value: "32", icon: FiUsers, color: "border-purple-500" },
@@ -147,7 +205,7 @@ const EditionOnePage = () => {
                 return (
                   <div
                     key={stat.label}
-                    className={`rounded-2xl border-y-4 border border-[var(--border)] ${stat.color} bg-[var(--surface)] p-4 shadow-sm`}
+                    className={`rounded-2xl border-y-4 border border-[var(--border)] ${stat.color} bg-[var(--surface)] p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-[var(--muted)] sm:text-sm">
@@ -156,7 +214,7 @@ const EditionOnePage = () => {
                       <Icon className="text-[var(--muted-2)] text-lg" />
                     </div>
                     <p className="mt-2 text-2xl font-bold text-[var(--text)] sm:text-3xl">
-                      {stat.value}
+                      <AnimatedStatValue value={stat.value} />
                     </p>
                   </div>
                 );
@@ -184,7 +242,7 @@ const EditionOnePage = () => {
               {WINNERS.map((w) => (
                 <div
                   key={w.teamId}
-                  className={`rounded-2xl border-2 bg-gradient-to-br ${w.highlight} p-6 shadow-md flex flex-col justify-between`}
+                  className={`rounded-2xl border-2 bg-gradient-to-br ${w.highlight} p-6 shadow-md flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}
                 >
                   <div>
                     <div className="flex items-center justify-between">
