@@ -12,6 +12,7 @@ const CertificatesPage = React.lazy(
 const LoginPage = React.lazy(() => import("./pages/LoginPage.jsx"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard.jsx"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
+const EditionOnePage = React.lazy(() => import("./pages/EditionOnePage.jsx"));
 
 const App = () => {
   return (
@@ -19,6 +20,7 @@ const App = () => {
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/edition-1" element={<EditionOnePage />} />
           <Route path="/shortlist" element={<SubmitIdeaPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/certificates" element={<CertificatesPage />} />

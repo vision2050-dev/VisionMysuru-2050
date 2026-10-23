@@ -47,6 +47,14 @@ export const TopNav = () => {
             In the News <FiRadio />
           </Link>
           <Link
+            to="/edition-1"
+            className="hidden md:inline-flex items-center gap-2 rounded-xl
+            bg-[var(--primary)] px-4 py-2 text-sm font-semibold
+            text-[var(--button)] hover:bg-[var(--primary-hover)]"
+          >
+            Edition 1 <FiArrowRight />
+          </Link>
+          <Link
             to="/shortlist"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
             bg-[var(--primary)] px-4 py-2 text-sm font-semibold
@@ -92,6 +100,16 @@ export const TopNav = () => {
             text-[var(--text)] hover:bg-[var(--surface-2)]"
           >
             In the News <FiRadio />
+          </Link>
+
+          <Link
+            to="/edition-1"
+            onClick={() => setOpen(false)}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2
+            rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold
+            text-[var(--button)] hover:bg-[var(--primary-hover)]"
+          >
+            Edition 1 <FiArrowRight />
           </Link>
 
           <Link
