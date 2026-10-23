@@ -85,7 +85,7 @@ const LandingPage = () => {
         <Updates />
         <BrandAmbassador />
         <About />
-        <Sponsors />
+        {/* <Sponsors /> - Temporarily hidden; will be updated with Edition 2 sponsors list */}
         <ObjectivesSection />
         <Participants />
         <TopicsSection />
