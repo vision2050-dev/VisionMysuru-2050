@@ -82,8 +82,8 @@ const sendSubmissionEmail = async ({
 
         <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;color:#374151;">
           📩 For queries, contact
-          <a href="mailto:visionmysuru2050@gmail.com" style="color:#b45309;text-decoration:none;">
-            visionmysuru2050@gmail.com
+          <a href="mailto:visionmysuru2050@sdmimd.ac.in" style="color:#b45309;text-decoration:none;">
+            visionmysuru2050@sdmimd.ac.in
           </a>
         </div>
 

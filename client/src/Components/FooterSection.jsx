@@ -6,12 +6,12 @@ import { FaFacebook } from "react-icons/fa";
 
 const FooterSection = () => {
   const quickLinks = [
-    { label: "About the initiative", href: "#mysuru", kind: "anchor" },
-    { label: "Core objectives", href: "#objectives", kind: "anchor" },
-    { label: "Participation", href: "#participation", kind: "anchor" },
+    { label: "About the initiative", href: "/#about", kind: "anchor" },
+    { label: "Core objectives", href: "/#objectives", kind: "anchor" },
+    { label: "Participation", href: "/#participation", kind: "anchor" },
     { label: "Rules & regulations", href: "/rules", kind: "route" },
-    { label: "Submission portal", href: "/submit", kind: "route" },
-    { label: "Contact", href: "#contact", kind: "anchor" },
+    // { label: "Submission portal", href: "/submit", kind: "route" },
+    // { label: "Contact", href: "#contact", kind: "anchor" },
   ];
 
   return (
@@ -26,12 +26,14 @@ const FooterSection = () => {
               <span className="text-xl font-bold tracking-tighter text-white uppercase">
                 Vision Mysuru <span className="text-yellow-400">2050</span>
               </span>
-              <span className="text-sm  tracking-tighter text-white ">
+              <span className="text-sm tracking-tighter text-white">
                 Key connects
-                <p>
-                  M.S. Shrivathsa : 98457 43337 <br />
-                  H.R. Badarinath : 82773 48958 <br />
-                  R. Thejas : 77952 84171
+                <p className="mt-2 space-y-1 text-sm text-zinc-300">
+                  Prajwal M S : 96635 44886 <br />
+                  Rahul R : 76763 70812 <br />
+                  Pavan Gudur : 96205 63109 <br />
+                  Yuvraj E R : 84316 79184 <br />
+                  Trishala S : 90367 49936
                 </p>
               </span>
             </div>
@@ -93,13 +95,13 @@ const FooterSection = () => {
               </div>
 
               <a
-                href="mailto: visionmysuru2050@gmail.com"
+                href="mailto:visionmysuru2050@sdmimd.ac.in"
                 className="group flex items-center gap-4 hover:text-yellow-400 transition-colors"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 group-hover:border-yellow-500/50 transition-colors">
                   <Mail className="h-4 w-4 text-yellow-400" />
                 </div>
-                <span className="text-sm">visionmysuru2050@gmail.com</span>
+                <span className="text-sm">visionmysuru2050@sdmimd.ac.in</span>
                 <ArrowUpRight className="h-3 w-3 opacity-0 -translate-y-1 transition-all group-hover:opacity-100 group-hover:translate-y-0" />
               </a>
 
