@@ -9,7 +9,7 @@ const About = () => {
         Vision Mysuru 2050
       </p>
       <div className="text-lg font-semibold italic text-[var(--text)]">
-        INK YOUR IDEAS!💡{" "}
+        IDEAS TO IMPACT{" "}
       </div>
       <div className="flex flex-col gap-6 md:flex-row md:gap-12">
         <div className=" max-w-xl mx-auto py-3 md:py-6">
