@@ -12,6 +12,7 @@ import {
   FiRadio,
 } from "react-icons/fi";
 import FooterSection from "../Components/FooterSection";
+import ThemeToggle from "../Components/ThemeToggle";
 
 const EDITION_ONE_STATS = [
   { label: "Total Submissions", value: "317+", icon: FiFileText, color: "border-yellow-500" },
@@ -97,7 +98,8 @@ const EditionOnePage = () => {
             </span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle size="sm" />
             <Link
               to="/news"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] sm:text-sm sm:px-4 sm:py-2"

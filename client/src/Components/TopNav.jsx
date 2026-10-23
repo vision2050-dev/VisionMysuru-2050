@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FiArrowRight, FiMenu, FiX, FiRadio } from "react-icons/fi";
+import ThemeToggle from "./ThemeToggle";
 
 export const TopNav = () => {
   const [open, setOpen] = useState(false);
@@ -40,8 +41,8 @@ export const TopNav = () => {
         <div className="flex items-center gap-2">
           <Link
             to="/news"
-            className="hidden md:inline-flex items-center gap-2 rounded-xl border border-[var(--border)]
-            bg-[var(--surface)] px-4 py-2 text-sm font-semibold
+            className="hidden lg:inline-flex items-center gap-2 rounded-xl border border-[var(--border)]
+            bg-[var(--surface)] px-3.5 py-2 text-sm font-semibold
             text-[var(--text)] hover:bg-[var(--surface-2)]"
           >
             In the News <FiRadio />
@@ -49,7 +50,7 @@ export const TopNav = () => {
           <Link
             to="/edition-1"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
-            bg-[var(--primary)] px-4 py-2 text-sm font-semibold
+            bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
             Edition 1 <FiArrowRight />
@@ -57,11 +58,13 @@ export const TopNav = () => {
           <Link
             to="/shortlist"
             className="hidden md:inline-flex items-center gap-2 rounded-xl
-            bg-[var(--primary)] px-4 py-2 text-sm font-semibold
+            bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
             Check winners <FiArrowRight />
           </Link>
+
+          <ThemeToggle className="ml-1" />
 
           <button
             onClick={() => setOpen((v) => !v)}
@@ -105,7 +108,7 @@ export const TopNav = () => {
           <Link
             to="/edition-1"
             onClick={() => setOpen(false)}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2
+            className="mt-2 inline-flex w-full items-center justify-center gap-2
             rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
@@ -115,12 +118,19 @@ export const TopNav = () => {
           <Link
             to="/shortlist"
             onClick={() => setOpen(false)}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2
+            className="mt-2 inline-flex w-full items-center justify-center gap-2
             rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold
             text-[var(--button)] hover:bg-[var(--primary-hover)]"
           >
             Check Winners <FiArrowRight />
           </Link>
+
+          <div className="pt-3 flex items-center justify-between border-t border-[var(--border)]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+              Appearance
+            </span>
+            <ThemeToggle showLabel={true} size="sm" />
+          </div>
         </div>
       </div>
     </header>

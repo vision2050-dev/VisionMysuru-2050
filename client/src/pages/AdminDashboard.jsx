@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import Stats from "../dashboard/Stats";
 import SubmissionTable from "../dashboard/SubmissionTable";
 import DetailModal from "../dashboard/DetailModal";
+import ThemeToggle from "../Components/ThemeToggle";
 import { TOPIC_OPTIONS } from "../constants/content";
 import {
   Skeleton,
@@ -252,10 +253,11 @@ const AdminDashboard = () => {
               Overview of all submissions
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ThemeToggle size="sm" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-white hover:bg-red-100 dark:bg-red-800 "
+              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition"
             >
               <FiLogOut /> Logout
             </button>

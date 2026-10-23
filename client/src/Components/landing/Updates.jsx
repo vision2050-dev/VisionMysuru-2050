@@ -91,7 +91,7 @@ export const Updates = () => {
                   <div className="flex flex-1 flex-col space-y-2 px-4 py-5 sm:px-4 sm:py-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="max-w-xl text-md font-semibold leading-tight tracking-tight text-black md:text-xl">
+                        <p className="max-w-xl text-md font-semibold leading-tight tracking-tight text-[var(--text)] md:text-xl">
                           {item.title}
                         </p>
                       </div>

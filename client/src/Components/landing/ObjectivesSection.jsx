@@ -28,7 +28,7 @@ const ObjectivesSection = () => {
             <div
               key={item.title}
               className="group relative overflow-hidden rounded-2xl 
-                bg-white/30 backdrop-blur 
+                bg-[var(--surface)]/70 border border-[var(--border)] backdrop-blur 
                 p-6"
             >
               <div className="flex flex-col h-full justify-between">

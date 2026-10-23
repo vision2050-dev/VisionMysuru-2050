@@ -161,7 +161,7 @@ const Card = ({ step, visible, align, isSpecial }) => {
                   ${
                     isSpecial
                       ? "bg-[var(--accent)]/15 text-[var(--text)] border-[var(--accent)]/30"
-                      : "bg-white/70 text-black border-[var(--border)]"
+                      : "bg-[var(--surface-2)] text-[var(--text)] border-[var(--border)]"
                   }
                 `}
               >

@@ -1,6 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Darker+Grotesque:wght@300..900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&display=swap");
 
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     color-scheme: light;
@@ -23,16 +26,44 @@
     --primary-hover: #a12626;
     --primary-soft: rgba(143, 27, 27, 0.14);
 
-    --nav-bg: rgba(255, 255, 255, 0.8);
+    --nav-bg: rgba(255, 255, 255, 0.85);
     --focus: rgba(176, 124, 18, 0.35);
+  }
+
+  :root.dark,
+  html.dark {
+    color-scheme: dark;
+
+    --bg: #0b0c0e;
+    --surface: #14161b;
+    --surface-2: #1e2027;
+
+    --text: #f5f3ee;
+    --button: #ffffff;
+    --muted: #a39c93;
+    --muted-2: #787268;
+
+    --border: rgba(245, 243, 238, 0.12);
+
+    --accent: #e5a93c;
+    --accent-soft: rgba(229, 169, 60, 0.2);
+
+    --primary: #b82c2c;
+    --primary-hover: #cf3737;
+    --primary-soft: rgba(184, 44, 44, 0.22);
+
+    --nav-bg: rgba(11, 12, 14, 0.88);
+    --focus: rgba(229, 169, 60, 0.4);
   }
 }
 
 body {
   margin: 0;
-  background: rgb(255, 255, 255);
+  background-color: var(--bg);
   color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
+
 .html {
   scroll-behavior: smooth;
 }

@@ -205,9 +205,9 @@ const ShortlistTable = ({ round }) => {
             Finalist shortlist table is currently unavailable.
           </p>
         ) : (
-          <div className="overflow-x-auto bg-white border border-[#6E1E1E] rounded-lg">
-            <table className="min-w-full bg-white border-collapse">
-              <thead className="bg-[#6E1E1E] text-white">
+          <div className="overflow-x-auto bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xs">
+            <table className="min-w-full bg-[var(--surface)] border-collapse">
+              <thead className="bg-[var(--primary)] text-white">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold">
                     S.No
@@ -232,7 +232,7 @@ const ShortlistTable = ({ round }) => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-[var(--border)]">
                 {topFive.map((team, index) => {
                   const leader =
                     team.leader ??
@@ -243,27 +243,27 @@ const ShortlistTable = ({ round }) => {
                   return (
                     <tr
                       key={team.teamId ?? `${team.teamName}-${index}`}
-                      className="hover:bg-gray-50"
+                      className="hover:bg-[var(--surface-2)] transition-colors"
                     >
-                      <td className="px-4 py-2 text-sm font-bold text-gray-700">
+                      <td className="px-4 py-2.5 text-sm font-bold text-[var(--text)]">
                         {index + 1}
                       </td>
-                      <td className="px-4 py-2 bg-amber-500 font-bold text-md text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 font-bold text-sm text-amber-500 whitespace-nowrap">
                         {team.teamId ?? "N/A"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-sm font-medium text-[var(--text)] whitespace-nowrap">
                         {team.teamName ?? "N/A"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-sm text-[var(--text)] whitespace-nowrap">
                         {leader?.name ?? "N/A"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-blue-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-sm text-[var(--accent)] whitespace-nowrap">
                         {leader?.email ?? "N/A"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-sm text-[var(--muted)] whitespace-nowrap">
                         {team.theme ?? "N/A"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-sm text-[var(--muted)] whitespace-nowrap">
                         {CATEGORY_LABEL[team.category] ??
                           team.category ??
                           "N/A"}
