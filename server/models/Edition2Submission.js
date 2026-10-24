@@ -81,10 +81,41 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       organizationName: { type: String, trim: true },
     },
 
+    // Creator / Team Leader Contact Email for Participant Login Tracking
+    createdByEmail: { type: String, lowercase: true, trim: true, index: true },
+
+    // Allocation to Jury Member / Judge
+    assignedJudgeEmail: { type: String, lowercase: true, trim: true, default: null, index: true },
+    assignedJudgeName: { type: String, trim: true, default: null },
+    assignedJudgeId: { type: String, default: null },
+    allocatedAt: { type: Date, default: null },
+
+    // Participant Progress Tracking State
+    // Progress States: submitted -> allocated -> under_evaluation -> shortlisted / not shortlisted -> winner
+    progressState: {
+      type: String,
+      enum: [
+        "submitted",
+        "allocated",
+        "under_evaluation",
+        "round_1_shortlisted",
+        "round_1_rejected",
+        "round_2_shortlisted",
+        "round_2_rejected",
+        "grand_finale_shortlisted",
+        "winner",
+      ],
+      default: "submitted",
+      index: true,
+    },
+
     // Juryza Evaluation Engine Metrics
     status: {
       type: String,
       enum: [
+        "submitted",
+        "allocated",
+        "under_evaluation",
         "registered",
         "round_1_shortlisted",
         "round_1_rejected",
@@ -94,7 +125,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
         "grand_finale_shortlisted",
         "winner",
       ],
-      default: "registered",
+      default: "submitted",
       index: true,
     },
     eloRating: { type: Number, default: 1200, index: true }, // Pairwise Duel Rating (Bradley-Terry)

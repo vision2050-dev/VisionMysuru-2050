@@ -8,10 +8,10 @@ const FooterSection = () => {
   const quickLinks = [
     { label: "About the initiative", href: "/#about", kind: "anchor" },
     { label: "Core objectives", href: "/#objectives", kind: "anchor" },
-    { label: "Participation", href: "/#participation", kind: "anchor" },
-    { label: "Rules & regulations", href: "/rules", kind: "route" },
-    // { label: "Submission portal", href: "/submit", kind: "route" },
-    // { label: "Contact", href: "#contact", kind: "anchor" },
+    { label: "Participation tracks", href: "/#participation", kind: "anchor" },
+    { label: "Participant Portal", href: "/portal", kind: "route" },
+    { label: "Jury Evaluation Hub", href: "/login?role=judge", kind: "route" },
+    { label: "Master Admin Access", href: "/login?role=admin", kind: "route" },
   ];
 
   return (

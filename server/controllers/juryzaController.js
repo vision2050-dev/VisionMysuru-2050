@@ -15,7 +15,54 @@ import {
   getDriveClient,
 } from "../services/googleDriveService.js";
 
+export const ADMIN_EMAIL = "visionmysuru2050@sdmimd.ac.in";
+const JWT_SECRET = process.env.JWT_SECRET || "visionmysuru2050_edition2_secret_key";
+
+// Helper to determine if DB is connected
+const isDbConnected = () => {
+  return mongoose.connection && mongoose.connection.readyState === 1;
+};
+
 // In-memory fallback dataset for offline/local testing without MongoDB Atlas
+let localJudgesStore = [
+  {
+    _id: "judge-1",
+    name: "Dr. N.R. Parasuraman",
+    email: "parasuraman@sdmimd.ac.in",
+    role: "judge",
+    organization: "SDMIMD Senior Panel",
+    assignedDomain: "All",
+    active: true,
+  },
+  {
+    _id: "judge-2",
+    name: "Dr. S. Sridhar",
+    email: "sridhar.jury@gmail.com",
+    role: "judge",
+    organization: "Urban Mobility Advisory Board",
+    assignedDomain: "Urban Infrastructure & Mobility",
+    active: true,
+  },
+  {
+    _id: "judge-3",
+    name: "Dr. H. Gayathri",
+    email: "gayathri.jury@gmail.com",
+    role: "judge",
+    organization: "Mysuru Environmental Forum",
+    assignedDomain: "Environmental Sustainability",
+    active: true,
+  },
+  {
+    _id: "judge-4",
+    name: "Prof. Malathi S.",
+    email: "malathi.jury@gmail.com",
+    role: "judge",
+    organization: "Heritage Architecture Trust",
+    assignedDomain: "Heritage Conservation",
+    active: true,
+  },
+];
+
 let localSubmissionsStore = [
   {
     _id: "demo-sub-1",
@@ -33,7 +80,7 @@ let localSubmissionsStore = [
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       title: "EcoFlow 2-Minute On-Ground Video Pitch",
       type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
+      driveDestination: "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e",
     },
     document: {
       name: "EcoFlow_Kukkarahalli_Lake_Blueprint.pdf",
@@ -61,11 +108,18 @@ let localSubmissionsStore = [
       institution: "NIE Mysuru",
       department: "Environmental Engineering",
     },
+    createdByEmail: "aditi.rao@nie.ac.in",
+    assignedJudgeEmail: "gayathri.jury@gmail.com",
+    assignedJudgeName: "Dr. H. Gayathri",
+    assignedJudgeId: "judge-3",
+    allocatedAt: new Date(Date.now() - 3600000 * 24),
+    progressState: "round_2_shortlisted",
     status: "round_2_shortlisted",
     eloRating: 1248,
     zScore: 1.42,
     rubricAverage: 34.5,
     evaluationCount: 3,
+    createdAt: new Date(Date.now() - 3600000 * 48),
   },
   {
     _id: "demo-sub-2",
@@ -83,7 +137,7 @@ let localSubmissionsStore = [
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       title: "Devaraja Market Ground Survey & Pitch",
       type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
+      driveDestination: "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e",
     },
     document: {
       name: "Devaraja_Restoration_Report.pdf",
@@ -98,11 +152,18 @@ let localSubmissionsStore = [
         designation: "Resident Architect & Civic Historian",
       },
     ],
+    createdByEmail: "rangaswamy.mys@gmail.com",
+    assignedJudgeEmail: "malathi.jury@gmail.com",
+    assignedJudgeName: "Prof. Malathi S.",
+    assignedJudgeId: "judge-4",
+    allocatedAt: new Date(Date.now() - 3600000 * 18),
+    progressState: "round_1_shortlisted",
     status: "round_1_shortlisted",
     eloRating: 1216,
     zScore: 0.85,
     rubricAverage: 31.0,
     evaluationCount: 2,
+    createdAt: new Date(Date.now() - 3600000 * 36),
   },
   {
     _id: "demo-sub-3",
@@ -120,7 +181,7 @@ let localSubmissionsStore = [
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       title: "Transit Feeder Demonstration",
       type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
+      driveDestination: "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e",
     },
     document: {
       name: "RapidRoute_Simulation_Data.pdf",
@@ -140,17 +201,367 @@ let localSubmissionsStore = [
       institution: "SDMIMD Mysuru",
       department: "Management / Operations",
     },
-    status: "registered",
+    createdByEmail: "chirag.hegde@sdmimd.ac.in",
+    assignedJudgeEmail: "sridhar.jury@gmail.com",
+    assignedJudgeName: "Dr. S. Sridhar",
+    assignedJudgeId: "judge-2",
+    allocatedAt: new Date(Date.now() - 3600000 * 6),
+    progressState: "under_evaluation",
+    status: "under_evaluation",
     eloRating: 1190,
     zScore: -0.15,
     rubricAverage: 27.0,
     evaluationCount: 1,
+    createdAt: new Date(Date.now() - 3600000 * 20),
   },
 ];
 
-// Helper to determine if DB is connected
-const isDbConnected = () => {
-  return mongoose.connection && mongoose.connection.readyState === 1;
+// ----------------------------------------------------
+// 0. Gmail Authentication & Role Gateway
+// ----------------------------------------------------
+export const loginWithGmail = async (req, res) => {
+  try {
+    const { email, name, roleAttempt } = req.body;
+
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ message: "Valid Gmail address is required." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = name?.trim() || cleanEmail.split("@")[0];
+
+    // Rule 1: Admin portal strictly restricted to visionmysuru2050@sdmimd.ac.in
+    if (roleAttempt === "admin") {
+      if (cleanEmail !== ADMIN_EMAIL.toLowerCase()) {
+        return res.status(403).json({
+          message: `Access Denied: The Admin Portal is strictly restricted to ${ADMIN_EMAIL}.`,
+        });
+      }
+
+      const token = jwt.sign(
+        { email: cleanEmail, name: "SDMIMD Vision Admin", role: "admin" },
+        JWT_SECRET,
+        { expiresIn: "7d" },
+      );
+
+      return res.status(200).json({
+        message: "Admin authentication successful",
+        token,
+        user: { email: cleanEmail, name: "SDMIMD Vision Admin", role: "admin" },
+      });
+    }
+
+    // Rule 2: Jury Member (Judge) authentication
+    if (roleAttempt === "judge") {
+      // Find judge in DB or in-memory store
+      let judge;
+      if (isDbConnected()) {
+        judge = await Judge.findOne({ email: cleanEmail, active: true }).lean();
+      } else {
+        judge = localJudgesStore.find(
+          (j) => j.email.toLowerCase() === cleanEmail && j.active !== false,
+        );
+      }
+
+      if (!judge) {
+        return res.status(403).json({
+          message: `Access Denied: ${cleanEmail} is not registered on the official Jury Panel. Please contact the administrator.`,
+        });
+      }
+
+      const token = jwt.sign(
+        {
+          id: judge._id,
+          email: cleanEmail,
+          name: judge.name,
+          role: "judge",
+          organization: judge.organization,
+        },
+        JWT_SECRET,
+        { expiresIn: "7d" },
+      );
+
+      return res.status(200).json({
+        message: "Jury panel authentication successful",
+        token,
+        user: {
+          id: judge._id,
+          email: cleanEmail,
+          name: judge.name,
+          role: "judge",
+          organization: judge.organization,
+          assignedDomain: judge.assignedDomain,
+        },
+      });
+    }
+
+    // Rule 3: Participant authentication
+    const token = jwt.sign(
+      { email: cleanEmail, name: cleanName, role: "participant" },
+      JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    return res.status(200).json({
+      message: "Participant authentication successful",
+      token,
+      user: { email: cleanEmail, name: cleanName, role: "participant" },
+    });
+  } catch (err) {
+    console.error("Gmail login error:", err);
+    return res.status(500).json({ message: "Authentication failed", error: err.message });
+  }
+};
+
+export const getMe = async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+  return res.status(200).json({ user: req.user });
+};
+
+// ----------------------------------------------------
+// 0b. Judge Management & Allocation Services (Admin Only)
+// ----------------------------------------------------
+export const getJudgesList = async (req, res) => {
+  try {
+    let judges;
+    let submissions;
+
+    if (isDbConnected()) {
+      judges = await Judge.find({ active: true }).sort({ name: 1 }).lean();
+      submissions = await Edition2Submission.find({}).select("assignedJudgeEmail status").lean();
+    } else {
+      judges = [...localJudgesStore];
+      submissions = [...localSubmissionsStore];
+    }
+
+    // Attach current allocation count to each judge
+    const annotated = judges.map((j) => {
+      const alloted = submissions.filter(
+        (s) => s.assignedJudgeEmail?.toLowerCase() === j.email.toLowerCase(),
+      );
+      return {
+        ...j,
+        allocatedCount: alloted.length,
+      };
+    });
+
+    const unallocatedCount = submissions.filter((s) => !s.assignedJudgeEmail).length;
+
+    return res.status(200).json({
+      count: annotated.length,
+      unallocatedCount,
+      totalSubmissions: submissions.length,
+      data: annotated,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to fetch judges", error: err.message });
+  }
+};
+
+export const registerJudge = async (req, res) => {
+  try {
+    const { name, email, organization = "SDMIMD Panel", assignedDomain = "All" } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ message: "Judge name and valid Gmail ID are required" });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const exists = await Judge.findOne({ email: cleanEmail });
+      if (exists) {
+        return res.status(400).json({ message: "Judge with this Gmail ID already registered" });
+      }
+      const newJudge = new Judge({
+        name: name.trim(),
+        email: cleanEmail,
+        organization,
+        assignedDomain,
+        role: "judge",
+        active: true,
+      });
+      await newJudge.save();
+      return res.status(201).json({ message: "Judge added successfully", judge: newJudge });
+    } else {
+      const exists = localJudgesStore.find((j) => j.email.toLowerCase() === cleanEmail);
+      if (exists) {
+        return res.status(400).json({ message: "Judge with this Gmail ID already registered" });
+      }
+      const newJudge = {
+        _id: `judge-${Date.now()}`,
+        name: name.trim(),
+        email: cleanEmail,
+        organization,
+        assignedDomain,
+        role: "judge",
+        active: true,
+      };
+      localJudgesStore.push(newJudge);
+      return res.status(201).json({ message: "Judge added (Local Mode)", judge: newJudge });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to register judge", error: err.message });
+  }
+};
+
+export const deleteJudge = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isDbConnected()) {
+      const judge = await Judge.findById(id);
+      if (judge) {
+        // Unallocate their submissions
+        await Edition2Submission.updateMany(
+          { assignedJudgeEmail: judge.email },
+          {
+            $set: {
+              assignedJudgeEmail: null,
+              assignedJudgeName: null,
+              assignedJudgeId: null,
+              progressState: "submitted",
+              status: "submitted",
+            },
+          },
+        );
+        await Judge.findByIdAndDelete(id);
+      }
+    } else {
+      const judge = localJudgesStore.find((j) => j._id === id || j.email === id);
+      if (judge) {
+        localSubmissionsStore.forEach((s) => {
+          if (s.assignedJudgeEmail === judge.email) {
+            s.assignedJudgeEmail = null;
+            s.assignedJudgeName = null;
+            s.assignedJudgeId = null;
+            s.progressState = "submitted";
+            s.status = "submitted";
+          }
+        });
+        localJudgesStore = localJudgesStore.filter((j) => j._id !== id && j.email !== id);
+      }
+    }
+
+    return res.status(200).json({ message: "Judge removed and submissions unassigned" });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to remove judge", error: err.message });
+  }
+};
+
+export const allocateSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { judgeEmail, judgeName } = req.body;
+
+    if (!judgeEmail) {
+      return res.status(400).json({ message: "Target judge email is required" });
+    }
+
+    const cleanEmail = judgeEmail.toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const submission =
+        (await Edition2Submission.findById(id)) ||
+        (await Edition2Submission.findOne({ teamId: id }));
+
+      if (!submission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+
+      submission.assignedJudgeEmail = cleanEmail;
+      submission.assignedJudgeName = judgeName || cleanEmail;
+      submission.allocatedAt = new Date();
+      submission.progressState = "allocated";
+      submission.status = "allocated";
+      await submission.save();
+
+      return res.status(200).json({ message: "Submission successfully allocated to judge", submission });
+    } else {
+      const sub = localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
+      if (!sub) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+
+      sub.assignedJudgeEmail = cleanEmail;
+      sub.assignedJudgeName = judgeName || cleanEmail;
+      sub.allocatedAt = new Date();
+      sub.progressState = "allocated";
+      sub.status = "allocated";
+
+      return res.status(200).json({ message: "Submission successfully allocated (Local)", submission: sub });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: "Allocation failed", error: err.message });
+  }
+};
+
+export const autoAllocateSubmissions = async (req, res) => {
+  try {
+    let judges;
+    let submissions;
+
+    if (isDbConnected()) {
+      judges = await Judge.find({ active: true }).lean();
+      submissions = await Edition2Submission.find({
+        $or: [{ assignedJudgeEmail: null }, { assignedJudgeEmail: "" }, { assignedJudgeEmail: { $exists: false } }],
+      });
+    } else {
+      judges = localJudgesStore.filter((j) => j.active !== false);
+      submissions = localSubmissionsStore.filter((s) => !s.assignedJudgeEmail);
+    }
+
+    if (judges.length === 0) {
+      return res.status(400).json({ message: "No active judges registered. Add judges before auto-allocating." });
+    }
+
+    if (submissions.length === 0) {
+      return res.status(200).json({ message: "All submissions are already allocated!", allocatedCount: 0 });
+    }
+
+    let judgeIndex = 0;
+    const distribution = {};
+    judges.forEach((j) => (distribution[j.email] = 0));
+
+    if (isDbConnected()) {
+      for (const sub of submissions) {
+        const assignedJudge = judges[judgeIndex % judges.length];
+        sub.assignedJudgeEmail = assignedJudge.email;
+        sub.assignedJudgeName = assignedJudge.name;
+        sub.assignedJudgeId = assignedJudge._id;
+        sub.allocatedAt = new Date();
+        sub.progressState = "allocated";
+        sub.status = "allocated";
+        await sub.save();
+
+        distribution[assignedJudge.email] = (distribution[assignedJudge.email] || 0) + 1;
+        judgeIndex++;
+      }
+    } else {
+      submissions.forEach((sub) => {
+        const assignedJudge = judges[judgeIndex % judges.length];
+        sub.assignedJudgeEmail = assignedJudge.email;
+        sub.assignedJudgeName = assignedJudge.name;
+        sub.assignedJudgeId = assignedJudge._id;
+        sub.allocatedAt = new Date();
+        sub.progressState = "allocated";
+        sub.status = "allocated";
+
+        distribution[assignedJudge.email] = (distribution[assignedJudge.email] || 0) + 1;
+        judgeIndex++;
+      });
+    }
+
+    return res.status(200).json({
+      message: `Successfully distributed ${submissions.length} submissions evenly among ${judges.length} judges.`,
+      allocatedCount: submissions.length,
+      distribution,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Auto allocation failed", error: err.message });
+  }
 };
 
 // ----------------------------------------------------
@@ -210,6 +621,10 @@ export const registerEdition2Submission = async (req, res) => {
         parsedOrgDetails = {};
       }
     }
+
+    // Determine createdByEmail
+    const leader = parsedMembers.find((m) => m.isLeader) || parsedMembers[0];
+    const createdByEmail = (req.user?.email || leader?.email || "").toLowerCase().trim();
 
     // Prefix: VM2-ST (Student), VM2-CO (Corporate), VM2-NG (NGO), VM2-CT (Citizen)
     const categoryCode =
@@ -324,7 +739,13 @@ export const registerEdition2Submission = async (req, res) => {
       document: documentPayload,
       members: parsedMembers,
       organizationDetails: parsedOrgDetails,
-      status: "registered",
+      createdByEmail,
+      assignedJudgeEmail: null,
+      assignedJudgeName: null,
+      assignedJudgeId: null,
+      allocatedAt: null,
+      progressState: "submitted",
+      status: "submitted",
       eloRating: 1200,
       zScore: 0,
       rubricAverage: 0,
@@ -446,26 +867,72 @@ export const getDriveSyncStatus = async (req, res) => {
 };
 
 // ----------------------------------------------------
-// 2. Fetch All Submissions (with Juryza Metrics)
+// 2. Fetch Submissions (with Role-based Isolation)
+// - Admin sees everything
+// - Judge sees ONLY alloted submissions
+// - Participant sees their own submission
 // ----------------------------------------------------
 export const getEdition2Submissions = async (req, res) => {
   try {
-    const { category, theme, status } = req.query;
+    const { category, theme, status, assignedJudgeEmail } = req.query;
+    const user = req.user;
 
     let filter = {};
     if (category && category !== "All") filter.category = category;
     if (theme && theme !== "All") filter.theme = theme;
     if (status && status !== "All") filter.status = status;
 
+    // Strict Role Enforcement
+    if (user?.role === "judge") {
+      // Judge only sees submissions allocated to their Gmail
+      filter.assignedJudgeEmail = user.email.toLowerCase();
+    } else if (user?.role === "admin") {
+      // Admin can view all or filter by specific judge
+      if (assignedJudgeEmail && assignedJudgeEmail !== "All") {
+        if (assignedJudgeEmail === "unassigned") {
+          filter.$or = [{ assignedJudgeEmail: null }, { assignedJudgeEmail: "" }];
+        } else {
+          filter.assignedJudgeEmail = assignedJudgeEmail.toLowerCase();
+        }
+      }
+    } else if (user?.role === "participant") {
+      // Participant sees their own
+      filter.$or = [
+        { createdByEmail: user.email.toLowerCase() },
+        { "members.email": user.email.toLowerCase() },
+      ];
+    }
+
     if (isDbConnected()) {
       const submissions = await Edition2Submission.find(filter)
-        .sort({ eloRating: -1, zScore: -1 })
+        .sort({ eloRating: -1, zScore: -1, createdAt: -1 })
         .lean();
       return res.status(200).json({ count: submissions.length, data: submissions });
     } else {
       let filtered = [...localSubmissionsStore];
-      if (category && category !== "All")
-        filtered = filtered.filter((s) => s.category === category);
+
+      // Filter by role
+      if (user?.role === "judge") {
+        filtered = filtered.filter(
+          (s) => s.assignedJudgeEmail?.toLowerCase() === user.email.toLowerCase(),
+        );
+      } else if (user?.role === "participant") {
+        filtered = filtered.filter(
+          (s) =>
+            s.createdByEmail?.toLowerCase() === user.email.toLowerCase() ||
+            s.members?.some((m) => m.email?.toLowerCase() === user.email.toLowerCase()),
+        );
+      } else if (user?.role === "admin" && assignedJudgeEmail && assignedJudgeEmail !== "All") {
+        if (assignedJudgeEmail === "unassigned") {
+          filtered = filtered.filter((s) => !s.assignedJudgeEmail);
+        } else {
+          filtered = filtered.filter(
+            (s) => s.assignedJudgeEmail?.toLowerCase() === assignedJudgeEmail.toLowerCase(),
+          );
+        }
+      }
+
+      if (category && category !== "All") filtered = filtered.filter((s) => s.category === category);
       if (theme && theme !== "All") filtered = filtered.filter((s) => s.theme === theme);
       if (status && status !== "All") filtered = filtered.filter((s) => s.status === status);
 
@@ -478,17 +945,99 @@ export const getEdition2Submissions = async (req, res) => {
 };
 
 // ----------------------------------------------------
+// 2b. Participant Live Submission & Progress Tracker
+// ----------------------------------------------------
+export const getMySubmission = async (req, res) => {
+  try {
+    const email = (req.user?.email || req.query.email || "").toLowerCase().trim();
+
+    if (!email) {
+      return res.status(400).json({ message: "Participant Gmail ID required" });
+    }
+
+    let submission;
+    if (isDbConnected()) {
+      submission = await Edition2Submission.findOne({
+        $or: [{ createdByEmail: email }, { "members.email": email }],
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+    } else {
+      submission = localSubmissionsStore.find(
+        (s) =>
+          s.createdByEmail?.toLowerCase() === email ||
+          s.members?.some((m) => m.email?.toLowerCase() === email),
+      );
+    }
+
+    if (!submission) {
+      return res.status(200).json({
+        found: false,
+        message: "No active submission registered for this Gmail address yet.",
+        submission: null,
+      });
+    }
+
+    // Progress timeline calculation
+    // States: submitted -> allocated -> under_evaluation -> shortlisted/rejected -> winner
+    const currentState = submission.progressState || submission.status || "submitted";
+
+    const isSubmitted = true;
+    const isAllocated = Boolean(
+      submission.assignedJudgeEmail ||
+        ["allocated", "under_evaluation", "round_1_shortlisted", "round_1_rejected", "round_2_shortlisted", "grand_finale_shortlisted", "winner"].includes(currentState),
+    );
+    const isUnderEvaluation = [
+      "under_evaluation",
+      "round_1_shortlisted",
+      "round_1_rejected",
+      "round_2_shortlisted",
+      "grand_finale_shortlisted",
+      "winner",
+    ].includes(currentState);
+    const isShortlisted = [
+      "round_1_shortlisted",
+      "round_2_shortlisted",
+      "grand_finale_shortlisted",
+      "winner",
+    ].includes(currentState);
+    const isRejected = ["round_1_rejected", "round_2_rejected"].includes(currentState);
+    const isWinner = currentState === "winner";
+
+    return res.status(200).json({
+      found: true,
+      submission,
+      progressTimeline: {
+        currentState,
+        isSubmitted,
+        isAllocated,
+        assignedJudgeName: submission.assignedJudgeName || null,
+        allocatedAt: submission.allocatedAt || null,
+        isUnderEvaluation,
+        isShortlisted,
+        isRejected,
+        isWinner,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to fetch submission progress", error: err.message });
+  }
+};
+
+// ----------------------------------------------------
 // 3. Jury Evaluation: 4-Factor Rubric Scoring + Z-Score Normalization
 // ----------------------------------------------------
 export const submitRubricEvaluation = async (req, res) => {
   try {
     const {
       submissionId,
-      judgeId = "judge-sdmimd-01",
       scores,
       feedback = "",
       round = 1,
     } = req.body;
+
+    const judgeId = req.user?.id || req.body.judgeId || "judge-sdmimd-01";
+    const judgeEmail = req.user?.email || "judge@sdmimd.ac.in";
 
     if (!submissionId || !scores) {
       return res.status(400).json({ message: "Submission ID and score rubric are required" });
@@ -508,7 +1057,6 @@ export const submitRubricEvaluation = async (req, res) => {
       Number(videoPitchDelivery);
 
     if (isDbConnected()) {
-      // Save Evaluation
       const evaluation = new Evaluation({
         submissionId,
         judgeId,
@@ -542,6 +1090,10 @@ export const submitRubricEvaluation = async (req, res) => {
         submission.rubricAverage = totalRawScore;
         submission.zScore = computedZScore;
         submission.evaluationCount = (submission.evaluationCount || 0) + 1;
+        if (submission.progressState === "allocated") {
+          submission.progressState = "under_evaluation";
+          submission.status = "under_evaluation";
+        }
         await submission.save();
       }
 
@@ -552,11 +1104,15 @@ export const submitRubricEvaluation = async (req, res) => {
       });
     } else {
       // Local fallback
-      const target = localSubmissionsStore.find((s) => s._id === submissionId);
+      const target = localSubmissionsStore.find((s) => s._id === submissionId || s.teamId === submissionId);
       if (target) {
         target.rubricAverage = totalRawScore;
-        target.zScore = Number(((totalRawScore - 20) / 7.5).toFixed(2)); // mock normalization
+        target.zScore = Number(((totalRawScore - 20) / 7.5).toFixed(2));
         target.evaluationCount = (target.evaluationCount || 0) + 1;
+        if (target.progressState === "allocated" || target.progressState === "submitted") {
+          target.progressState = "under_evaluation";
+          target.status = "under_evaluation";
+        }
       }
 
       return res.status(200).json({
@@ -576,7 +1132,8 @@ export const submitRubricEvaluation = async (req, res) => {
 // ----------------------------------------------------
 export const submitPairwiseDuelVote = async (req, res) => {
   try {
-    const { winnerId, loserId, judgeId = "judge-sdmimd-01" } = req.body;
+    const { winnerId, loserId } = req.body;
+    const judgeId = req.user?.id || req.body.judgeId || "judge-sdmimd-01";
 
     if (!winnerId || !loserId) {
       return res.status(400).json({ message: "Winner and loser IDs are required" });
@@ -594,7 +1151,6 @@ export const submitPairwiseDuelVote = async (req, res) => {
         return res.status(404).json({ message: "One or both teams not found" });
       }
 
-      // Expected outcome
       const expectedA = 1 / (1 + Math.pow(10, (teamB.eloRating - teamA.eloRating) / 400));
       const expectedB = 1 / (1 + Math.pow(10, (teamA.eloRating - teamB.eloRating) / 400));
 
@@ -603,77 +1159,136 @@ export const submitPairwiseDuelVote = async (req, res) => {
 
       await Promise.all([teamA.save(), teamB.save()]);
 
+      const duelRecord = new Evaluation({
+        judgeId,
+        type: "duel",
+        duel: {
+          teamAId: winnerId,
+          teamBId: loserId,
+          winnerId,
+          eloChangeA: Math.round(K * (1 - expectedA)),
+          eloChangeB: Math.round(K * (0 - expectedB)),
+        },
+      });
+      await duelRecord.save();
+
       return res.status(200).json({
-        message: "Pairwise duel recorded successfully!",
-        winner: { id: teamA._id, name: teamA.teamName, newElo: teamA.eloRating },
-        loser: { id: teamB._id, name: teamB.teamName, newElo: teamB.eloRating },
+        message: "Duel recorded and Elo ratings updated",
+        winner: { id: teamA._id, newElo: teamA.eloRating },
+        loser: { id: teamB._id, newElo: teamB.eloRating },
       });
     } else {
-      const teamA = localSubmissionsStore.find((s) => s._id === winnerId);
-      const teamB = localSubmissionsStore.find((s) => s._id === loserId);
+      const teamA = localSubmissionsStore.find((s) => s._id === winnerId || s.teamId === winnerId);
+      const teamB = localSubmissionsStore.find((s) => s._id === loserId || s.teamId === loserId);
 
-      if (teamA && teamB) {
-        const expectedA = 1 / (1 + Math.pow(10, ((teamB.eloRating || 1200) - (teamA.eloRating || 1200)) / 400));
-        const expectedB = 1 / (1 + Math.pow(10, ((teamA.eloRating || 1200) - (teamB.eloRating || 1200)) / 400));
-
-        teamA.eloRating = Math.round((teamA.eloRating || 1200) + K * (1 - expectedA));
-        teamB.eloRating = Math.round((teamB.eloRating || 1200) + K * (0 - expectedB));
+      if (!teamA || !teamB) {
+        return res.status(404).json({ message: "One or both teams not found in local store" });
       }
 
+      const expectedA = 1 / (1 + Math.pow(10, ((teamB.eloRating || 1200) - (teamA.eloRating || 1200)) / 400));
+      teamA.eloRating = Math.round((teamA.eloRating || 1200) + K * (1 - expectedA));
+      teamB.eloRating = Math.round((teamB.eloRating || 1200) - K * (1 - expectedA));
+
       return res.status(200).json({
-        message: "Pairwise duel recorded (Local Mode)!",
-        winner: { id: teamA?._id, name: teamA?.teamName, newElo: teamA?.eloRating },
-        loser: { id: teamB?._id, name: teamB?.teamName, newElo: teamB?.eloRating },
+        message: "Duel recorded and Elo ratings updated (Local Mode)",
+        winner: { id: teamA._id, newElo: teamA.eloRating },
+        loser: { id: teamB._id, newElo: teamB.eloRating },
       });
     }
   } catch (error) {
-    return res.status(500).json({ message: "Duel vote failed", error: error.message });
+    console.error("Duel vote error:", error);
+    return res.status(500).json({ message: "Failed to record duel vote", error: error.message });
   }
 };
 
-// ----------------------------------------------------
-// 5. Matchmaking for Duels: Pick Two Balanced Teams
-// ----------------------------------------------------
 export const getDuelPair = async (req, res) => {
   try {
-    const { category, theme } = req.query;
+    const user = req.user;
+    let pool;
 
-    let pool = isDbConnected()
-      ? await Edition2Submission.find(category && category !== "All" ? { category } : {}).lean()
-      : [...localSubmissionsStore];
-
-    if (pool.length < 2) {
-      return res.status(200).json({ pair: pool });
+    if (isDbConnected()) {
+      let filter = {};
+      if (user?.role === "judge") {
+        filter.assignedJudgeEmail = user.email.toLowerCase();
+      }
+      pool = await Edition2Submission.find(filter).lean();
+    } else {
+      pool = [...localSubmissionsStore];
+      if (user?.role === "judge") {
+        pool = pool.filter(
+          (s) => s.assignedJudgeEmail?.toLowerCase() === user.email.toLowerCase(),
+        );
+      }
     }
 
-    // Pick two teams randomly or closest in Elo
-    const indexA = Math.floor(Math.random() * pool.length);
-    let indexB = (indexA + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
+    if (pool.length < 2) {
+      return res.status(400).json({
+        message: "At least 2 submissions are required in your alloted pool to initiate a duel comparison.",
+      });
+    }
 
-    return res.status(200).json({ pair: [pool[indexA], pool[indexB]] });
+    const shuffled = pool.sort(() => 0.5 - Math.random());
+    return res.status(200).json({ teamA: shuffled[0], teamB: shuffled[1] });
   } catch (error) {
     return res.status(500).json({ message: "Failed to get duel pair", error: error.message });
   }
 };
 
 // ----------------------------------------------------
-// 6. Advance / Update Status (Shortlist Command)
+// 6. Advance / Update Progress State
+// Both Admin and assigned Jury can update team state
 // ----------------------------------------------------
 export const updateSubmissionStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, progressState } = req.body;
+    const targetState = progressState || status;
+
+    if (!targetState) {
+      return res.status(400).json({ message: "Target status or progressState is required" });
+    }
 
     if (isDbConnected()) {
-      const updated = await Edition2Submission.findByIdAndUpdate(
-        id,
-        { status },
-        { returnDocument: "after" },
-      );
-      return res.status(200).json({ message: "Status updated", submission: updated });
+      const submission =
+        (await Edition2Submission.findById(id)) ||
+        (await Edition2Submission.findOne({ teamId: id }));
+
+      if (!submission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+
+      // Check judge permission if not admin
+      if (
+        req.user?.role === "judge" &&
+        submission.assignedJudgeEmail?.toLowerCase() !== req.user.email.toLowerCase()
+      ) {
+        return res.status(403).json({
+          message: "Access Denied: You can only update submissions alloted to you.",
+        });
+      }
+
+      submission.progressState = targetState;
+      submission.status = targetState;
+      await submission.save();
+
+      return res.status(200).json({ message: "Submission progress state updated successfully", submission });
     } else {
-      const found = localSubmissionsStore.find((s) => s._id === id);
-      if (found) found.status = status;
+      const found = localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
+      if (!found) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+
+      if (
+        req.user?.role === "judge" &&
+        found.assignedJudgeEmail?.toLowerCase() !== req.user.email.toLowerCase()
+      ) {
+        return res.status(403).json({
+          message: "Access Denied: You can only update submissions alloted to you.",
+        });
+      }
+
+      found.progressState = targetState;
+      found.status = targetState;
       return res.status(200).json({ message: "Status updated (Local)", submission: found });
     }
   } catch (error) {

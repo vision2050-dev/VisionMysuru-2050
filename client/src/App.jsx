@@ -17,6 +17,8 @@ const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
 const EditionOnePage = React.lazy(() => import("./pages/EditionOnePage.jsx"));
 const ParticipantPortal = React.lazy(() => import("./pages/ParticipantPortal.jsx"));
 const JuryzaHub = React.lazy(() => import("./pages/JuryzaHub.jsx"));
+const AdminJuryzaPlatform = React.lazy(() => import("./pages/AdminJuryzaPlatform.jsx"));
+const JuryzaAuthPage = React.lazy(() => import("./pages/JuryzaAuthPage.jsx"));
 
 const App = () => {
   return (
@@ -29,6 +31,9 @@ const App = () => {
             <Route path="/edition-1" element={<EditionOnePage />} />
             <Route path="/portal" element={<ParticipantPortal />} />
             <Route path="/jury" element={<JuryzaHub />} />
+            <Route path="/admin" element={<AdminJuryzaPlatform />} />
+            <Route path="/login" element={<JuryzaAuthPage />} />
+            <Route path="/auth" element={<JuryzaAuthPage />} />
             <Route path="/shortlist" element={<SubmitIdeaPage />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/certificates" element={<CertificatesPage />} />
