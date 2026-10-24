@@ -139,27 +139,22 @@ export const registerUser = async (req, res) => {
     const { name, email, password, role = "participant", phone, organization, specialization } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, Gmail ID, and password are required." });
+      return res.status(400).json({ message: "Name, Email ID, and password are required." });
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
 
-    // Admin validation rule
-    if (role === "admin" && cleanEmail !== ADMIN_EMAIL) {
-      return res.status(403).json({ message: "you do not have admin access" });
-    }
-
     if (isDbConnected()) {
       const existingUser = await JuryzaUser.findOne({ email: cleanEmail });
       if (existingUser) {
-        return res.status(409).json({ message: "An account with this Gmail ID already exists. Please sign in." });
+        return res.status(409).json({ message: "An account with this Email already exists. Please sign in." });
       }
 
       const newUser = new JuryzaUser({
         name,
         email: cleanEmail,
         password,
-        role: cleanEmail === ADMIN_EMAIL ? "admin" : role,
+        role,
         phone,
         organization,
         specialization: specialization || "General",
@@ -182,31 +177,40 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Fallback in-memory
+    // In-memory fallback
     const existing = localUsersStore.find((u) => u.email === cleanEmail);
-    if (existing) {
-      return res.status(409).json({ message: "An account with this Gmail ID already exists. Please sign in." });
+    if (existing && existing.password) {
+      return res.status(409).json({ message: "An account with this Email already exists. Please sign in." });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = {
-      _id: `user-${randomUUID()}`,
-      name,
-      email: cleanEmail,
-      password: hashedPassword,
-      role: cleanEmail === ADMIN_EMAIL ? "admin" : role,
-      phone,
-      organization: organization || "Participant",
-      specialization: specialization || "General",
-      allotedTeams: [],
-      createdAt: new Date(),
-    };
+    let newUser = existing;
+    if (newUser) {
+      newUser.name = name;
+      newUser.password = hashedPassword;
+      newUser.role = role;
+      newUser.phone = phone;
+      newUser.organization = organization;
+      newUser.specialization = specialization || "General";
+    } else {
+      newUser = {
+        _id: `user-${randomUUID()}`,
+        name,
+        email: cleanEmail,
+        password: hashedPassword,
+        role,
+        phone,
+        organization: organization || (role === "admin" ? "SDMIMD Admin Panel" : "Participant"),
+        specialization: specialization || "General",
+        allotedTeams: [],
+        createdAt: new Date(),
+      };
+      localUsersStore.push(newUser);
+    }
 
-    localUsersStore.push(newUser);
     const token = generateToken(newUser);
-
     triggerSpreadsheetUpdate();
 
     return res.status(201).json({
@@ -226,73 +230,27 @@ export const registerUser = async (req, res) => {
 };
 
 /**
- * Sign In for Participants, Judges, and Admin
+ * Sign In for Participants, Judges, and Admin (Secure bcrypt authentication)
  */
 export const loginUser = async (req, res) => {
   try {
     const { email, password, requestedRole } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Gmail ID and password are required." });
+      return res.status(400).json({ message: "Email ID and password are required." });
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
 
-    // STRICT ADMIN VALIDATION: If attempting admin sign in, email MUST be vision2050@sdmimd.ac.in
-    if (requestedRole === "admin" && cleanEmail !== ADMIN_EMAIL) {
-      return res.status(403).json({ message: "you do not have admin access" });
-    }
-
-    // Hardcoded Admin Password: Vision2050 (case-insensitive for convenience)
-    if (cleanEmail === ADMIN_EMAIL) {
-      const isCorrectPassword =
-        password === "Vision2050" ||
-        password === "vision2050" ||
-        password.toLowerCase() === "vision2050" ||
-        password === (process.env.ADMIN_PASSWORD || "Vision2050");
-
-      if (!isCorrectPassword) {
-        return res.status(401).json({
-          message: "Invalid admin password. The password is hardcoded to Vision2050.",
-        });
-      }
-
-      const token = generateToken({
-        id: "admin-default-id",
-        name: "Vision Mysuru Admin",
-        email: ADMIN_EMAIL,
-        role: "admin",
-      });
-
-      return res.status(200).json({
-        message: "Signed in successfully!",
-        token,
-        user: {
-          id: "admin-default-id",
-          name: "Vision Mysuru Admin",
-          email: ADMIN_EMAIL,
-          role: "admin",
-        },
-      });
-    }
-
     if (isDbConnected()) {
       let user = await JuryzaUser.findOne({ email: cleanEmail });
 
-      // Auto-provision admin if signing in for first time with vision2050@sdmimd.ac.in
-      if (!user && cleanEmail === ADMIN_EMAIL) {
-        user = new JuryzaUser({
-          name: "Vision Mysuru Admin",
-          email: ADMIN_EMAIL,
-          password,
-          role: "admin",
-          organization: "SDMIMD Mysuru",
-        });
-        await user.save();
+      if (!user) {
+        return res.status(404).json({ message: "No account found with this email. Please sign up first." });
       }
 
-      if (!user) {
-        return res.status(404).json({ message: "No account found with this Gmail ID. Please sign up first." });
+      if (requestedRole === "admin" && user.role !== "admin") {
+        return res.status(403).json({ message: "you do not have admin access" });
       }
 
       if (requestedRole && requestedRole !== user.role && user.role !== "admin") {
@@ -322,24 +280,12 @@ export const loginUser = async (req, res) => {
     // In-memory fallback
     let user = localUsersStore.find((u) => u.email === cleanEmail);
 
-    if (!user && cleanEmail === ADMIN_EMAIL) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      user = {
-        _id: "admin-default-id",
-        name: "Vision Mysuru Admin",
-        email: ADMIN_EMAIL,
-        password: hashedPassword,
-        role: "admin",
-        organization: "SDMIMD Mysuru",
-        allotedTeams: [],
-        createdAt: new Date(),
-      };
-      localUsersStore.push(user);
+    if (!user) {
+      return res.status(404).json({ message: "No account found with this email. Please sign up first." });
     }
 
-    if (!user) {
-      return res.status(404).json({ message: "No account found with this Gmail ID. Please sign up first." });
+    if (requestedRole === "admin" && user.role !== "admin") {
+      return res.status(403).json({ message: "you do not have admin access" });
     }
 
     if (requestedRole && requestedRole !== user.role && user.role !== "admin") {
@@ -355,7 +301,7 @@ export const loginUser = async (req, res) => {
         return res.status(401).json({ message: "Invalid password. Please try again." });
       }
     } else {
-      // First time password setup for seeded accounts
+      // First time password initialization
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
     }

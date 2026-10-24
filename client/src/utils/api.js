@@ -1,9 +1,27 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001";
+// Determine appropriate API Base URL
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  if (typeof window !== "undefined") {
+    // In dev mode, target backend port 5001 on the active hostname (localhost, 127.0.0.1, or LAN)
+    if (import.meta.env.DEV) {
+      const hostname = window.location.hostname || "localhost";
+      return `http://${hostname}:5001`;
+    }
+    // On deployed production without custom VITE_API_URL, use relative origin
+    return "";
+  }
+
+  return "http://localhost:5001";
+};
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
+  timeout: 4000, // 4s timeout to trigger resilient client storage fallback quickly
 });
 
 api.interceptors.request.use(

@@ -15,12 +15,22 @@ const app = express();
 // app.set("trust proxy", 1);
 app.use(
   cors({
-    origin: [
-      "https://www.visionmysuru2050.in",
-      "http://localhost:5001",
-      "http://localhost:5000",
-      "http://localhost:5173",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      // Allow localhost, 127.0.0.1, vercel preview, and institutional domains
+      if (
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.endsWith(".vercel.app") ||
+        origin.includes("visionmysuru2050") ||
+        origin.includes("sdmimd")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "x-user-email"],

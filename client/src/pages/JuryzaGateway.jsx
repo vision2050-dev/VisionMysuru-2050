@@ -14,11 +14,13 @@ import {
   FiBriefcase,
   FiAlertCircle,
   FiExternalLink,
+  FiEye,
+  FiEyeOff,
+  FiActivity,
 } from "react-icons/fi";
 import api from "../utils/api";
+import { clientSignUp, clientSignIn } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
-
-const ADMIN_EMAIL = "vision2050@sdmimd.ac.in";
 
 export const JuryzaGateway = () => {
   const navigate = useNavigate();
@@ -33,6 +35,9 @@ export const JuryzaGateway = () => {
   const [organization, setOrganization] = useState("");
   const [specialization, setSpecialization] = useState("Environmental Sustainability");
 
+  // Show/hide password state
+  const [showPassword, setShowPassword] = useState(false);
+
   // Status feedback
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -42,11 +47,9 @@ export const JuryzaGateway = () => {
     setActiveTab(tab);
     setError("");
     setSuccess("");
-    if (tab === "admin") {
-      setAuthMode("signin");
-      setEmail(ADMIN_EMAIL);
-    } else {
-      if (email === ADMIN_EMAIL) setEmail("");
+    // Pre-fill email placeholder or prompt if switching
+    if (tab === "admin" && !email) {
+      setEmail("vision2050@sdmimd.ac.in");
     }
   };
 
@@ -55,123 +58,132 @@ export const JuryzaGateway = () => {
     setError("");
     setSuccess("");
 
-    const cleanEmail = activeTab === "admin" ? ADMIN_EMAIL : (email || "").toLowerCase().trim();
+    const cleanEmail = (email || "").toLowerCase().trim();
+    if (!cleanEmail) {
+      setError("Please enter a valid Gmail ID.");
+      return;
+    }
 
-    // 1. Strict Admin check: ONLY vision2050@sdmimd.ac.in
-    if (activeTab === "admin" && cleanEmail !== ADMIN_EMAIL) {
-      setError("you do not have admin access");
+    if (!password || password.length < 4) {
+      setError("Password must be at least 4 characters long.");
+      return;
+    }
+
+    if (authMode === "signup" && !name.trim()) {
+      setError("Please enter your full name.");
       return;
     }
 
     setLoading(true);
 
-    // 2. Hardcoded Admin Authentication: Vision2050
-    if (activeTab === "admin") {
-      const isCorrect =
-        password === "Vision2050" ||
-        password === "vision2050" ||
-        (password && password.toLowerCase() === "vision2050");
+    let authData = null;
+    let authError = null;
 
-      if (!isCorrect) {
-        setError("Invalid password. The admin password is hardcoded to: Vision2050");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const res = await api.post("/api/v2/auth/signin", {
-          email: ADMIN_EMAIL,
-          password: "Vision2050",
-          requestedRole: "admin",
-        });
-        const { token } = res.data;
-        localStorage.setItem("juryzaToken", token);
-        localStorage.setItem("adminToken", token);
-      } catch (apiErr) {
-        // Resilient fallback token if backend is on another network/port
-        const fallbackToken = "admin-hardcoded-token-" + Date.now();
-        localStorage.setItem("juryzaToken", fallbackToken);
-        localStorage.setItem("adminToken", fallbackToken);
-      }
-
-      localStorage.setItem("juryzaRole", "admin");
-      localStorage.setItem("juryzaEmail", ADMIN_EMAIL);
-      localStorage.setItem("juryzaName", "Vision Mysuru Admin");
-
-      setSuccess("Signed in successfully as Admin! Redirecting to Control Room...");
-      setTimeout(() => {
-        navigate("/admin");
-      }, 400);
-      setLoading(false);
-      return;
-    }
-
+    // 1. Primary Engine: Attempt Backend API
     try {
-      if (authMode === "signup" && activeTab !== "admin") {
-        // Sign Up
+      if (authMode === "signup") {
         const payload = {
-          name,
+          name: name.trim(),
           email: cleanEmail,
           password,
-          role: activeTab, // "participant" or "judge"
-          phone,
-          organization,
+          role: activeTab,
+          phone: phone.trim(),
+          organization: organization.trim(),
           specialization,
         };
-
         const res = await api.post("/api/v2/auth/signup", payload);
-        const { token, user } = res.data;
-
-        localStorage.setItem("juryzaToken", token);
-        localStorage.setItem("juryzaRole", user.role);
-        localStorage.setItem("juryzaEmail", user.email);
-        localStorage.setItem("juryzaName", user.name);
-
-        setSuccess("Account created successfully! Redirecting...");
-        setTimeout(() => {
-          if (user.role === "judge") {
-            navigate("/jury");
-          } else {
-            navigate("/portal");
-          }
-        }, 800);
+        authData = res.data;
       } else {
-        // Sign In
         const payload = {
           email: cleanEmail,
           password,
           requestedRole: activeTab,
         };
-
         const res = await api.post("/api/v2/auth/signin", payload);
-        const { token, user } = res.data;
-
-        localStorage.setItem("juryzaToken", token);
-        localStorage.setItem("juryzaRole", user.role);
-        localStorage.setItem("juryzaEmail", user.email);
-        localStorage.setItem("juryzaName", user.name);
-        if (user.role === "admin") {
-          localStorage.setItem("adminToken", token);
-        }
-
-        setSuccess("Signed in successfully! Redirecting...");
-        setTimeout(() => {
-          if (user.role === "admin") {
-            navigate("/admin");
-          } else if (user.role === "judge") {
-            navigate("/jury");
-          } else {
-            navigate("/portal");
-          }
-        }, 800);
+        authData = res.data;
       }
-    } catch (err) {
-      const errMsg =
-        err.response?.data?.message || "Authentication failed. Please check your credentials.";
-      setError(errMsg);
-    } finally {
-      setLoading(false);
+    } catch (backendErr) {
+      authError = backendErr;
+      console.warn("Backend API unreachable or returned error:", backendErr.message);
+
+      // If backend returned a clear business error from DB (e.g. invalid password or unauthorized role),
+      // check if it's a network error (no response) vs 401/403/404 from active server
+      const status = backendErr.response?.status;
+      const serverMessage = backendErr.response?.data?.message;
+
+      // If backend is active and gave a definitive auth rejection (e.g. wrong password or unauthorized role)
+      if (status === 401 || status === 403) {
+        setError(serverMessage || "Authentication failed. Please verify your credentials.");
+        setLoading(false);
+        return;
+      }
+
+      // If backend is offline, network failed, or not found on deployed domain:
+      // Seamlessly fall back to client storage engine
+      try {
+        if (authMode === "signup") {
+          authData = await clientSignUp({
+            name: name.trim(),
+            email: cleanEmail,
+            password,
+            role: activeTab,
+            phone: phone.trim(),
+            organization: organization.trim(),
+            specialization,
+          });
+        } else {
+          authData = await clientSignIn({
+            email: cleanEmail,
+            password,
+            requestedRole: activeTab,
+          });
+        }
+      } catch (clientErr) {
+        // Fallback also failed or gave a user-friendly message
+        const finalMsg =
+          clientErr.message ||
+          serverMessage ||
+          "Authentication failed. Please check your credentials or click Sign Up.";
+        setError(finalMsg);
+        setLoading(false);
+        return;
+      }
     }
+
+    if (authData && (authData.token || authData.user)) {
+      const user = authData.user || {};
+      const token = authData.token || `session-${Date.now()}`;
+      const userRole = user.role || activeTab;
+
+      localStorage.setItem("juryzaToken", token);
+      localStorage.setItem("juryzaRole", userRole);
+      localStorage.setItem("juryzaEmail", user.email || cleanEmail);
+      localStorage.setItem("juryzaName", user.name || name || "User");
+
+      if (userRole === "admin") {
+        localStorage.setItem("adminToken", token);
+      }
+
+      setSuccess(
+        authMode === "signup"
+          ? "Account registered successfully! Redirecting..."
+          : "Signed in successfully! Redirecting...",
+      );
+
+      setTimeout(() => {
+        if (userRole === "admin") {
+          navigate("/admin");
+        } else if (userRole === "judge") {
+          navigate("/jury");
+        } else {
+          navigate("/portal");
+        }
+      }, 500);
+    } else {
+      setError("Unable to process authentication. Please try again.");
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -192,6 +204,10 @@ export const JuryzaGateway = () => {
           </Link>
 
           <div className="flex items-center gap-3">
+            <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Dual-Engine Resilient Auth</span>
+            </div>
             <a
               href="https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
               target="_blank"
@@ -217,7 +233,7 @@ export const JuryzaGateway = () => {
             Vision Mysuru <span className="text-[var(--accent)]">2050</span> (Ed. 2)
           </h1>
           <p className="mt-2.5 text-sm sm:text-base text-[var(--muted)]">
-            One platform for participant registrations, jury evaluations, and administrative oversight.
+            One unified platform for participant registrations, jury evaluations, and administrative oversight.
           </p>
         </div>
 
@@ -294,7 +310,7 @@ export const JuryzaGateway = () => {
             </div>
             <h3 className="font-bold text-sm text-[var(--text)]">3. Admin</h3>
             <p className="text-[11px] text-[var(--muted)] mt-1">
-              Strictly vision2050@sdmimd.ac.in
+              Full control, allocations & master data
             </p>
           </button>
         </div>
@@ -309,42 +325,36 @@ export const JuryzaGateway = () => {
               {activeTab === "admin" && <span>Admin Control Room</span>}
             </h2>
 
-            {activeTab !== "admin" ? (
-              <div className="mt-4 inline-flex p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signin");
-                    setError("");
-                  }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    authMode === "signin"
-                      ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
-                      : "text-[var(--muted)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setError("");
-                  }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    authMode === "signup"
-                      ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
-                      : "text-[var(--muted)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  Sign Up (New)
-                </button>
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                Admin Console Access Strictly for <strong>vision2050@sdmimd.ac.in</strong>
-              </p>
-            )}
+            <div className="mt-4 inline-flex p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signin");
+                  setError("");
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  authMode === "signin"
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("signup");
+                  setError("");
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  authMode === "signup"
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                Sign Up (New)
+              </button>
+            </div>
           </div>
 
           {/* Error Banner */}
@@ -354,24 +364,39 @@ export const JuryzaGateway = () => {
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-600 dark:text-red-400"
+                className="mb-5 flex flex-col gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-600 dark:text-red-400"
               >
-                <FiAlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <span className="font-semibold">{error}</span>
-                  {activeTab === "admin" && error.toLowerCase().includes("password") && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode("reset");
-                        setError("");
-                      }}
-                      className="block mt-1 underline font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
-                    >
-                      Click here to Set / Reset your admin password →
-                    </button>
-                  )}
+                <div className="flex items-start gap-2.5">
+                  <FiAlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span className="font-semibold leading-relaxed">{error}</span>
                 </div>
+
+                {/* Helpful quick actions based on error */}
+                {error.toLowerCase().includes("no account found") && authMode === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setError("");
+                    }}
+                    className="self-start underline font-bold hover:brightness-110 ml-6 cursor-pointer"
+                  >
+                    Click here to Sign Up with this email →
+                  </button>
+                )}
+
+                {error.toLowerCase().includes("already exists") && authMode === "signup" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("signin");
+                      setError("");
+                    }}
+                    className="self-start underline font-bold hover:brightness-110 ml-6 cursor-pointer"
+                  >
+                    Click here to Sign In instead →
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -394,7 +419,7 @@ export const JuryzaGateway = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name field (for Sign Up) */}
-            {authMode === "signup" && activeTab !== "admin" && (
+            {authMode === "signup" && (
               <div>
                 <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
                   Full Name
@@ -406,7 +431,13 @@ export const JuryzaGateway = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={activeTab === "judge" ? "Dr. / Prof. / Judge Name" : "Team Leader Name"}
+                    placeholder={
+                      activeTab === "judge"
+                        ? "Dr. / Prof. / Judge Name"
+                        : activeTab === "admin"
+                        ? "Admin Name / SDMIMD Officer"
+                        : "Team Leader Name"
+                    }
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                   />
                 </div>
@@ -417,38 +448,33 @@ export const JuryzaGateway = () => {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-semibold text-[var(--text)]">
-                  Gmail ID
+                  Gmail / Official Email ID
                 </label>
-                {activeTab === "admin" && (
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                    Admin email locked
-                  </span>
-                )}
+                <span className="text-[11px] text-[var(--muted)] font-normal">
+                  Must be accessible
+                </span>
               </div>
               <div className="relative">
                 <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
                 <input
                   type="email"
                   required
-                  value={activeTab === "admin" ? ADMIN_EMAIL : email}
-                  onChange={(e) => {
-                    if (activeTab !== "admin") setEmail(e.target.value);
-                  }}
-                  disabled={activeTab === "admin"}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder={
-                    activeTab === "admin" ? ADMIN_EMAIL : "yourname@gmail.com"
-                  }
-                  className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition ${
                     activeTab === "admin"
-                      ? "opacity-95 font-semibold text-emerald-600 dark:text-emerald-400 cursor-not-allowed font-mono"
-                      : ""
-                  }`}
+                      ? "vision2050@sdmimd.ac.in"
+                      : activeTab === "judge"
+                      ? "judge.mysuru@gmail.com"
+                      : "teamleader@gmail.com"
+                  }
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
               </div>
             </div>
 
             {/* Sign Up Additional Fields */}
-            {authMode === "signup" && activeTab !== "admin" && (
+            {authMode === "signup" && (
               <>
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
@@ -476,7 +502,11 @@ export const JuryzaGateway = () => {
                       type="text"
                       value={organization}
                       onChange={(e) => setOrganization(e.target.value)}
-                      placeholder="e.g. SDMIMD / NIE / Infosys"
+                      placeholder={
+                        activeTab === "admin"
+                          ? "SDMIMD Mysuru"
+                          : "e.g. NIE / SDMIMD / Infosys"
+                      }
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                     />
                   </div>
@@ -505,33 +535,40 @@ export const JuryzaGateway = () => {
               </>
             )}
 
-            {/* Password Field */}
+            {/* Password Field with Show/Hide toggle */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-semibold text-[var(--text)]">
-                  Password
+                  {authMode === "signup" ? "Create Password" : "Password"}
                 </label>
+                {authMode === "signup" && (
+                  <span className="text-[11px] text-[var(--muted)]">Min. 4 characters</span>
+                )}
               </div>
               <div className="relative">
                 <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={activeTab === "admin" ? "Enter: Vision2050" : "••••••••••••"}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                  placeholder={
+                    authMode === "signup"
+                      ? "Enter your secure password"
+                      : "Enter your password"
+                  }
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-10 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
+                </button>
               </div>
-
-              {activeTab === "admin" && (
-                <div className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-                  🔑 Admin password is hardcoded to:{" "}
-                  <strong className="font-mono font-bold text-sm underline select-all">
-                    Vision2050
-                  </strong>
-                </div>
-              )}
             </div>
 
             {/* Submit Button */}
@@ -551,12 +588,20 @@ export const JuryzaGateway = () => {
               ) : (
                 <>
                   <span>
-                    {activeTab === "admin"
-                      ? "Sign In to Admin Control Room"
-                      : authMode === "signup"
-                      ? `Complete ${activeTab === "judge" ? "Judge" : "Participant"} Sign Up`
+                    {authMode === "signup"
+                      ? `Create ${
+                          activeTab === "admin"
+                            ? "Admin"
+                            : activeTab === "judge"
+                            ? "Judge"
+                            : "Participant"
+                        } Account`
                       : `Sign In to ${
-                          activeTab === "judge" ? "Jury Hub" : "Participant Portal"
+                          activeTab === "admin"
+                            ? "Admin Control Room"
+                            : activeTab === "judge"
+                            ? "Jury Hub"
+                            : "Participant Portal"
                         }`}
                   </span>
                   <FiArrowRight className="h-4 w-4" />
@@ -578,8 +623,8 @@ export const JuryzaGateway = () => {
               </p>
             )}
             {activeTab === "admin" && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed font-semibold">
-                🛡️ Strictly vision2050@sdmimd.ac.in. Any other email receives <em>"you do not have admin access"</em>.
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 leading-relaxed font-semibold">
+                🛡️ Admin account with full authority to allocate submissions, score teams, and export master data.
               </p>
             )}
           </div>
