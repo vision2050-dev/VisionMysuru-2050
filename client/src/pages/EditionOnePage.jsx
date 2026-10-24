@@ -134,6 +134,10 @@ const WINNERS = [
 ];
 
 const EditionOnePage = () => {
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <motion.div
       className="min-h-screen flex flex-col dm-sans bg-[var(--bg)] text-[var(--text)]"
@@ -275,6 +279,7 @@ const EditionOnePage = () => {
             <div className="mt-8 text-center">
               <Link
                 to="/shortlist"
+                onClick={() => window.scrollTo(0, 0)}
                 className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-2)]"
               >
                 View Full Edition 1 Finalist Table <FiArrowRight />
@@ -345,12 +350,14 @@ const EditionOnePage = () => {
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Link
                   to="/news"
+                  onClick={() => window.scrollTo(0, 0)}
                   className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
                 >
                   Read Press Coverage <FiRadio />
                 </Link>
                 <Link
                   to="/"
+                  onClick={() => window.scrollTo(0, 0)}
                   className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-2)]"
                 >
                   Back to Edition 2 <FiArrowRight />

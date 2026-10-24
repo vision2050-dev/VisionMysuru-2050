@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { FiArrowUpRight, FiRadio } from "react-icons/fi";
 import SubmissionNav from "../Components/Submission/SubmissionNav";
@@ -21,6 +22,10 @@ const getLinkLabel = (link) => {
 };
 
 const NewsPage = () => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const sortedNewsCoverage = [...NEWS_COVERAGE].sort((a, b) => {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();

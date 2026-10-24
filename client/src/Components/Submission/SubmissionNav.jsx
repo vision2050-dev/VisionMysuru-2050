@@ -19,10 +19,18 @@ const SubmissionNav = () => {
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" />
             <Link
-              to="/"
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
+              to="/edition-1"
+              onClick={() => window.scrollTo(0, 0)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition sm:text-sm"
             >
-              <FiArrowLeft /> Home
+              <FiArrowLeft /> Back to Edition 1
+            </Link>
+            <Link
+              to="/"
+              onClick={() => window.scrollTo(0, 0)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--primary-hover)] transition sm:text-sm"
+            >
+              Home
             </Link>
           </div>
         </div>

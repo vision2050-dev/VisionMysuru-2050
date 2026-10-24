@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./Components/ProtectedRoute";
 import { ThemeProvider } from "./context/ThemeContext";
+import ScrollToTop from "./Components/ScrollToTop";
 
 const LandingPage = React.lazy(() => import("./pages/LandingPage.jsx"));
 const SubmitIdeaPage = React.lazy(() => import("./pages/SubmitIdeaPage.jsx"));
@@ -21,6 +22,7 @@ const App = () => {
   return (
     <ThemeProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<LandingPage />} />

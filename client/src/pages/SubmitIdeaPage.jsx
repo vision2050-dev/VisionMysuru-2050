@@ -46,6 +46,7 @@ const SubmitIdeaPage = () => {
   const [showConfetti, setShowConfetti] = useState(true);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     const timer = setTimeout(() => setShowConfetti(false), 9000);
     return () => clearTimeout(timer);
   }, []);

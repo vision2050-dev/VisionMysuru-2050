@@ -93,6 +93,7 @@ export const RegistrationsSoonSection = () => {
 
               <Link
                 to="/edition-1"
+                onClick={() => window.scrollTo(0, 0)}
                 className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--text)] transition-all duration-300 hover:bg-[var(--surface-2)] hover:-translate-y-0.5"
               >
                 <span>Browse Edition 1 Hall of Fame</span>
