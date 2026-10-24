@@ -66,7 +66,25 @@ export const JuryzaGateway = () => {
     setLoading(true);
 
     try {
-      if (authMode === "signup" && activeTab !== "admin") {
+      if (activeTab === "admin" && authMode === "reset") {
+        // Admin Password Reset / Set
+        const res = await api.post("/api/v2/auth/admin/reset-password", {
+          email: ADMIN_EMAIL,
+          newPassword: password,
+        });
+
+        const { token, user } = res.data;
+        localStorage.setItem("juryzaToken", token);
+        localStorage.setItem("juryzaRole", user.role);
+        localStorage.setItem("juryzaEmail", user.email);
+        localStorage.setItem("juryzaName", user.name);
+        localStorage.setItem("adminToken", token);
+
+        setSuccess("Admin password set successfully! Redirecting...");
+        setTimeout(() => {
+          navigate("/admin");
+        }, 800);
+      } else if (authMode === "signup" && activeTab !== "admin") {
         // Sign Up
         const payload = {
           name,
@@ -300,9 +318,36 @@ export const JuryzaGateway = () => {
                 </button>
               </div>
             ) : (
-              <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                Administrative authentication strictly required.
-              </p>
+              <div className="mt-4 inline-flex p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setError("");
+                  }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    authMode === "signin"
+                      ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
+                      : "text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  Admin Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("reset");
+                    setError("");
+                  }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    authMode === "reset"
+                      ? "bg-[var(--surface)] text-[var(--text)] shadow-xs"
+                      : "text-[var(--muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  Set / Reset Password
+                </button>
+              </div>
             )}
           </div>
 
@@ -316,7 +361,21 @@ export const JuryzaGateway = () => {
                 className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-600 dark:text-red-400"
               >
                 <FiAlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed">{error}</span>
+                <div className="leading-relaxed">
+                  <span className="font-semibold">{error}</span>
+                  {activeTab === "admin" && error.toLowerCase().includes("password") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode("reset");
+                        setError("");
+                      }}
+                      className="block mt-1 underline font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                    >
+                      Click here to Set / Reset your admin password →
+                    </button>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -448,9 +507,13 @@ export const JuryzaGateway = () => {
 
             {/* Password Field */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
-                Password
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--text)]">
+                  {activeTab === "admin" && authMode === "reset"
+                    ? "Set New Admin Password"
+                    : "Password"}
+                </label>
+              </div>
               <div className="relative">
                 <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
                 <input
@@ -462,6 +525,24 @@ export const JuryzaGateway = () => {
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
               </div>
+
+              {activeTab === "admin" && authMode === "signin" && (
+                <div className="mt-2 flex flex-col gap-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("reset");
+                      setError("");
+                    }}
+                    className="text-left font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    Forgot or want to set your own password? Click here
+                  </button>
+                  <span className="text-[10px] text-[var(--muted)]">
+                    Default master password: <strong className="font-mono text-[var(--text)]">vision2050</strong>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}
@@ -481,14 +562,14 @@ export const JuryzaGateway = () => {
               ) : (
                 <>
                   <span>
-                    {authMode === "signup" && activeTab !== "admin"
+                    {activeTab === "admin"
+                      ? authMode === "reset"
+                        ? "Save New Password & Enter Admin Room"
+                        : "Sign In to Admin Control Room"
+                      : authMode === "signup"
                       ? `Complete ${activeTab === "judge" ? "Judge" : "Participant"} Sign Up`
                       : `Sign In to ${
-                          activeTab === "admin"
-                            ? "Admin Control Room"
-                            : activeTab === "judge"
-                            ? "Jury Hub"
-                            : "Participant Portal"
+                          activeTab === "judge" ? "Jury Hub" : "Participant Portal"
                         }`}
                   </span>
                   <FiArrowRight className="h-4 w-4" />

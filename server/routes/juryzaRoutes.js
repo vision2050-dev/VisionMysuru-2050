@@ -2,6 +2,7 @@ import express from "express";
 import {
   registerUser,
   loginUser,
+  resetAdminPassword,
   registerEdition2Submission,
   getEdition2Submissions,
   getParticipantSubmission,
@@ -32,6 +33,7 @@ const router = express.Router();
 router.post("/auth/signup", registerUser);
 router.post("/auth/signin", loginUser);
 router.post("/auth/login", loginUser); // Alias for backwards compatibility
+router.post("/auth/admin/reset-password", resetAdminPassword);
 
 // ==========================================
 // 2. PARTICIPANT PORTAL
