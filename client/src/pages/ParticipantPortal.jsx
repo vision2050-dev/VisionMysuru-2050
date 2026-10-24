@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import {
@@ -10,9 +10,12 @@ import {
   FiTrash2,
   FiCheckCircle,
   FiArrowLeft,
-  FiEye,
   FiUploadCloud,
-  FiHelpCircle,
+  FiLogOut,
+  FiExternalLink,
+  FiClock,
+  FiCompass,
+  FiAlertCircle,
 } from "react-icons/fi";
 import { TOPIC_OPTIONS, CATEGORY } from "../constants/content";
 import api from "../utils/api";
@@ -27,19 +30,24 @@ const CATEGORY_TABS = [
 ];
 
 export const ParticipantPortal = () => {
+  const navigate = useNavigate();
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [hasRegistered, setHasRegistered] = useState(false);
+  const [mySubmission, setMySubmission] = useState(null);
+
+  // Registration Form State
   const [activeCategory, setActiveCategory] = useState(CATEGORY.STUDENT);
   const [submitting, setSubmitting] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [generatedSubmission, setGeneratedSubmission] = useState(null);
-  const [showPitchPreview, setShowPitchPreview] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Direct Drive Upload File States
+  // Compulsory Files State
   const [videoFile, setVideoFile] = useState(null);
   const [videoLocalPreview, setVideoLocalPreview] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Form State
   const [formData, setFormData] = useState({
     teamName: "",
     city: "Mysuru",
@@ -47,14 +55,9 @@ export const ParticipantPortal = () => {
     solutionName: "",
     shortDescription: "",
     detailedProposal: "",
-    videoUrl: "",
-    videoTitle: "",
-    documentName: "",
-    documentUrl: "",
     institution: "",
     department: "",
     companyName: "",
-    industry: "",
     organizationName: "",
   });
 
@@ -62,16 +65,72 @@ export const ParticipantPortal = () => {
     { name: "", email: "", phone: "", isLeader: true, college: "", department: "" },
   ]);
 
+  // Check auth and fetch submission on mount
+  useEffect(() => {
+    const token = localStorage.getItem("juryzaToken");
+    const email = localStorage.getItem("juryzaEmail");
+    const name = localStorage.getItem("juryzaName");
+
+    if (!token || !email) {
+      toast("Please sign in with your Gmail to access the participant portal.", { icon: "🔑" });
+      navigate("/juryza");
+      return;
+    }
+
+    setCurrentUserEmail(email);
+    setCurrentUserName(name || "Participant");
+
+    // Pre-fill leader email
+    setMembers((prev) => [
+      {
+        ...prev[0],
+        name: name || prev[0].name,
+        email: email,
+      },
+      ...prev.slice(1),
+    ]);
+
+    fetchParticipantSubmission(email);
+  }, [navigate]);
+
+  const fetchParticipantSubmission = async (email) => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/api/v2/participant/my-submission?email=${encodeURIComponent(email)}`);
+      if (res.data?.hasRegistered && res.data?.submission) {
+        setHasRegistered(true);
+        setMySubmission(res.data.submission);
+      } else {
+        setHasRegistered(false);
+      }
+    } catch (err) {
+      console.warn("Could not load participant submission:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // 1. Compulsory Video File (.mp4 strictly <= 50 MB)
   const handleVideoFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 500 * 1024 * 1024) {
-      toast.error("Video file is too large. Maximum size allowed is 500 MB.");
+    const isMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
+    if (!isMp4) {
+      toast.error("Pitch video must strictly be an .mp4 file.");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error(
+        `Video exceeds 50 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Please compress or trim to ≤ 50 MB.`,
+      );
+      e.target.value = "";
       return;
     }
 
@@ -79,47 +138,45 @@ export const ParticipantPortal = () => {
     if (videoLocalPreview) {
       URL.revokeObjectURL(videoLocalPreview);
     }
-    const previewUrl = URL.createObjectURL(file);
-    setVideoLocalPreview(previewUrl);
-    toast.success(`Video selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
+    setVideoLocalPreview(URL.createObjectURL(file));
+    toast.success(`Pitch video selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
   };
 
-  const removeVideoFile = () => {
-    if (videoLocalPreview) {
-      URL.revokeObjectURL(videoLocalPreview);
-    }
-    setVideoFile(null);
-    setVideoLocalPreview(null);
-  };
-
+  // 2. Compulsory Document File (.pdf strictly <= 5 MB)
   const handleDocumentFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("Document is too large. Maximum size allowed is 50 MB.");
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      toast.error("Proposal document must strictly be a .pdf file.");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(
+        `PDF proposal exceeds 5 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed is 5 MB.`,
+      );
+      e.target.value = "";
       return;
     }
 
     setDocumentFile(file);
-    toast.success(`Document selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
-  };
-
-  const removeDocumentFile = () => {
-    setDocumentFile(null);
+    toast.success(`Proposal PDF selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
   };
 
   const handleMemberChange = (index, field, value) => {
     setMembers((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
     });
   };
 
   const addMember = () => {
-    if (members.length >= 3) {
-      toast.error("Maximum team size is 3 members");
+    if (members.length >= 5) {
+      toast.error("Maximum 5 team members allowed.");
       return;
     }
     setMembers((prev) => [
@@ -129,251 +186,423 @@ export const ParticipantPortal = () => {
   };
 
   const removeMember = (index) => {
-    if (members.length <= 1) {
-      toast.error("At least one member is required");
+    if (members[index].isLeader) {
+      toast.error("Team leader cannot be removed.");
       return;
     }
-    setMembers((prev) => {
-      const updated = prev.filter((_, i) => i !== index);
-      if (!updated.some((m) => m.isLeader)) {
-        updated[0].isLeader = true;
-      }
-      return updated;
-    });
+    setMembers((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const setLeader = (index) => {
-    setMembers((prev) =>
-      prev.map((m, i) => ({ ...m, isLeader: i === index }))
-    );
+  const handleLogout = () => {
+    localStorage.removeItem("juryzaToken");
+    localStorage.removeItem("juryzaRole");
+    localStorage.removeItem("juryzaEmail");
+    localStorage.removeItem("juryzaName");
+    toast.success("Signed out successfully.");
+    navigate("/juryza");
   };
 
-  // Convert YouTube / Google Drive URLs into embeddable URLs
-  const getEmbeddableVideoUrl = (url) => {
-    if (!url) return null;
-    try {
-      if (url.includes("youtube.com/watch?v=")) {
-        const id = url.split("v=")[1]?.split("&")[0];
-        return `https://www.youtube.com/embed/${id}`;
-      }
-      if (url.includes("youtu.be/")) {
-        const id = url.split("youtu.be/")[1]?.split("?")[0];
-        return `https://www.youtube.com/embed/${id}`;
-      }
-      if (url.includes("drive.google.com/file/d/")) {
-        const id = url.split("/d/")[1]?.split("/")[0];
-        return `https://drive.google.com/file/d/${id}/preview`;
-      }
-      return url;
-    } catch {
-      return url;
-    }
-  };
-
+  // Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.teamName.trim()) {
-      toast.error("Team name is required");
+    if (!formData.teamName.trim() || !formData.solutionName.trim() || !formData.shortDescription.trim()) {
+      toast.error("Please fill in Team Name, Solution Name, and Description.");
       return;
     }
-    if (!formData.solutionName.trim()) {
-      toast.error("Solution name is required");
+
+    // Compulsory check
+    if (!videoFile) {
+      toast.error("Pitch video (.mp4 ≤ 50 MB) is compulsory to complete registration!");
       return;
     }
-    if (!formData.shortDescription.trim()) {
-      toast.error("Short description is required");
-      return;
-    }
-    if (!videoFile && !formData.videoUrl.trim()) {
-      toast.error("Please choose and upload your explainer video pitch file to the Drive");
+    if (!documentFile) {
+      toast.error("Proposal deck (.pdf ≤ 5 MB) is compulsory to complete registration!");
       return;
     }
 
     const leader = members.find((m) => m.isLeader);
-    if (!leader?.name?.trim() || !leader?.email?.trim() || !leader?.phone?.trim()) {
-      toast.error("Leader name, valid email, and phone number are required");
+    if (!leader?.name || !leader?.email) {
+      toast.error("Please provide Team Leader Name and Contact details.");
       return;
     }
 
     setSubmitting(true);
-    setUploadProgress(15);
+    setUploadProgress(10);
+
+    const data = new FormData();
+    data.append("teamName", formData.teamName.trim());
+    data.append("category", activeCategory);
+    data.append("city", formData.city);
+    data.append("theme", formData.theme);
+    data.append("solutionName", formData.solutionName.trim());
+    data.append("shortDescription", formData.shortDescription.trim());
+    data.append("detailedProposal", formData.detailedProposal.trim() || formData.shortDescription.trim());
+    data.append("institution", formData.institution);
+    data.append("leadName", leader.name);
+    data.append("leadEmail", currentUserEmail || leader.email);
+    data.append("leadPhone", leader.phone);
+    data.append("members", JSON.stringify(members));
+
+    // Append compulsory files
+    data.append("videoFile", videoFile);
+    data.append("documentFile", documentFile);
 
     try {
-      const data = new FormData();
-      data.append("teamName", formData.teamName.trim());
-      data.append(
-        "category",
-        activeCategory === CATEGORY.STUDENT
-          ? "students"
-          : activeCategory === CATEGORY.CORPORATE
-            ? "corporates"
-            : activeCategory === CATEGORY.NGO
-              ? "ngos"
-              : "citizens"
-      );
-      data.append("city", formData.city || "Mysuru");
-      data.append("theme", formData.theme);
-      data.append("solutionName", formData.solutionName.trim());
-      data.append("shortDescription", formData.shortDescription.trim());
-      data.append("detailedProposal", formData.detailedProposal?.trim() || formData.shortDescription.trim());
-      data.append("members", JSON.stringify(members));
-      data.append(
-        "organizationDetails",
-        JSON.stringify({
-          institution: formData.institution,
-          department: formData.department,
-          companyName: formData.companyName,
-          industry: formData.industry,
-          organizationName: formData.organizationName,
-        })
-      );
-
-      if (videoFile) {
-        data.append("videoFile", videoFile);
-      } else if (formData.videoUrl) {
-        data.append("videoUrl", formData.videoUrl.trim());
-      }
-
-      if (documentFile) {
-        data.append("documentFile", documentFile);
-      }
-
-      const response = await api.post("/api/v2/submissions", data, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const res = await api.post("/api/v2/submissions", data, {
+        headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percent);
-          }
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1),
+          );
+          setUploadProgress(Math.min(percentCompleted, 95));
         },
       });
 
-      setGeneratedSubmission(response.data?.submission);
-      setShowSuccessModal(true);
-      toast.success("Successfully uploaded to official Vision Mysuru 2050 Drive!");
+      setUploadProgress(100);
+      toast.success("Team registered successfully! Live tracking is active.");
+
+      // Refresh to live progress view
+      await fetchParticipantSubmission(currentUserEmail);
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || "Failed to submit. Please try again.");
+      const message = err.response?.data?.message || "Failed to submit. Please try again.";
+      toast.error(message);
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
     }
   };
 
-  const embedUrl = getEmbeddableVideoUrl(formData.videoUrl);
+  // Helper for Stepper State Mapping
+  const getStepStatus = (stage, stepIndex) => {
+    // 0: submitted
+    // 1: allocated to a judge
+    // 2: under evaluation
+    // 3: shortlisted / not shortlisted
+    const normalized = (stage || "submitted").toLowerCase();
+
+    let currentIndex = 0;
+    if (normalized.includes("allocated")) currentIndex = 1;
+    else if (normalized.includes("evaluation")) currentIndex = 2;
+    else if (normalized.includes("shortlisted") || normalized.includes("winner")) currentIndex = 3;
+
+    if (stepIndex < currentIndex) return "completed";
+    if (stepIndex === currentIndex) return "active";
+    return "pending";
+  };
 
   return (
-    <div className="min-h-screen flex flex-col dm-sans bg-[var(--bg)] text-[var(--text)]">
+    <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg)]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link to="/" className="flex items-center gap-2 text-sm font-bold">
-            <img src="/logo_final.png" alt="Logo" className="h-8 w-auto inline-block" />
-            <span className="hidden sm:inline">Vision Mysuru 2050</span>
-            <span className="rounded-full bg-[var(--primary-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--primary)] border border-[var(--primary)]/30">
-              Edition 2 Registration & Pitch Portal
-            </span>
-          </Link>
+      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-[var(--muted)] hover:text-[var(--text)] transition">
+              <FiArrowLeft className="h-4 w-4" />
+              <span>Back to Site</span>
+            </Link>
+            <span className="text-[var(--border)]">|</span>
+            <div className="flex items-center gap-2">
+              <img src="/logo_final.png" alt="Logo" className="h-6 w-auto rounded-full" />
+              <span className="text-xs sm:text-sm font-bold text-[var(--text)]">
+                Participant Portal
+              </span>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-bold text-[var(--text)]">{currentUserName}</span>
+              <span className="text-[10px] text-[var(--muted)]">{currentUserEmail}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-600 transition"
+              title="Sign Out / Switch Account"
+            >
+              <FiLogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Switch / Logout</span>
+            </button>
             <ThemeToggle size="sm" />
-            <Link
-              to="/jury"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--surface-2)] sm:text-sm sm:px-4 sm:py-2"
-            >
-              Juryza Hub ⚖️
-            </Link>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--primary-hover)] sm:text-sm sm:px-4 sm:py-2"
-            >
-              <FiArrowLeft /> Home
-            </Link>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 py-10 px-4 sm:px-6">
-        <div className="mx-auto max-w-4xl">
-          {/* Banner */}
-          <div className="rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-2)] p-6 sm:p-8 mb-8 shadow-xs">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
-                  Edition 2 · All-in-One Submission Engine
-                </span>
-                <h1 className="mt-1 oswald text-3xl font-extrabold uppercase text-[var(--primary)] sm:text-4xl">
-                  Register Your Team & Pitch Your Idea
-                </h1>
-                <p className="mt-2 text-sm text-[var(--muted)] leading-relaxed max-w-2xl">
-                  Welcome to Edition 2 of Vision Mysuru 2050. This edition features an{" "}
-                  <strong>Explainer Video Pitch</strong> evaluated directly by our 32+ member jury
-                  panel via the Juryza fair-scoring engine.
+      {/* Main Content Area */}
+      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-3 border-[var(--accent)] border-t-transparent mb-4" />
+            <p className="text-sm text-[var(--muted)]">Checking team registration status...</p>
+          </div>
+        ) : hasRegistered && mySubmission ? (
+          /* ==================================================== */
+          /* 1. REGISTERED STATE: LIVE 4-STEP PROGRESS TRACKER     */
+          /* ==================================================== */
+          <div className="space-y-8">
+            {/* Header Badge */}
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-[var(--border)]">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-2">
+                    <FiCheckCircle className="h-3.5 w-3.5" />
+                    <span>Registration Confirmed</span>
+                  </div>
+                  <h1 className="oswald text-2xl sm:text-4xl font-extrabold uppercase text-[var(--text)]">
+                    {mySubmission.teamName}
+                  </h1>
+                  <p className="text-xs text-[var(--muted)] mt-1">
+                    Team ID: <strong className="text-[var(--text)] font-mono">{mySubmission.teamId}</strong> • Registered:{" "}
+                    {new Date(mySubmission.createdAt).toLocaleString("en-IN")}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] transition"
+                  >
+                    <span>Event Drive Folder</span>
+                    <FiExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+
+              {/* LIVE 4-STEP SUBMISSION PROGRESS TRACKER */}
+              <div className="pt-8">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--muted)] mb-6">
+                  Live Submission Progress
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  {/* Step 1: Submitted */}
+                  {(() => {
+                    const status = getStepStatus(mySubmission.stage, 0);
+                    return (
+                      <div
+                        className={`p-4 rounded-2xl border transition-all ${
+                          status === "completed" || status === "active"
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 1</span>
+                          <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Submitted</h4>
+                        <p className="text-[11px] mt-1 text-[var(--muted)]">Files securely uploaded to Google Drive</p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 2: Allocated to a judge */}
+                  {(() => {
+                    const status = getStepStatus(mySubmission.stage, 1);
+                    return (
+                      <div
+                        className={`p-4 rounded-2xl border transition-all ${
+                          status === "completed"
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : status === "active"
+                            ? "border-amber-500 bg-amber-500/10 shadow-sm ring-2 ring-amber-500/20"
+                            : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 2</span>
+                          {status === "completed" ? (
+                            <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                          ) : status === "active" ? (
+                            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                          ) : (
+                            <FiClock className="h-4 w-4" />
+                          )}
+                        </div>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Allocated to Judge</h4>
+                        <p className="text-[11px] mt-1 text-[var(--muted)]">
+                          {mySubmission.allotedJudgeNames?.length > 0
+                            ? `Alloted to ${mySubmission.allotedJudgeNames.join(", ")}`
+                            : "Awaiting admin judge allocation"}
+                        </p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 3: Under evaluation */}
+                  {(() => {
+                    const status = getStepStatus(mySubmission.stage, 2);
+                    return (
+                      <div
+                        className={`p-4 rounded-2xl border transition-all ${
+                          status === "completed"
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : status === "active"
+                            ? "border-blue-500 bg-blue-500/10 shadow-sm ring-2 ring-blue-500/20"
+                            : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 3</span>
+                          {status === "completed" ? (
+                            <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                          ) : status === "active" ? (
+                            <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+                          ) : (
+                            <FiClock className="h-4 w-4" />
+                          )}
+                        </div>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Under Evaluation</h4>
+                        <p className="text-[11px] mt-1 text-[var(--muted)]">
+                          Rubric scoring & duel comparisons underway
+                        </p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 4: Shortlisted / Final Status */}
+                  {(() => {
+                    const status = getStepStatus(mySubmission.stage, 3);
+                    const isRejected = (mySubmission.stage || "").includes("not shortlisted");
+                    return (
+                      <div
+                        className={`p-4 rounded-2xl border transition-all ${
+                          status === "active" || status === "completed"
+                            ? isRejected
+                              ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                              : "border-amber-500 bg-gradient-to-br from-amber-500/20 to-amber-600/10 shadow-md ring-2 ring-amber-500/30"
+                            : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 4</span>
+                          {status === "active" || status === "completed" ? (
+                            <span>{isRejected ? "❌" : "🏆"}</span>
+                          ) : (
+                            <FiClock className="h-4 w-4" />
+                          )}
+                        </div>
+                        <h4 className="font-bold text-sm text-[var(--text)]">
+                          {isRejected ? "Not Shortlisted" : "Shortlisted"}
+                        </h4>
+                        <p className="text-[11px] mt-1 text-[var(--muted)]">
+                          {isRejected
+                            ? "Evaluation concluded for this round."
+                            : status === "active" || status === "completed"
+                            ? "Congratulations! Selected for next round."
+                            : "Pending jury finalization"}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Submission Details Card */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Pitch Video (.mp4) Review Card */}
+              <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md">
+                <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)] mb-3">
+                  <FiVideo className="h-4 w-4 text-[var(--accent)]" />
+                  <span>Compulsory Pitch Video (.mp4)</span>
+                </div>
+                <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)]">
+                  <video
+                    controls
+                    src={`http://localhost:5001/api/v2/submissions/${mySubmission.teamId}/video-stream`}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <p className="text-xs text-[var(--muted)] mt-2">
+                  File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || "Uploaded Pitch Video"}</strong>
                 </p>
               </div>
-              <div className="shrink-0 flex items-center gap-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-3 text-amber-900 text-xs font-semibold">
-                <FiUploadCloud className="text-xl text-amber-600 shrink-0" />
-                <span>Auto-syncs to official SDMIMD Drive</span>
+
+              {/* Proposal Document (.pdf) Review Card */}
+              <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)] mb-3">
+                    <FiFileText className="h-4 w-4 text-[var(--primary)]" />
+                    <span>Compulsory Proposal Deck (.pdf)</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)]">
+                    <h5 className="font-bold text-sm text-[var(--text)]">{mySubmission.solutionName}</h5>
+                    <p className="text-xs text-[var(--muted)] mt-1 line-clamp-3">{mySubmission.shortDescription}</p>
+                    <p className="text-[11px] text-[var(--muted)] mt-3">
+                      PDF File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-[var(--border)] flex gap-2">
+                  <a
+                    href={`http://localhost:5001/api/v2/submissions/${mySubmission.teamId}/document-preview`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition"
+                  >
+                    <span>View Full Proposal PDF</span>
+                    <FiExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
               </div>
             </div>
           </div>
+        ) : (
+          /* ==================================================== */
+          /* 2. REGISTRATION FORM: COMPULSORY FILES & DETAILS     */
+          /* ==================================================== */
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-10 shadow-xl">
+            <div className="mb-8">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[var(--accent)] mb-2">
+                <span>Edition 2 Team Registration</span>
+              </div>
+              <h1 className="oswald text-2xl sm:text-4xl font-extrabold uppercase text-[var(--text)]">
+                Register Your Innovation Pitch
+              </h1>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Provide your team details and upload your compulsory pitch video (.mp4 ≤ 50 MB) and proposal deck (.pdf ≤ 5 MB).
+              </p>
+            </div>
 
-          {/* Category Tabs */}
-          <div className="mb-8">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
-              Select Your Category:
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {CATEGORY_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveCategory(tab.key)}
-                  className={`rounded-2xl border p-3.5 text-left transition ${
-                    activeCategory === tab.key
-                      ? "border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm"
-                      : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold">{tab.label}</span>
-                    <span
-                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        activeCategory === tab.key
-                          ? "bg-white/20 text-white"
-                          : "bg-[var(--surface-2)] text-[var(--muted)]"
-                      }`}
-                    >
-                      {tab.code}
-                    </span>
-                  </div>
-                  <p
-                    className={`mt-1 text-xs truncate ${
-                      activeCategory === tab.key ? "text-white/80" : "text-[var(--muted)]"
+            {/* Category Selector */}
+            <div className="mb-8">
+              <label className="block text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
+                Select Participation Category
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {CATEGORY_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveCategory(tab.key)}
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      activeCategory === tab.key
+                        ? "border-[var(--accent)] bg-amber-500/10 shadow-sm"
+                        : "border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)]"
                     }`}
                   >
-                    {tab.desc}
-                  </p>
-                </button>
-              ))}
+                    <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-[var(--surface)] text-[var(--accent)]">
+                      {tab.code}
+                    </span>
+                    <h4 className="font-bold text-xs sm:text-sm text-[var(--text)] mt-1.5">{tab.label}</h4>
+                    <p className="text-[10px] text-[var(--muted)] mt-0.5">{tab.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* 1. Basic Team Details */}
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4">
-              <h2 className="text-base font-bold text-[var(--primary)] uppercase tracking-wide flex items-center gap-2">
-                <span>01.</span> Team Information
-              </h2>
-
-              <div className="grid sm:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Basic Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1">
-                    Team Name <span className="text-red-500">*</span>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                    Team Name *
                   </label>
                   <input
                     type="text"
@@ -381,485 +610,240 @@ export const ParticipantPortal = () => {
                     value={formData.teamName}
                     onChange={(e) => handleInputChange("teamName", e.target.value)}
                     placeholder="e.g. EcoFlow Mysuru"
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold mb-1">
-                    City / Locality <span className="text-red-500">*</span>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                    Focus Area / Thematic Track *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.city}
-                    onChange={(e) => handleInputChange("city", e.target.value)}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                  />
-                </div>
-              </div>
-
-              {/* Category-Specific Fields */}
-              {activeCategory === CATEGORY.STUDENT && (
-                <div className="grid sm:grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">College / Institution</label>
-                    <input
-                      type="text"
-                      value={formData.institution}
-                      onChange={(e) => handleInputChange("institution", e.target.value)}
-                      placeholder="e.g. NIE, SJCE, SDMIMD, Mysore University"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Department / Degree</label>
-                    <input
-                      type="text"
-                      value={formData.department}
-                      onChange={(e) => handleInputChange("department", e.target.value)}
-                      placeholder="e.g. Environmental Engineering / PGDM"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeCategory === CATEGORY.CORPORATE && (
-                <div className="grid sm:grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Company / Entity Name</label>
-                    <input
-                      type="text"
-                      value={formData.companyName}
-                      onChange={(e) => handleInputChange("companyName", e.target.value)}
-                      placeholder="e.g. CleanGrid Solutions Pvt Ltd"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Industry Sector</label>
-                    <input
-                      type="text"
-                      value={formData.industry}
-                      onChange={(e) => handleInputChange("industry", e.target.value)}
-                      placeholder="e.g. CleanTech, Mobility, Urban Planning"
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeCategory === CATEGORY.NGO && (
-                <div className="pt-2">
-                  <label className="block text-xs font-semibold mb-1">Organization / RWA Name</label>
-                  <input
-                    type="text"
-                    value={formData.organizationName}
-                    onChange={(e) => handleInputChange("organizationName", e.target.value)}
-                    placeholder="e.g. Mysuru Heritage Citizens' Forum"
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* 2. Team Members */}
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-[var(--primary)] uppercase tracking-wide flex items-center gap-2">
-                  <span>02.</span> Team Members (1 to 3)
-                </h2>
-                {members.length < 3 && (
-                  <button
-                    type="button"
-                    onClick={addMember}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--accent-soft)]"
+                  <select
+                    value={formData.theme}
+                    onChange={(e) => handleInputChange("theme", e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
                   >
-                    <FiPlus /> Add Member
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                {members.map((member, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                        Member #{idx + 1}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
-                          <input
-                            type="radio"
-                            name="teamLeader"
-                            checked={member.isLeader}
-                            onChange={() => setLeader(idx)}
-                            className="accent-[var(--primary)]"
-                          />
-                          Team Leader
-                        </label>
-                        {members.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeMember(idx)}
-                            className="p-1 text-red-500 hover:text-red-700"
-                            title="Remove member"
-                          >
-                            <FiTrash2 />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      <div>
-                        <input
-                          type="text"
-                          required
-                          value={member.name}
-                          onChange={(e) => handleMemberChange(idx, "name", e.target.value)}
-                          placeholder="Full Name"
-                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none"
-                        />
-                      </div>
-                      <div>
-                        <input
-                          type="email"
-                          required
-                          value={member.email}
-                          onChange={(e) => handleMemberChange(idx, "email", e.target.value)}
-                          placeholder="Email Address"
-                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none"
-                        />
-                      </div>
-                      <div>
-                        <input
-                          type="tel"
-                          required
-                          value={member.phone}
-                          onChange={(e) => handleMemberChange(idx, "phone", e.target.value)}
-                          placeholder="Phone (+91)"
-                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. Thematic Civic Proposal */}
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4">
-              <h2 className="text-base font-bold text-[var(--primary)] uppercase tracking-wide flex items-center gap-2">
-                <span>03.</span> Thematic Priority & Proposal
-              </h2>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  Thematic Domain <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.theme}
-                  onChange={(e) => handleInputChange("theme", e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none"
-                >
-                  {TOPIC_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                    {TOPIC_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1">
-                  Project / Solution Title <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  Solution Title *
                 </label>
                 <input
                   type="text"
                   required
                   value={formData.solutionName}
                   onChange={(e) => handleInputChange("solutionName", e.target.value)}
-                  placeholder="e.g. AI-Assisted Smart Traffic Grid for Palace Sub-corridor"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm outline-none"
+                  placeholder="e.g. Decentralized Solar Micro-Filtration Network for Kukkarahalli Lake"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1">
-                  Problem Statement & Ground Reality <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  Short Description & Executive Summary *
                 </label>
                 <textarea
                   required
                   rows={3}
                   value={formData.shortDescription}
                   onChange={(e) => handleInputChange("shortDescription", e.target.value)}
-                  placeholder="Describe the exact local issue in Mysuru, who is impacted, and the severity..."
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-sm outline-none"
+                  placeholder="Briefly describe the civic challenge in Mysuru and your team's proposed innovation..."
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  Proposed Solution & Scaling Strategy
-                </label>
-                <textarea
-                  rows={4}
-                  value={formData.detailedProposal}
-                  onChange={(e) => handleInputChange("detailedProposal", e.target.value)}
-                  placeholder="Explain your practical roadmap, technology/civic model, and how it transforms Mysuru by 2050..."
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-sm outline-none"
-                />
-              </div>
-            </div>
-
-            {/* 4. Direct Drive Video Pitch Upload & Supplementary Document */}
-            <div className="rounded-3xl border-2 border-[var(--accent)]/40 bg-gradient-to-br from-[var(--surface)] via-amber-500/5 to-[var(--surface)] p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-[var(--accent)] uppercase tracking-wide flex items-center gap-2">
-                  <FiVideo className="text-lg" />
-                  <span>04.</span> Video Pitch & Document Direct Upload
-                </h2>
-                <span className="text-xs font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 px-3 py-1 rounded-full">
-                  Direct Drive Upload
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                <p className="font-bold flex items-center gap-1.5 text-sm">
-                  <FiUploadCloud className="text-base text-amber-600 dark:text-amber-400" /> Upload Directly to Official Evaluation Drive
-                </p>
-                <p className="leading-relaxed">
-                  No need to upload to your personal Google Drive and share links! Simply pick your video file and optional proposal document below. They will be uploaded and organized directly into the official Vision Mysuru 2050 evaluation Drive folder for the jury.
-                </p>
-              </div>
-
-              {/* Video Pitch File Dropzone */}
-              <div>
-                <label className="block text-xs font-bold text-[var(--text)] uppercase tracking-wider mb-2">
-                  Pitch Video File <span className="text-red-500">*</span>
-                  <span className="normal-case font-normal text-[var(--muted)] ml-2">
-                    (.mp4, .mov, .webm · 1 to 3 minutes · max 500 MB)
+              {/* COMPULSORY UPLOADS SECTION */}
+              <div className="pt-4 border-t border-[var(--border)]">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
+                    Compulsory Uploads
                   </span>
-                </label>
+                  <span className="text-[11px] text-[var(--muted)]">(Both files required)</span>
+                </div>
 
-                {!videoFile ? (
-                  <label className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border)] bg-[var(--bg)] p-8 text-center cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition-all">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Pitch Video (.mp4 <= 50 MB) */}
+                  <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-4 text-center hover:border-[var(--accent)] transition bg-[var(--surface-2)]/50">
+                    <FiVideo className="h-8 w-8 mx-auto text-[var(--accent)] mb-2" />
+                    <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video (.mp4) *</h4>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .mp4 • Maximum 50 MB</p>
+
                     <input
                       type="file"
-                      accept="video/mp4,video/webm,video/quicktime,video/x-matroska,video/*"
+                      accept=".mp4,video/mp4"
                       onChange={handleVideoFileChange}
                       className="hidden"
+                      id="video-upload-input"
                     />
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-2xl group-hover:scale-110 transition-transform">
-                      <FiUploadCloud />
-                    </div>
-                    <p className="mt-3 text-sm font-bold text-[var(--text)]">
-                      Choose Pitch Video File or Drag & Drop Here
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      MP4, MOV, WebM, MKV supported (Up to 500 MB)
-                    </p>
-                  </label>
-                ) : (
-                  <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 text-lg">
-                          <FiVideo />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-[var(--text)] truncate max-w-xs sm:max-w-md">
-                            {videoFile.name}
-                          </p>
-                          <p className="text-xs text-[var(--muted)]">
-                            {(videoFile.size / (1024 * 1024)).toFixed(1)} MB · Ready for Direct Drive Upload
-                          </p>
-                        </div>
-                      </div>
+                    <label
+                      htmlFor="video-upload-input"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition"
+                    >
+                      <FiUploadCloud className="h-3.5 w-3.5" />
+                      <span>{videoFile ? "Change Video" : "Select .mp4 File"}</span>
+                    </label>
 
-                      <button
-                        type="button"
-                        onClick={removeVideoFile}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-500/20 transition"
-                      >
-                        <FiTrash2 /> Remove
-                      </button>
-                    </div>
-
-                    {/* Instant In-Browser Video Player Preview */}
-                    {videoLocalPreview && (
-                      <div className="mt-2 rounded-xl overflow-hidden bg-black shadow-inner">
-                        <video
-                          src={videoLocalPreview}
-                          controls
-                          playsInline
-                          className="aspect-video w-full object-contain"
-                        />
+                    {videoFile && (
+                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* Supplementary Document File Picker */}
-              <div className="pt-2">
-                <label className="block text-xs font-bold text-[var(--text)] uppercase tracking-wider mb-2">
-                  Supplementary Proposal Document (Optional)
-                  <span className="normal-case font-normal text-[var(--muted)] ml-2">
-                    (.pdf, .docx, .pptx · max 50 MB)
-                  </span>
-                </label>
+                  {/* Proposal Document (.pdf <= 5 MB) */}
+                  <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-4 text-center hover:border-[var(--primary)] transition bg-[var(--surface-2)]/50">
+                    <FiFileText className="h-8 w-8 mx-auto text-[var(--primary)] mb-2" />
+                    <h4 className="text-xs font-bold text-[var(--text)]">Proposal Deck (.pdf) *</h4>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
 
-                {!documentFile ? (
-                  <label className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3.5 cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition-all">
                     <input
                       type="file"
-                      accept=".pdf,.docx,.doc,.pptx,.ppt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      accept=".pdf,application/pdf"
                       onChange={handleDocumentFileChange}
                       className="hidden"
+                      id="doc-upload-input"
                     />
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-                        <FiFileText />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs font-semibold text-[var(--text)]">
-                          Attach PDF Blueprint or Slide Deck
-                        </p>
-                        <p className="text-[10px] text-[var(--muted)]">Optional supplementary documentation</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold rounded-lg bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--surface-2)] text-[var(--text)]">
-                      Browse File
-                    </span>
-                  </label>
-                ) : (
-                  <div className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-600">
-                        <FiFileText />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-[var(--text)]">{documentFile.name}</p>
-                        <p className="text-[10px] text-[var(--muted)]">
-                          {(documentFile.size / (1024 * 1024)).toFixed(1)} MB · Ready for Drive Upload
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={removeDocumentFile}
-                      className="text-xs font-semibold text-red-500 hover:text-red-700 p-1"
+                    <label
+                      htmlFor="doc-upload-input"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--primary)] cursor-pointer transition"
                     >
-                      <FiTrash2 />
-                    </button>
+                      <FiUploadCloud className="h-3.5 w-3.5" />
+                      <span>{documentFile ? "Change PDF" : "Select .pdf File"}</span>
+                    </label>
+
+                    {documentFile && (
+                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        ✓ {documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Upload Progress Bar if submitting */}
-              {submitting && uploadProgress > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <div className="flex justify-between text-xs font-bold text-[var(--accent)]">
-                    <span>Uploading directly to Drive...</span>
+              {/* Team Members Section */}
+              <div className="pt-4 border-t border-[var(--border)]">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                    Team Members & Leader Info
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addMember}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    <FiPlus className="h-3.5 w-3.5" />
+                    <span>Add Member</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {members.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] items-center"
+                    >
+                      <div>
+                        <span className="text-[10px] font-bold text-[var(--muted)] block mb-1">
+                          {m.isLeader ? "Leader Name *" : `Member ${idx + 1} Name`}
+                        </span>
+                        <input
+                          type="text"
+                          required={m.isLeader}
+                          value={m.name}
+                          onChange={(e) => handleMemberChange(idx, "name", e.target.value)}
+                          placeholder="Name"
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)]"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-[var(--muted)] block mb-1">
+                          Gmail ID *
+                        </span>
+                        <input
+                          type="email"
+                          required
+                          value={m.email}
+                          onChange={(e) => handleMemberChange(idx, "email", e.target.value)}
+                          placeholder="Gmail ID"
+                          readOnly={m.isLeader}
+                          className={`w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)] ${
+                            m.isLeader ? "opacity-80 cursor-not-allowed" : ""
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-[var(--muted)] block mb-1">
+                          Phone Number *
+                        </span>
+                        <input
+                          type="tel"
+                          required={m.isLeader}
+                          value={m.phone}
+                          onChange={(e) => handleMemberChange(idx, "phone", e.target.value)}
+                          placeholder="+91 Phone"
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)]"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-4">
+                        <span className="text-[11px] font-semibold text-[var(--muted)]">
+                          {m.isLeader ? "★ Team Lead" : "Co-Author"}
+                        </span>
+                        {!m.isLeader && (
+                          <button
+                            type="button"
+                            onClick={() => removeMember(idx)}
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition"
+                          >
+                            <FiTrash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Progress bar if uploading */}
+              {submitting && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs text-[var(--muted)]">
+                    <span>Uploading files to Google Drive...</span>
                     <span>{uploadProgress}%</span>
                   </div>
-                  <div className="h-2.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shadow-inner">
+                  <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-300"
+                      className="h-full bg-[var(--accent)] transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Submit CTA */}
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 rounded-2xl bg-[var(--primary)] py-3.5 px-6 font-bold text-white transition hover:bg-[var(--primary-hover)] shadow-md disabled:opacity-50"
+                className={`w-full rounded-2xl bg-[var(--accent)] hover:brightness-110 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-200 cursor-pointer ${
+                  submitting ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.01]"
+                }`}
               >
-                {submitting
-                  ? `Uploading to Evaluation Drive (${uploadProgress}%)...`
-                  : "Submit Idea & Upload to Drive 🚀"}
+                {submitting ? "Uploading & Staging Submission..." : "Complete Team Registration 🚀"}
               </button>
-            </div>
-          </form>
-        </div>
-      </main>
-
-      {/* Success Modal */}
-      <AnimatePresence>
-        {showSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg rounded-3xl border-2 border-emerald-500 bg-[var(--surface)] p-6 sm:p-8 shadow-2xl text-center"
-            >
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-3xl mb-4">
-                <FiCheckCircle />
-              </div>
-
-              <h3 className="oswald text-2xl font-bold uppercase text-[var(--text)]">
-                Submission Received!
-              </h3>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                Your proposal has been logged and queued for Round 1 Juryza evaluation.
-              </p>
-
-              <div className="my-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-4">
-                <p className="text-xs uppercase font-bold text-emerald-800">Your Official Team ID</p>
-                <p className="mt-1 text-3xl font-extrabold tracking-wider text-emerald-900">
-                  {generatedSubmission?.teamId || "VM2-ST-XXXXXX"}
-                </p>
-                <p className="mt-2 text-xs text-emerald-700">
-                  Please save this ID for tracking evaluation rounds and jury scoring.
-                </p>
-              </div>
-
-              <div className="space-y-2 text-left text-xs bg-[var(--bg)] p-4 rounded-xl border border-[var(--border)] mb-6">
-                <p>
-                  <strong>Team Name:</strong> {generatedSubmission?.teamName}
-                </p>
-                <p>
-                  <strong>Theme:</strong> {generatedSubmission?.theme}
-                </p>
-                <p>
-                  <strong>Video Pitch:</strong> Logged & Ready for Jury
-                </p>
-                <p className="text-amber-800 font-semibold mt-1">
-                  📁 Drive Archive: Synced to official SDMIMD repository folder
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Link
-                  to="/jury"
-                  className="flex-1 rounded-xl bg-[var(--accent)] py-2.5 text-sm font-semibold text-white hover:opacity-90"
-                >
-                  View in Jury Hub ⚖️
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setShowSuccessModal(false)}
-                  className="flex-1 rounded-xl border border-[var(--border)] py-2.5 text-sm font-semibold hover:bg-[var(--surface-2)]"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
+            </form>
           </div>
         )}
-      </AnimatePresence>
+      </main>
 
       <FooterSection />
     </div>

@@ -8,10 +8,19 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("adminToken");
+    const token =
+      localStorage.getItem("juryzaToken") ||
+      localStorage.getItem("adminToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      config.headers["x-auth-token"] = token;
     }
+
+    const userEmail = localStorage.getItem("juryzaEmail");
+    if (userEmail) {
+      config.headers["x-user-email"] = userEmail;
+    }
+
     return config;
   },
   (error) => {

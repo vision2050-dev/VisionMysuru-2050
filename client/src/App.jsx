@@ -17,6 +17,8 @@ const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
 const EditionOnePage = React.lazy(() => import("./pages/EditionOnePage.jsx"));
 const ParticipantPortal = React.lazy(() => import("./pages/ParticipantPortal.jsx"));
 const JuryzaHub = React.lazy(() => import("./pages/JuryzaHub.jsx"));
+const JuryzaGateway = React.lazy(() => import("./pages/JuryzaGateway.jsx"));
+const AdminJuryzaPlatform = React.lazy(() => import("./pages/AdminJuryzaPlatform.jsx"));
 
 const App = () => {
   return (
@@ -27,8 +29,11 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/edition-1" element={<EditionOnePage />} />
+            <Route path="/juryza" element={<JuryzaGateway />} />
+            <Route path="/register" element={<JuryzaGateway />} />
             <Route path="/portal" element={<ParticipantPortal />} />
             <Route path="/jury" element={<JuryzaHub />} />
+            <Route path="/admin" element={<AdminJuryzaPlatform />} />
             <Route path="/shortlist" element={<SubmitIdeaPage />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/certificates" element={<CertificatesPage />} />
@@ -48,27 +53,8 @@ const App = () => {
           toastOptions={{
             duration: 3000,
             style: {
-              fontSize: "14px",
-              padding: "10px 14px",
-              borderRadius: "16px",
-              background: "var(--surface)",
-              color: "var(--text)",
-              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2)",
-              backdropFilter: "blur(16px)",
-              border: "1px solid var(--border)",
-              fontFamily: "'DM Sans', sans-serif",
-            },
-            success: {
-              iconTheme: {
-                primary: "#22c55e",
-                secondary: "#ffffff",
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#ffffff",
-              },
+              background: "#333",
+              color: "#fff",
             },
           }}
         />

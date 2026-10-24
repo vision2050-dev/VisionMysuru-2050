@@ -10,17 +10,23 @@ const __dirname = path.dirname(__filename);
 export const TARGET_DRIVE_FOLDER_ID =
   process.env.GOOGLE_DRIVE_FOLDER_ID || "1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e";
 
-// Local storage directory for direct file staging & offline/local testing
+// Local staging root directory for direct file staging & offline/local testing
 export const LOCAL_SYNC_DIR = path.join(
   __dirname,
   "../uploads/drive_sync",
   TARGET_DRIVE_FOLDER_ID,
 );
 
-// Ensure local sync directory exists
-if (!fs.existsSync(LOCAL_SYNC_DIR)) {
-  fs.mkdirSync(LOCAL_SYNC_DIR, { recursive: true });
-}
+export const VIDEOS_SUBDIR = path.join(LOCAL_SYNC_DIR, "Videos");
+export const DOCUMENTS_SUBDIR = path.join(LOCAL_SYNC_DIR, "Documents");
+export const SPREADSHEETS_SUBDIR = path.join(LOCAL_SYNC_DIR, "Spreadsheets");
+
+// Ensure dedicated subfolders exist
+[LOCAL_SYNC_DIR, VIDEOS_SUBDIR, DOCUMENTS_SUBDIR, SPREADSHEETS_SUBDIR].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
 /**
  * Initialize Google Drive API Client
@@ -73,27 +79,70 @@ export const getDriveClient = () => {
 };
 
 /**
- * Upload a file directly to Google Drive under a specific team folder
+ * Finds or creates a subfolder in Google Drive (e.g. 'Videos', 'Documents', 'Spreadsheets')
+ */
+export const getOrCreateDriveSubfolder = async (folderName, parentFolderId = TARGET_DRIVE_FOLDER_ID) => {
+  const drive = getDriveClient();
+  if (!drive) {
+    return { folderId: `local-${folderName.toLowerCase()}`, folderName };
+  }
+
+  try {
+    const query = `'${parentFolderId}' in parents and name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const existing = await drive.files.list({
+      q: query,
+      fields: "files(id, name)",
+    });
+
+    if (existing.data.files && existing.data.files.length > 0) {
+      return { folderId: existing.data.files[0].id, folderName };
+    }
+
+    const fileMetadata = {
+      name: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentFolderId],
+    };
+
+    const folder = await drive.files.create({
+      resource: fileMetadata,
+      fields: "id, name",
+    });
+
+    return { folderId: folder.data.id, folderName };
+  } catch (error) {
+    console.warn(`[Drive] Could not get/create remote subfolder ${folderName}:`, error.message);
+    return { folderId: `local-${folderName.toLowerCase()}`, folderName };
+  }
+};
+
+/**
+ * Upload a file directly to Google Drive under a specific subfolder (e.g. Videos, Documents, Spreadsheets)
  */
 export const uploadToGoogleDrive = async ({
   filePath,
   fileName,
   mimeType,
+  folderType = "Videos", // "Videos" | "Documents" | "Spreadsheets"
   parentFolderId = TARGET_DRIVE_FOLDER_ID,
 }) => {
   const drive = getDriveClient();
   if (!drive) {
     return {
       synced: false,
-      message: "Drive API credentials not set. File safely staged in local sync folder.",
+      message: `Drive API credentials not set. File safely stored in local sync folder (${folderType}).`,
       driveFolderId: parentFolderId,
     };
   }
 
   try {
+    // Resolve subfolder in Drive
+    const subfolder = await getOrCreateDriveSubfolder(folderType, parentFolderId);
+    const targetParentId = subfolder.folderId.startsWith("local-") ? parentFolderId : subfolder.folderId;
+
     const fileMetadata = {
       name: fileName,
-      parents: [parentFolderId],
+      parents: [targetParentId],
     };
     const media = {
       mimeType,
@@ -111,7 +160,7 @@ export const uploadToGoogleDrive = async ({
       fileId: response.data.id,
       webViewLink: response.data.webViewLink,
       webContentLink: response.data.webContentLink,
-      driveFolderId: parentFolderId,
+      driveFolderId: targetParentId,
     };
   } catch (error) {
     console.error("Google Drive Upload Error:", error.message);
@@ -119,76 +168,6 @@ export const uploadToGoogleDrive = async ({
       synced: false,
       error: error.message,
       driveFolderId: parentFolderId,
-    };
-  }
-};
-
-/**
- * Creates an isolated subfolder inside the master Drive folder for a specific team:
- * e.g. "[VM2-ST-88F4A1] - EcoFlow Mysuru"
- */
-export const createTeamDriveFolder = async ({ teamId, teamName }) => {
-  const folderName = `[${teamId}] - ${teamName}`;
-  const drive = getDriveClient();
-
-  if (!drive) {
-    // Stage folder locally
-    const localTeamDir = path.join(LOCAL_SYNC_DIR, folderName);
-    if (!fs.existsSync(localTeamDir)) {
-      fs.mkdirSync(localTeamDir, { recursive: true });
-    }
-    return {
-      folderId: `local-dir-${teamId}`,
-      folderName,
-      localPath: localTeamDir,
-      parentDriveFolderId: TARGET_DRIVE_FOLDER_ID,
-    };
-  }
-
-  try {
-    // Check if team folder already exists
-    const query = `'${TARGET_DRIVE_FOLDER_ID}' in parents and name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-    const existing = await drive.files.list({
-      q: query,
-      fields: "files(id, name)",
-    });
-
-    if (existing.data.files && existing.data.files.length > 0) {
-      return {
-        folderId: existing.data.files[0].id,
-        folderName,
-        parentDriveFolderId: TARGET_DRIVE_FOLDER_ID,
-      };
-    }
-
-    // Create new folder
-    const fileMetadata = {
-      name: folderName,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [TARGET_DRIVE_FOLDER_ID],
-    };
-
-    const folder = await drive.files.create({
-      resource: fileMetadata,
-      fields: "id, name",
-    });
-
-    return {
-      folderId: folder.data.id,
-      folderName,
-      parentDriveFolderId: TARGET_DRIVE_FOLDER_ID,
-    };
-  } catch (error) {
-    console.warn("Could not create remote Drive folder:", error.message);
-    const localTeamDir = path.join(LOCAL_SYNC_DIR, folderName);
-    if (!fs.existsSync(localTeamDir)) {
-      fs.mkdirSync(localTeamDir, { recursive: true });
-    }
-    return {
-      folderId: `local-dir-${teamId}`,
-      folderName,
-      localPath: localTeamDir,
-      parentDriveFolderId: TARGET_DRIVE_FOLDER_ID,
     };
   }
 };

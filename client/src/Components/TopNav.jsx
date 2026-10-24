@@ -56,15 +56,6 @@ export const TopNav = () => {
 
         {/* Action Button Group */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Jury Hub Button */}
-          <Link
-            to="/jury"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition whitespace-nowrap shadow-2xs"
-          >
-            <span>Jury Hub</span>
-            <span className="text-[11px]">⚖️</span>
-          </Link>
-
           {/* Consolidated Edition 1 Dropdown */}
           <div
             className="relative group hidden sm:block"
@@ -110,14 +101,16 @@ export const TopNav = () => {
             </div>
           </div>
 
-          {/* Primary Edition 2 CTA */}
-          <Link
-            to="/portal"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-all whitespace-nowrap hover:scale-[1.02]"
+          {/* Primary Edition 2 CTA: Opens in a New Tab */}
+          <a
+            href="/juryza"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-1.5 text-xs font-bold shadow-xs transition-all whitespace-nowrap hover:scale-[1.02]"
           >
-            <span>Register / Pitch</span>
+            <span>Register</span>
             <span className="text-xs">🚀</span>
-          </Link>
+          </a>
 
           {/* Theme Toggle Button */}
           <ThemeToggle size="sm" />
@@ -165,23 +158,16 @@ export const TopNav = () => {
 
           {/* Mobile Actions */}
           <div className="pt-3 border-t border-[var(--border)] space-y-2">
-            <Link
-              to="/portal"
+            <a
+              href="/juryza"
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={() => setOpen(false)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-[var(--primary-hover)] transition"
             >
-              <span>Register / Pitch (Ed. 2)</span>
+              <span>Register (Edition 2)</span>
               <span>🚀</span>
-            </Link>
-
-            <Link
-              to="/jury"
-              onClick={() => setOpen(false)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
-            >
-              <span>Juryza Evaluation Hub</span>
-              <span>⚖️</span>
-            </Link>
+            </a>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
               <Link

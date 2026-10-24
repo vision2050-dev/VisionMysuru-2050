@@ -65,10 +65,13 @@ const HeroSection = () => {
             </Link>
 
             <a
-              href="#registrations"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/30 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
+              href="/juryza"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:brightness-110 hover:scale-[1.02]"
             >
-              Registrations Soon <FiArrowRight />
+              <span>Register for Edition 2</span>
+              <span>🚀</span>
             </a>
           </div>
         </div>

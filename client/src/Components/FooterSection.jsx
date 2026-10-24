@@ -9,9 +9,8 @@ const FooterSection = () => {
     { label: "About the initiative", href: "/#about", kind: "anchor" },
     { label: "Core objectives", href: "/#objectives", kind: "anchor" },
     { label: "Participation", href: "/#participation", kind: "anchor" },
+    { label: "Register for Edition 2 🚀", href: "/juryza", kind: "external" },
     { label: "Rules & regulations", href: "/rules", kind: "route" },
-    // { label: "Submission portal", href: "/submit", kind: "route" },
-    // { label: "Contact", href: "#contact", kind: "anchor" },
   ];
 
   return (
@@ -56,6 +55,18 @@ const FooterSection = () => {
                         <span className="absolute -bottom-1 left-0 h-px w-0 bg-yellow-400 transition-all duration-300 group-hover:w-full" />
                       </span>
                     </Link>
+                  ) : item.kind === "external" ? (
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center text-sm transition-colors hover:text-yellow-400 font-semibold"
+                    >
+                      <span className="relative">
+                        {item.label}
+                        <span className="absolute -bottom-1 left-0 h-px w-0 bg-yellow-400 transition-all duration-300 group-hover:w-full" />
+                      </span>
+                    </a>
                   ) : (
                     <a
                       href={item.href}

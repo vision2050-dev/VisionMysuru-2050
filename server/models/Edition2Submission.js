@@ -14,6 +14,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
   {
     teamId: { type: String, required: true, unique: true, index: true },
     teamName: { type: String, required: true, trim: true },
+    participantEmail: { type: String, lowercase: true, trim: true, index: true },
     category: {
       type: String,
       required: true,
@@ -30,29 +31,25 @@ const Edition2SubmissionSchema = new mongoose.Schema(
     shortDescription: { type: String, required: true, trim: true },
     detailedProposal: { type: String, trim: true },
 
-    // Video Pitch (Explainer video required for Edition 2)
+    // Compulsory Video Pitch (.mp4, max 50 MB)
     video: {
-      url: { type: String, required: true },
+      url: { type: String },
       title: { type: String },
-      type: {
-        type: String,
-        enum: ["gdrive", "youtube", "direct", "local", "direct_upload"],
-        default: "direct_upload",
-      },
+      originalName: { type: String },
       driveDestination: {
         type: String,
         default: "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e",
       },
       driveFileId: { type: String },
       localPath: { type: String },
-      originalName: { type: String },
       size: { type: Number },
     },
 
-    // Supplementary Document / Pitch Deck (PDF)
+    // Compulsory Supplementary Document / Pitch Deck (.pdf, max 5 MB)
     document: {
       name: { type: String },
       url: { type: String },
+      originalName: { type: String },
       driveDestination: {
         type: String,
         default: "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e",
@@ -66,10 +63,9 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       type: [MemberSchema],
       validate: {
         validator: function (members) {
-          const leaders = members.filter((m) => m.isLeader);
-          return members.length > 0 && leaders.length === 1;
+          return members && members.length > 0;
         },
-        message: "Every team must have members and exactly one leader",
+        message: "Every team must have members and at least one leader",
       },
     },
 
@@ -81,26 +77,54 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       organizationName: { type: String, trim: true },
     },
 
-    // Juryza Evaluation Engine Metrics
-    status: {
+    // Participant Progress Tracking States (Exactly as required)
+    // 1. submitted
+    // 2. allocated to a judge
+    // 3. under evaluation
+    // 4. shortlisted to next round / not shortlisted to next round
+    stage: {
       type: String,
       enum: [
-        "registered",
-        "round_1_shortlisted",
-        "round_1_rejected",
-        "round_2_shortlisted",
-        "round_2_rejected",
-        "round_3_shortlisted",
-        "grand_finale_shortlisted",
-        "winner",
+        "submitted",
+        "allocated to a judge",
+        "under evaluation",
+        "shortlisted to next round",
+        "not shortlisted to next round",
       ],
-      default: "registered",
+      default: "submitted",
       index: true,
     },
-    eloRating: { type: Number, default: 1200, index: true }, // Pairwise Duel Rating (Bradley-Terry)
-    zScore: { type: Number, default: 0, index: true }, // Statistically Normalized Score across Judges
-    rubricAverage: { type: Number, default: 0 }, // Mean raw rubric total (out of 40)
+
+    // Alloted Judge Gmail IDs
+    allotedJudges: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    allotedJudgeNames: {
+      type: [String],
+      default: [],
+    },
+
+    // Evaluation Engine Metrics
+    status: {
+      type: String,
+      default: "submitted",
+    },
+    eloRating: { type: Number, default: 1200, index: true },
+    zScore: { type: Number, default: 0, index: true },
+    rubricAverage: { type: Number, default: 0 },
     evaluationCount: { type: Number, default: 0 },
+    evaluations: [
+      {
+        judgeEmail: String,
+        judgeName: String,
+        rubric: Object,
+        totalScore: Number,
+        notes: String,
+        submittedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );

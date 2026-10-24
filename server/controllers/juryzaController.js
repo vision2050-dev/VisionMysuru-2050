@@ -1,26 +1,57 @@
 import mongoose from "mongoose";
-import Edition2Submission from "../models/Edition2Submission.js";
-import Judge from "../models/Judge.js";
-import Evaluation from "../models/Evaluation.js";
-import { randomUUID } from "crypto";
-import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import fs from "fs";
 import path from "path";
+import fs from "fs";
+import { randomUUID } from "crypto";
+import Edition2Submission from "../models/Edition2Submission.js";
+import JuryzaUser, { ADMIN_EMAIL } from "../models/JuryzaUser.js";
+import Evaluation from "../models/Evaluation.js";
 import {
   TARGET_DRIVE_FOLDER_ID,
-  createTeamDriveFolder,
   uploadToGoogleDrive,
   streamVideoFile,
-  getDriveClient,
+  VIDEOS_SUBDIR,
+  DOCUMENTS_SUBDIR,
 } from "../services/googleDriveService.js";
+import {
+  updateMasterSpreadsheet,
+  getSpreadsheetFilePath,
+  getSpreadsheetCsvPath,
+} from "../services/spreadsheetService.js";
+import { generateToken } from "../middleware/juryzaAuth.js";
 
-// In-memory fallback dataset for offline/local testing without MongoDB Atlas
+// In-Memory store for users when MongoDB is not connected
+let localUsersStore = [
+  {
+    _id: "admin-default-id",
+    name: "Vision Mysuru Admin",
+    email: ADMIN_EMAIL,
+    role: "admin",
+    password: null, // Initialized on first login or signup
+    organization: "SDMIMD Mysuru",
+    allotedTeams: [],
+    createdAt: new Date(),
+  },
+  {
+    _id: "judge-demo-1",
+    name: "Dr. K. Srinivas",
+    email: "judge.srinivas@gmail.com",
+    role: "judge",
+    password: null,
+    organization: "SDMIMD Panel",
+    specialization: "Sustainability & Clean Tech",
+    allotedTeams: ["VM2-ST-88F4A1"],
+    createdAt: new Date(),
+  },
+];
+
+// In-Memory store for submissions
 let localSubmissionsStore = [
   {
     _id: "demo-sub-1",
     teamId: "VM2-ST-88F4A1",
     teamName: "EcoFlow Mysuru",
+    participantEmail: "participant.aditi@gmail.com",
     category: "students",
     city: "Mysuru",
     theme: "Environmental Sustainability",
@@ -28,655 +59,996 @@ let localSubmissionsStore = [
     shortDescription:
       "A solar-powered IoT filtration and bio-remediation barrier to eliminate urban storm drainage pollutants flowing into Kukkarahalli Lake.",
     detailedProposal:
-      "Our team documented 4 untreated discharge canals entering Kukkarahalli lake. We deploy indigenous biomimetic filters with solar-powered aeration units to clean 40,000 liters daily.",
+      "Our team documented untreated discharge canals entering Kukkarahalli lake. We deploy indigenous biomimetic filters with solar-powered aeration units to clean 40,000 liters daily.",
     video: {
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "EcoFlow 2-Minute On-Ground Video Pitch",
-      type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
+      title: "EcoFlow Pitch Video",
+      originalName: "EcoFlow_Pitch.mp4",
+      driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+      size: 14500000,
     },
     document: {
       name: "EcoFlow_Kukkarahalli_Lake_Blueprint.pdf",
+      originalName: "EcoFlow_Blueprint.pdf",
       url: "https://drive.google.com/file/d/sample1",
+      driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+      size: 2400000,
     },
     members: [
       {
         name: "Aditi Rao",
-        email: "aditi.rao@nie.ac.in",
+        email: "participant.aditi@gmail.com",
         phone: "+91 98451 12345",
         isLeader: true,
         college: "The National Institute of Engineering, Mysuru",
         department: "Civil & Environmental Engineering",
-      },
-      {
-        name: "Kiran Kumar",
-        email: "kiran.k@nie.ac.in",
-        phone: "+91 98452 67890",
-        isLeader: false,
-        college: "The National Institute of Engineering, Mysuru",
-        department: "Mechanical Engineering",
       },
     ],
     organizationDetails: {
       institution: "NIE Mysuru",
       department: "Environmental Engineering",
     },
-    status: "round_2_shortlisted",
+    stage: "allocated to a judge",
+    allotedJudges: ["judge.srinivas@gmail.com"],
+    allotedJudgeNames: ["Dr. K. Srinivas"],
     eloRating: 1248,
     zScore: 1.42,
     rubricAverage: 34.5,
-    evaluationCount: 3,
-  },
-  {
-    _id: "demo-sub-2",
-    teamId: "VM2-CT-19B2C3",
-    teamName: "Heritage Pulse",
-    category: "citizens",
-    city: "Mysuru",
-    theme: "Heritage Conservation",
-    solutionName: "Devaraja Market Adaptive Restoration & Artisan Collective",
-    shortDescription:
-      "Balancing historical wooden and stone architectural preservation with modern fire-safe electrical grids and hygienic vegetable vendor stalls.",
-    detailedProposal:
-      "Collaborative intervention designed by Mysuru resident architects and heritage stall owners to preserve the facade while modernizing internal infrastructure.",
-    video: {
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "Devaraja Market Ground Survey & Pitch",
-      type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
-    },
-    document: {
-      name: "Devaraja_Restoration_Report.pdf",
-      url: "https://drive.google.com/file/d/sample2",
-    },
-    members: [
-      {
-        name: "S. Rangaswamy",
-        email: "rangaswamy.mys@gmail.com",
-        phone: "+91 94480 33221",
-        isLeader: true,
-        designation: "Resident Architect & Civic Historian",
-      },
-    ],
-    status: "round_1_shortlisted",
-    eloRating: 1216,
-    zScore: 0.85,
-    rubricAverage: 31.0,
-    evaluationCount: 2,
-  },
-  {
-    _id: "demo-sub-3",
-    teamId: "VM2-ST-4C5D6E",
-    teamName: "RapidRoute Mysuru",
-    category: "students",
-    city: "Mysuru",
-    theme: "Urban Infrastructure & Mobility",
-    solutionName: "Smart feeder mini-EV transit corridors for Outer Ring Road",
-    shortDescription:
-      "Optimizing KSRTC and private bus feeder routes with electric shared vans connecting Hebbal and Vijayanagar to city center.",
-    detailedProposal:
-      "Data gathered from 1,200 commuters traveling across Hunsur road and Ring Road junctions, showing a 35-minute wait time reduction.",
-    video: {
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "Transit Feeder Demonstration",
-      type: "youtube",
-      driveDestination: "https://drive.google.com/drive/folders/visionmysuru2050_edition2_submissions",
-    },
-    document: {
-      name: "RapidRoute_Simulation_Data.pdf",
-      url: "https://drive.google.com/file/d/sample3",
-    },
-    members: [
-      {
-        name: "Chirag Hegde",
-        email: "chirag.hegde@sdmimd.ac.in",
-        phone: "+91 97412 88765",
-        isLeader: true,
-        college: "SDMIMD, Mysuru",
-        department: "PGDM / Operations & Analytics",
-      },
-    ],
-    organizationDetails: {
-      institution: "SDMIMD Mysuru",
-      department: "Management / Operations",
-    },
-    status: "registered",
-    eloRating: 1190,
-    zScore: -0.15,
-    rubricAverage: 27.0,
     evaluationCount: 1,
+    createdAt: new Date(),
   },
 ];
 
-// Helper to determine if DB is connected
-const isDbConnected = () => {
-  return mongoose.connection && mongoose.connection.readyState === 1;
+// Helper to check if MongoDB is connected
+const isDbConnected = () => mongoose.connection.readyState === 1;
+
+// Helper to trigger spreadsheet sync in background
+const triggerSpreadsheetUpdate = async () => {
+  try {
+    let submissions = [];
+    let judges = [];
+
+    if (isDbConnected()) {
+      submissions = await Edition2Submission.find().sort({ createdAt: -1 });
+      judges = await JuryzaUser.find({ role: "judge" }).sort({ createdAt: -1 });
+    } else {
+      submissions = localSubmissionsStore;
+      judges = localUsersStore.filter((u) => u.role === "judge");
+    }
+
+    await updateMasterSpreadsheet({ submissions, judges });
+  } catch (err) {
+    console.warn("[Spreadsheet Sync Warning]:", err.message);
+  }
 };
 
-// ----------------------------------------------------
-// 1. Participant Portal: Register & Direct File Upload to Drive
-// ----------------------------------------------------
+// Initial run to make sure spreadsheet exists on startup
+setTimeout(() => {
+  triggerSpreadsheetUpdate();
+}, 2000);
+
+// ==========================================
+// 1. AUTHENTICATION (Sign Up & Sign In)
+// ==========================================
+
+/**
+ * Sign Up for Participants & Judges
+ */
+export const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, role = "participant", phone, organization, specialization } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, Gmail ID, and password are required." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+
+    // Admin validation rule
+    if (role === "admin" && cleanEmail !== ADMIN_EMAIL) {
+      return res.status(403).json({ message: "you do not have admin access" });
+    }
+
+    if (isDbConnected()) {
+      const existingUser = await JuryzaUser.findOne({ email: cleanEmail });
+      if (existingUser) {
+        return res.status(409).json({ message: "An account with this Gmail ID already exists. Please sign in." });
+      }
+
+      const newUser = new JuryzaUser({
+        name,
+        email: cleanEmail,
+        password,
+        role: cleanEmail === ADMIN_EMAIL ? "admin" : role,
+        phone,
+        organization,
+        specialization: specialization || "General",
+      });
+
+      await newUser.save();
+      const token = generateToken(newUser);
+
+      triggerSpreadsheetUpdate();
+
+      return res.status(201).json({
+        message: "Account created successfully!",
+        token,
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+        },
+      });
+    }
+
+    // Fallback in-memory
+    const existing = localUsersStore.find((u) => u.email === cleanEmail);
+    if (existing) {
+      return res.status(409).json({ message: "An account with this Gmail ID already exists. Please sign in." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = {
+      _id: `user-${randomUUID()}`,
+      name,
+      email: cleanEmail,
+      password: hashedPassword,
+      role: cleanEmail === ADMIN_EMAIL ? "admin" : role,
+      phone,
+      organization: organization || "Participant",
+      specialization: specialization || "General",
+      allotedTeams: [],
+      createdAt: new Date(),
+    };
+
+    localUsersStore.push(newUser);
+    const token = generateToken(newUser);
+
+    triggerSpreadsheetUpdate();
+
+    return res.status(201).json({
+      message: "Account created successfully!",
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Sign up error:", error);
+    return res.status(500).json({ message: "Internal server error during registration." });
+  }
+};
+
+/**
+ * Sign In for Participants, Judges, and Admin
+ */
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password, requestedRole } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Gmail ID and password are required." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+
+    // STRICT ADMIN VALIDATION: If attempting admin sign in, email MUST be vision2050@sdmimd.ac.in
+    if (requestedRole === "admin" && cleanEmail !== ADMIN_EMAIL) {
+      return res.status(403).json({ message: "you do not have admin access" });
+    }
+
+    if (isDbConnected()) {
+      let user = await JuryzaUser.findOne({ email: cleanEmail });
+
+      // Auto-provision admin if signing in for first time with vision2050@sdmimd.ac.in
+      if (!user && cleanEmail === ADMIN_EMAIL) {
+        user = new JuryzaUser({
+          name: "Vision Mysuru Admin",
+          email: ADMIN_EMAIL,
+          password,
+          role: "admin",
+          organization: "SDMIMD Mysuru",
+        });
+        await user.save();
+      }
+
+      if (!user) {
+        return res.status(404).json({ message: "No account found with this Gmail ID. Please sign up first." });
+      }
+
+      if (requestedRole && requestedRole !== user.role && user.role !== "admin") {
+        return res.status(403).json({
+          message: `This account is registered as a ${user.role}. Please select the ${user.role} sign-in tab.`,
+        });
+      }
+
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({ message: "Invalid password. Please try again." });
+      }
+
+      const token = generateToken(user);
+      return res.status(200).json({
+        message: "Signed in successfully!",
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
+
+    // In-memory fallback
+    let user = localUsersStore.find((u) => u.email === cleanEmail);
+
+    if (!user && cleanEmail === ADMIN_EMAIL) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      user = {
+        _id: "admin-default-id",
+        name: "Vision Mysuru Admin",
+        email: ADMIN_EMAIL,
+        password: hashedPassword,
+        role: "admin",
+        organization: "SDMIMD Mysuru",
+        allotedTeams: [],
+        createdAt: new Date(),
+      };
+      localUsersStore.push(user);
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: "No account found with this Gmail ID. Please sign up first." });
+    }
+
+    if (requestedRole && requestedRole !== user.role && user.role !== "admin") {
+      return res.status(403).json({
+        message: `This account is registered as a ${user.role}. Please select the ${user.role} tab.`,
+      });
+    }
+
+    // Verify password if set
+    if (user.password) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: "Invalid password. Please try again." });
+      }
+    } else {
+      // First time password setup for seeded accounts
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    const token = generateToken(user);
+    return res.status(200).json({
+      message: "Signed in successfully!",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Sign in error:", error);
+    return res.status(500).json({ message: "Internal server error during sign in." });
+  }
+};
+
+// ==========================================
+// 2. PARTICIPANT SUBMISSIONS & FILE UPLOADS
+// ==========================================
+
+/**
+ * Register Edition 2 Submission (Compulsory .mp4 <= 50MB and .pdf <= 5MB)
+ * Files stored into separate folders in Google Drive / Staging
+ */
 export const registerEdition2Submission = async (req, res) => {
   try {
     const {
       teamName,
       category,
-      city = "Mysuru",
       theme,
       solutionName,
       shortDescription,
       detailedProposal,
-      videoUrl,
-      videoTitle,
-      videoType = "gdrive",
-      documentName,
-      documentUrl,
+      leadName,
+      leadEmail,
+      leadPhone,
+      institution,
       members,
-      organizationDetails = {},
     } = req.body;
 
-    const videoFile = req.files?.videoFile?.[0];
-    const documentFile = req.files?.documentFile?.[0];
+    const participantEmail = req.user?.email || leadEmail;
 
     if (!teamName || !category || !theme || !solutionName || !shortDescription) {
-      return res.status(400).json({ message: "Missing required submission fields" });
-    }
-
-    if (!videoFile && !videoUrl) {
       return res.status(400).json({
-        message:
-          "Please select and upload your explainer pitch video file directly to our evaluation drive.",
+        message: "Team Name, Category, Focus Theme, Solution Name, and Description are required.",
       });
     }
 
-    let parsedMembers = members;
+    // Verify compulsory files from multer
+    if (!req.files || !req.files.videoFile || !req.files.documentFile) {
+      return res.status(400).json({
+        message: "Both pitch video (.mp4 ≤ 50 MB) and proposal deck (.pdf ≤ 5 MB) are compulsory.",
+      });
+    }
+
+    const videoFile = req.files.videoFile[0];
+    const docFile = req.files.documentFile[0];
+
+    const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase()}`;
+
+    // Rename files with Team ID prefix for clean separation
+    const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const videoNewName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
+    const docNewName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
+
+    const finalVideoPath = path.join(VIDEOS_SUBDIR, videoNewName);
+    const finalDocPath = path.join(DOCUMENTS_SUBDIR, docNewName);
+
+    try {
+      if (fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
+        fs.renameSync(videoFile.path, finalVideoPath);
+      }
+      if (fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
+        fs.renameSync(docFile.path, finalDocPath);
+      }
+    } catch (moveErr) {
+      console.warn("File rename notice:", moveErr.message);
+    }
+
+    // Upload to Google Drive in background
+    uploadToGoogleDrive({
+      filePath: finalVideoPath,
+      fileName: videoNewName,
+      mimeType: "video/mp4",
+      folderType: "Videos",
+    }).catch((e) => console.warn("Drive Video upload note:", e.message));
+
+    uploadToGoogleDrive({
+      filePath: finalDocPath,
+      fileName: docNewName,
+      mimeType: "application/pdf",
+      folderType: "Documents",
+    }).catch((e) => console.warn("Drive Doc upload note:", e.message));
+
+    let parsedMembers = [];
     if (typeof members === "string") {
       try {
         parsedMembers = JSON.parse(members);
       } catch {
-        return res.status(400).json({ message: "Invalid members format" });
+        parsedMembers = [];
       }
+    } else if (Array.isArray(members)) {
+      parsedMembers = members;
     }
 
-    if (!Array.isArray(parsedMembers) || parsedMembers.length === 0) {
-      return res.status(400).json({ message: "At least one team member is required" });
-    }
-
-    let parsedOrgDetails = organizationDetails;
-    if (typeof organizationDetails === "string") {
-      try {
-        parsedOrgDetails = JSON.parse(organizationDetails);
-      } catch {
-        parsedOrgDetails = {};
-      }
-    }
-
-    // Prefix: VM2-ST (Student), VM2-CO (Corporate), VM2-NG (NGO), VM2-CT (Citizen)
-    const categoryCode =
-      category === "students"
-        ? "ST"
-        : category === "corporates"
-          ? "CO"
-          : category === "ngos"
-            ? "NG"
-            : "CT";
-
-    const teamId = `VM2-${categoryCode}-${randomUUID().slice(0, 6).toUpperCase()}`;
-
-    // Target Google Drive Folder Destination
-    const defaultDriveDestination = `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`;
-
-    let videoPayload = {
-      url: videoUrl || "",
-      title: videoTitle || `${teamName} - Vision Pitch`,
-      type: videoType,
-      driveDestination: defaultDriveDestination,
-    };
-
-    let documentPayload = {
-      name: documentName || "Project_Summary.pdf",
-      url: documentUrl || "",
-      driveDestination: defaultDriveDestination,
-    };
-
-    // Process Direct Uploaded Pitch Video to Team Drive Folder
-    if (videoFile) {
-      const teamFolder = await createTeamDriveFolder({ teamId, teamName });
-      const ext = path.extname(videoFile.originalname) || ".mp4";
-      const sanitizedName = `${teamId}_PitchVideo${ext}`;
-      const destVideoPath = path.join(teamFolder.localPath || path.dirname(videoFile.path), sanitizedName);
-
-      try {
-        fs.copyFileSync(videoFile.path, destVideoPath);
-        fs.unlinkSync(videoFile.path);
-      } catch (err) {
-        console.warn("Could not move video file:", err.message);
-      }
-
-      // Sync to Google Drive Folder in the background
-      const driveUploadRes = await uploadToGoogleDrive({
-        filePath: destVideoPath,
-        fileName: `${teamId} - ${videoFile.originalname}`,
-        mimeType: videoFile.mimetype || "video/mp4",
-        parentFolderId:
-          teamFolder.folderId && !teamFolder.folderId.startsWith("local-dir")
-            ? teamFolder.folderId
-            : TARGET_DRIVE_FOLDER_ID,
-      });
-
-      videoPayload = {
-        url: `/api/v2/submissions/${teamId}/video-stream`,
-        title: `${teamName} - Explainer Video Pitch`,
-        type: "direct_upload",
-        driveDestination: defaultDriveDestination,
-        driveFileId: driveUploadRes?.fileId || null,
-        localPath: destVideoPath,
-        originalName: videoFile.originalname,
-        size: videoFile.size,
-      };
-    }
-
-    // Process Supplementary Proposal Document if provided
-    if (documentFile) {
-      const teamFolder = await createTeamDriveFolder({ teamId, teamName });
-      const ext = path.extname(documentFile.originalname) || ".pdf";
-      const sanitizedDocName = `${teamId}_ProposalDocument${ext}`;
-      const destDocPath = path.join(teamFolder.localPath || path.dirname(documentFile.path), sanitizedDocName);
-
-      try {
-        fs.copyFileSync(documentFile.path, destDocPath);
-        fs.unlinkSync(documentFile.path);
-      } catch (err) {
-        console.warn("Could not move document file:", err.message);
-      }
-
-      // Sync to Google Drive Folder
-      const docUploadRes = await uploadToGoogleDrive({
-        filePath: destDocPath,
-        fileName: `${teamId} - ${documentFile.originalname}`,
-        mimeType: documentFile.mimetype || "application/pdf",
-        parentFolderId:
-          teamFolder.folderId && !teamFolder.folderId.startsWith("local-dir")
-            ? teamFolder.folderId
-            : TARGET_DRIVE_FOLDER_ID,
-      });
-
-      documentPayload = {
-        name: documentFile.originalname,
-        url: `/api/v2/submissions/${teamId}/document-preview`,
-        driveDestination: defaultDriveDestination,
-        driveFileId: docUploadRes?.fileId || null,
-        localPath: destDocPath,
-        size: documentFile.size,
-      };
+    if (parsedMembers.length === 0) {
+      parsedMembers = [
+        {
+          name: leadName || "Team Lead",
+          email: participantEmail || "participant@gmail.com",
+          phone: leadPhone || "N/A",
+          college: institution || "N/A",
+          isLeader: true,
+        },
+      ];
     }
 
     const submissionPayload = {
       teamId,
       teamName,
+      participantEmail: participantEmail?.toLowerCase()?.trim(),
       category,
-      city,
+      city: "Mysuru",
       theme,
       solutionName,
       shortDescription,
       detailedProposal: detailedProposal || shortDescription,
-      video: videoPayload,
-      document: documentPayload,
+      video: {
+        originalName: videoNewName,
+        localPath: finalVideoPath,
+        size: videoFile.size,
+        driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+      },
+      document: {
+        name: docNewName,
+        originalName: docNewName,
+        localPath: finalDocPath,
+        size: docFile.size,
+        driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+      },
       members: parsedMembers,
-      organizationDetails: parsedOrgDetails,
-      status: "registered",
+      organizationDetails: {
+        institution: institution || "N/A",
+      },
+      stage: "submitted",
+      allotedJudges: [],
+      allotedJudgeNames: [],
       eloRating: 1200,
       zScore: 0,
       rubricAverage: 0,
       evaluationCount: 0,
+      createdAt: new Date(),
     };
 
     if (isDbConnected()) {
-      const newSubmission = new Edition2Submission(submissionPayload);
-      await newSubmission.save();
-      return res.status(201).json({
-        message: "Registration & idea submission uploaded directly to drive successfully!",
-        submission: newSubmission,
-        driveFolderId: TARGET_DRIVE_FOLDER_ID,
-      });
+      const newSub = new Edition2Submission(submissionPayload);
+      await newSub.save();
     } else {
-      // Local fallback
-      const mockDoc = { _id: `local-${Date.now()}`, ...submissionPayload, createdAt: new Date() };
-      localSubmissionsStore.unshift(mockDoc);
-      return res.status(201).json({
-        message: "Registration & idea submission uploaded directly to drive successfully (Local Dev Mode)!",
-        submission: mockDoc,
-        driveFolderId: TARGET_DRIVE_FOLDER_ID,
+      localSubmissionsStore.unshift({
+        _id: `sub-${randomUUID()}`,
+        ...submissionPayload,
       });
     }
+
+    // Update master spreadsheet with this new submission
+    triggerSpreadsheetUpdate();
+
+    return res.status(201).json({
+      message: "Registration completed successfully! Your submission is now in 'submitted' status.",
+      teamId,
+      stage: "submitted",
+      submission: submissionPayload,
+    });
   } catch (error) {
-    console.error("Edition 2 submission error:", error);
-    return res.status(500).json({ message: "Submission failed", error: error.message });
+    console.error("Submission error:", error);
+    return res.status(500).json({ message: `Submission failed: ${error.message}` });
   }
 };
 
-// ----------------------------------------------------
-// 1b. Team-Specific Media Streaming & Isolated Previews (Jury Only)
-// ----------------------------------------------------
-export const streamSubmissionVideo = async (req, res) => {
+/**
+ * Get Submissions:
+ * - Admin sees ALL submissions
+ * - Judges see ONLY submissions alloted to their Gmail ID
+ */
+export const getEdition2Submissions = async (req, res) => {
   try {
-    const { id } = req.params;
-    let submission;
+    const userEmail = req.user?.email?.toLowerCase()?.trim();
+    const userRole = req.user?.role;
 
+    const isAdmin = userEmail === ADMIN_EMAIL || userRole === "admin";
+    const isJudge = userRole === "judge";
+
+    let allSubs = [];
     if (isDbConnected()) {
-      submission =
-        (await Edition2Submission.findById(id)) ||
-        (await Edition2Submission.findOne({ teamId: id }));
+      allSubs = await Edition2Submission.find().sort({ createdAt: -1 });
+    } else {
+      allSubs = localSubmissionsStore;
+    }
+
+    if (isAdmin) {
+      return res.status(200).json(allSubs);
+    }
+
+    if (isJudge && userEmail) {
+      // Return ONLY teams alloted to this judge
+      const filtered = allSubs.filter(
+        (sub) =>
+          Array.isArray(sub.allotedJudges) &&
+          sub.allotedJudges.map((e) => e.toLowerCase()).includes(userEmail),
+      );
+      return res.status(200).json(filtered);
+    }
+
+    // Public view: summary only
+    const publicSubs = allSubs.map((s) => ({
+      _id: s._id,
+      teamId: s.teamId,
+      teamName: s.teamName,
+      category: s.category,
+      theme: s.theme,
+      solutionName: s.solutionName,
+      stage: s.stage || "submitted",
+      createdAt: s.createdAt,
+    }));
+
+    return res.status(200).json(publicSubs);
+  } catch (error) {
+    console.error("Fetch submissions error:", error);
+    return res.status(500).json({ message: "Failed to fetch submissions." });
+  }
+};
+
+/**
+ * Participant: Get My Submission & Live 4-Step Progress
+ */
+export const getParticipantSubmission = async (req, res) => {
+  try {
+    const email = req.user?.email || req.query.email;
+    if (!email) {
+      return res.status(400).json({ message: "Participant Gmail ID is required." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    let submission = null;
+    if (isDbConnected()) {
+      submission = await Edition2Submission.findOne({
+        $or: [
+          { participantEmail: cleanEmail },
+          { "members.email": cleanEmail },
+        ],
+      }).sort({ createdAt: -1 });
     } else {
       submission = localSubmissionsStore.find(
-        (s) => s._id === id || s.teamId === id,
+        (s) =>
+          s.participantEmail === cleanEmail ||
+          s.members?.some((m) => m.email?.toLowerCase() === cleanEmail),
       );
     }
 
-    if (!submission || !submission.video) {
-      return res.status(404).json({ message: "Submission or video not found" });
+    if (!submission) {
+      return res.status(200).json({ submission: null, hasRegistered: false });
     }
 
-    // 1. If local cached / staged file exists, stream with HTTP 206 Range
-    if (submission.video.localPath && fs.existsSync(submission.video.localPath)) {
-      return streamVideoFile(submission.video.localPath, req, res);
+    return res.status(200).json({
+      hasRegistered: true,
+      submission,
+      stage: submission.stage || "submitted",
+    });
+  } catch (error) {
+    console.error("Get participant submission error:", error);
+    return res.status(500).json({ message: "Failed to retrieve participant submission." });
+  }
+};
+
+// ==========================================
+// 3. ADMIN PORTAL (Allocation, Status, Judges)
+// ==========================================
+
+/**
+ * Admin: Get All Judges
+ */
+export const getJudges = async (req, res) => {
+  try {
+    let judges = [];
+    if (isDbConnected()) {
+      judges = await JuryzaUser.find({ role: "judge" }).select("-password");
+    } else {
+      judges = localUsersStore.filter((u) => u.role === "judge");
+    }
+    return res.status(200).json(judges);
+  } catch (error) {
+    console.error("Get judges error:", error);
+    return res.status(500).json({ message: "Failed to fetch judges." });
+  }
+};
+
+/**
+ * Admin: Allocate Submission to Judge (Single or Auto-Allocate All)
+ */
+export const allocateSubmission = async (req, res) => {
+  try {
+    const { teamId, judgeEmail, mode = "single" } = req.body;
+
+    let submissions = isDbConnected()
+      ? await Edition2Submission.find()
+      : localSubmissionsStore;
+
+    let judges = isDbConnected()
+      ? await JuryzaUser.find({ role: "judge" })
+      : localUsersStore.filter((u) => u.role === "judge");
+
+    if (judges.length === 0) {
+      return res.status(400).json({
+        message: "No judges are registered yet. Please have judges sign up first.",
+      });
     }
 
-    // 2. If it's a remote URL (e.g. YouTube or direct link)
-    if (submission.video.url && !submission.video.url.includes("/video-stream")) {
-      return res.redirect(submission.video.url);
+    if (mode === "auto") {
+      // Evenly distribute unallocated or all submissions across registered judges
+      let judgeIndex = 0;
+      for (const sub of submissions) {
+        const assignedJudge = judges[judgeIndex % judges.length];
+        const jEmail = assignedJudge.email.toLowerCase();
+
+        sub.allotedJudges = [jEmail];
+        sub.allotedJudgeNames = [assignedJudge.name];
+        if (sub.stage === "submitted") {
+          sub.stage = "allocated to a judge";
+        }
+
+        if (!Array.isArray(assignedJudge.allotedTeams)) {
+          assignedJudge.allotedTeams = [];
+        }
+        if (!assignedJudge.allotedTeams.includes(sub.teamId)) {
+          assignedJudge.allotedTeams.push(sub.teamId);
+        }
+
+        if (isDbConnected()) {
+          await sub.save();
+          await assignedJudge.save();
+        }
+        judgeIndex++;
+      }
+
+      triggerSpreadsheetUpdate();
+      return res.status(200).json({
+        message: `Successfully auto-allocated ${submissions.length} teams across ${judges.length} judges.`,
+      });
     }
 
-    return res.status(404).json({ message: "Video media file is currently processing or unavailable" });
-  } catch (err) {
-    console.error("Video stream error:", err);
-    return res.status(500).json({ message: "Error streaming video", error: err.message });
+    // Single Allocation
+    if (!teamId || !judgeEmail) {
+      return res.status(400).json({ message: "Team ID and Judge Gmail ID are required." });
+    }
+
+    const cleanJudgeEmail = judgeEmail.toLowerCase().trim();
+    const judge = judges.find((j) => j.email.toLowerCase() === cleanJudgeEmail);
+    if (!judge) {
+      return res.status(404).json({ message: "Judge not found with this email." });
+    }
+
+    let targetSub = submissions.find((s) => s.teamId === teamId);
+    if (!targetSub) {
+      return res.status(404).json({ message: "Team submission not found." });
+    }
+
+    targetSub.allotedJudges = [cleanJudgeEmail];
+    targetSub.allotedJudgeNames = [judge.name];
+    if (targetSub.stage === "submitted") {
+      targetSub.stage = "allocated to a judge";
+    }
+
+    if (!Array.isArray(judge.allotedTeams)) {
+      judge.allotedTeams = [];
+    }
+    if (!judge.allotedTeams.includes(teamId)) {
+      judge.allotedTeams.push(teamId);
+    }
+
+    if (isDbConnected()) {
+      await targetSub.save();
+      await judge.save();
+    }
+
+    triggerSpreadsheetUpdate();
+
+    return res.status(200).json({
+      message: `Team ${teamId} successfully alloted to judge ${judge.name}.`,
+      submission: targetSub,
+    });
+  } catch (error) {
+    console.error("Allocation error:", error);
+    return res.status(500).json({ message: `Allocation failed: ${error.message}` });
+  }
+};
+
+/**
+ * Update Submission Stage (Admin or Alloted Judge)
+ * States:
+ * - submitted
+ * - allocated to a judge
+ * - under evaluation
+ * - shortlisted to next round
+ * - not shortlisted to next round
+ */
+export const updateSubmissionStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stage, notes } = req.body;
+
+    const allowedStages = [
+      "submitted",
+      "allocated to a judge",
+      "under evaluation",
+      "shortlisted to next round",
+      "not shortlisted to next round",
+    ];
+
+    if (!allowedStages.includes(stage)) {
+      return res.status(400).json({
+        message: `Invalid stage. Must be one of: ${allowedStages.join(", ")}`,
+      });
+    }
+
+    let sub = null;
+    if (isDbConnected()) {
+      sub = await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] });
+      if (sub) {
+        sub.stage = stage;
+        sub.status = stage;
+        await sub.save();
+      }
+    } else {
+      sub = localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
+      if (sub) {
+        sub.stage = stage;
+        sub.status = stage;
+      }
+    }
+
+    if (!sub) {
+      return res.status(404).json({ message: "Submission not found." });
+    }
+
+    triggerSpreadsheetUpdate();
+
+    return res.status(200).json({
+      message: `Submission status successfully updated to '${stage}'.`,
+      submission: sub,
+    });
+  } catch (error) {
+    console.error("Status update error:", error);
+    return res.status(500).json({ message: "Failed to update submission status." });
+  }
+};
+
+// ==========================================
+// 4. JURY EVALUATION (Rubric & Duels)
+// ==========================================
+
+export const submitRubricEvaluation = async (req, res) => {
+  try {
+    const { submissionId, rubric, notes } = req.body;
+    const judgeEmail = req.user?.email || "judge@sdmimd.ac.in";
+    const judgeName = req.user?.name || "Jury Member";
+
+    if (!submissionId || !rubric) {
+      return res.status(400).json({ message: "Submission ID and rubric scores are required." });
+    }
+
+    let sub = isDbConnected()
+      ? await Edition2Submission.findOne({ $or: [{ _id: submissionId }, { teamId: submissionId }] })
+      : localSubmissionsStore.find((s) => s._id === submissionId || s.teamId === submissionId);
+
+    if (!sub) {
+      return res.status(404).json({ message: "Submission not found." });
+    }
+
+    // Calculate total
+    const totalScore = Object.values(rubric).reduce((a, b) => Number(a) + Number(b), 0);
+
+    if (!Array.isArray(sub.evaluations)) {
+      sub.evaluations = [];
+    }
+
+    sub.evaluations.push({
+      judgeEmail,
+      judgeName,
+      rubric,
+      totalScore,
+      notes: notes || "",
+      submittedAt: new Date(),
+    });
+
+    sub.evaluationCount = sub.evaluations.length;
+    sub.rubricAverage =
+      sub.evaluations.reduce((acc, curr) => acc + curr.totalScore, 0) / sub.evaluations.length;
+
+    // Automatically advance state to "under evaluation" if it was "allocated to a judge"
+    if (sub.stage === "allocated to a judge" || sub.stage === "submitted") {
+      sub.stage = "under evaluation";
+    }
+
+    if (isDbConnected()) {
+      await sub.save();
+    }
+
+    triggerSpreadsheetUpdate();
+
+    return res.status(200).json({
+      message: "Evaluation submitted successfully!",
+      rubricAverage: sub.rubricAverage,
+      stage: sub.stage,
+    });
+  } catch (error) {
+    console.error("Rubric evaluation error:", error);
+    return res.status(500).json({ message: "Failed to submit rubric evaluation." });
+  }
+};
+
+export const submitPairwiseDuelVote = async (req, res) => {
+  try {
+    const { winnerId, loserId } = req.body;
+
+    let submissions = isDbConnected()
+      ? await Edition2Submission.find()
+      : localSubmissionsStore;
+
+    const winner = submissions.find((s) => s._id === winnerId || s.teamId === winnerId);
+    const loser = submissions.find((s) => s._id === loserId || s.teamId === loserId);
+
+    if (!winner || !loser) {
+      return res.status(404).json({ message: "Teams not found for duel." });
+    }
+
+    const K = 32;
+    const expectedWinner =
+      1 / (1 + Math.pow(10, ((loser.eloRating || 1200) - (winner.eloRating || 1200)) / 400));
+    const expectedLoser =
+      1 / (1 + Math.pow(10, ((winner.eloRating || 1200) - (loser.eloRating || 1200)) / 400));
+
+    winner.eloRating = Math.round((winner.eloRating || 1200) + K * (1 - expectedWinner));
+    loser.eloRating = Math.round((loser.eloRating || 1200) + K * (0 - expectedLoser));
+
+    if (isDbConnected()) {
+      await winner.save();
+      await loser.save();
+    }
+
+    return res.status(200).json({
+      message: "Duel recorded successfully!",
+      winnerRating: winner.eloRating,
+      loserRating: loser.eloRating,
+    });
+  } catch (error) {
+    console.error("Duel error:", error);
+    return res.status(500).json({ message: "Failed to record duel." });
+  }
+};
+
+export const getDuelPair = async (req, res) => {
+  try {
+    let subs = isDbConnected()
+      ? await Edition2Submission.find()
+      : localSubmissionsStore;
+
+    const userEmail = req.user?.email?.toLowerCase();
+    if (userEmail && userEmail !== ADMIN_EMAIL) {
+      subs = subs.filter(
+        (s) =>
+          Array.isArray(s.allotedJudges) &&
+          s.allotedJudges.map((e) => e.toLowerCase()).includes(userEmail),
+      );
+    }
+
+    if (subs.length < 2) {
+      return res.status(200).json({ pair: [] });
+    }
+
+    const idx1 = Math.floor(Math.random() * subs.length);
+    let idx2 = Math.floor(Math.random() * subs.length);
+    while (idx2 === idx1) {
+      idx2 = Math.floor(Math.random() * subs.length);
+    }
+
+    return res.status(200).json({ pair: [subs[idx1], subs[idx2]] });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to retrieve duel pair." });
+  }
+};
+
+// ==========================================
+// 5. MASTER SPREADSHEET DOWNLOAD & PREVIEW
+// ==========================================
+
+export const downloadSpreadsheet = async (req, res) => {
+  try {
+    const excelPath = getSpreadsheetFilePath();
+
+    if (!fs.existsSync(excelPath)) {
+      await triggerSpreadsheetUpdate();
+    }
+
+    if (fs.existsSync(excelPath)) {
+      return res.download(excelPath, "VisionMysuru_2050_Edition2_MasterData.xlsx");
+    }
+
+    return res.status(404).json({ message: "Spreadsheet not found on server." });
+  } catch (error) {
+    console.error("Spreadsheet download error:", error);
+    return res.status(500).json({ message: "Error downloading spreadsheet." });
+  }
+};
+
+export const downloadSpreadsheetCsv = async (req, res) => {
+  try {
+    const csvPath = getSpreadsheetCsvPath();
+
+    if (!fs.existsSync(csvPath)) {
+      await triggerSpreadsheetUpdate();
+    }
+
+    if (fs.existsSync(csvPath)) {
+      return res.download(csvPath, "VisionMysuru_2050_Edition2_MasterData.csv");
+    }
+
+    return res.status(404).json({ message: "CSV spreadsheet not found on server." });
+  } catch (error) {
+    console.error("CSV download error:", error);
+    return res.status(500).json({ message: "Error downloading CSV spreadsheet." });
+  }
+};
+
+// ==========================================
+// 6. MEDIA STREAMING & PREVIEW
+// ==========================================
+
+export const streamSubmissionVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let sub = isDbConnected()
+      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
+      : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
+
+    if (!sub || !sub.video) {
+      return res.status(404).json({ message: "Video not found for this submission." });
+    }
+
+    if (sub.video.localPath && fs.existsSync(sub.video.localPath)) {
+      return streamVideoFile(sub.video.localPath, req, res);
+    }
+
+    // Try finding in Videos directory by teamId
+    const videoFiles = fs.readdirSync(VIDEOS_SUBDIR);
+    const matched = videoFiles.find((f) => f.includes(sub.teamId));
+    if (matched) {
+      const p = path.join(VIDEOS_SUBDIR, matched);
+      return streamVideoFile(p, req, res);
+    }
+
+    if (sub.video.url) {
+      return res.redirect(sub.video.url);
+    }
+
+    return res.status(404).json({ message: "Video file is not available locally." });
+  } catch (error) {
+    console.error("Video streaming error:", error);
+    return res.status(500).json({ message: "Error streaming video." });
   }
 };
 
 export const previewSubmissionDocument = async (req, res) => {
   try {
     const { id } = req.params;
-    let submission;
 
-    if (isDbConnected()) {
-      submission =
-        (await Edition2Submission.findById(id)) ||
-        (await Edition2Submission.findOne({ teamId: id }));
-    } else {
-      submission = localSubmissionsStore.find(
-        (s) => s._id === id || s.teamId === id,
-      );
+    let sub = isDbConnected()
+      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
+      : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
+
+    if (!sub || !sub.document) {
+      return res.status(404).json({ message: "Document not found for this submission." });
     }
 
-    if (!submission || !submission.document) {
-      return res.status(404).json({ message: "Submission document not found" });
-    }
-
-    if (submission.document.localPath && fs.existsSync(submission.document.localPath)) {
+    if (sub.document.localPath && fs.existsSync(sub.document.localPath)) {
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `inline; filename="${submission.document.name || "Proposal.pdf"}"`,
-      );
-      return fs.createReadStream(submission.document.localPath).pipe(res);
+      res.setHeader("Content-Disposition", `inline; filename="${sub.document.name || "proposal.pdf"}"`);
+      return fs.createReadStream(sub.document.localPath).pipe(res);
     }
 
-    if (submission.document.url && !submission.document.url.includes("/document-preview")) {
-      return res.redirect(submission.document.url);
+    // Try finding in Documents directory by teamId
+    const docFiles = fs.readdirSync(DOCUMENTS_SUBDIR);
+    const matched = docFiles.find((f) => f.includes(sub.teamId));
+    if (matched) {
+      const p = path.join(DOCUMENTS_SUBDIR, matched);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${matched}"`);
+      return fs.createReadStream(p).pipe(res);
     }
 
-    return res.status(404).json({ message: "Document file not found" });
-  } catch (err) {
-    console.error("Document preview error:", err);
-    return res.status(500).json({ message: "Error previewing document", error: err.message });
+    if (sub.document.url) {
+      return res.redirect(sub.document.url);
+    }
+
+    return res.status(404).json({ message: "Document file is not available locally." });
+  } catch (error) {
+    console.error("Document preview error:", error);
+    return res.status(500).json({ message: "Error previewing document." });
   }
 };
 
-export const getDriveSyncStatus = async (req, res) => {
-  const isCloudSynced = Boolean(getDriveClient());
-  res.json({
+export const getDriveSyncStatus = (req, res) => {
+  return res.status(200).json({
     targetDriveFolderId: TARGET_DRIVE_FOLDER_ID,
     driveFolderUrl: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
-    syncEngine: isCloudSynced
-      ? "Google Drive API v3 (Direct Cloud Connected)"
-      : "Secure Team Isolation & Local Drive Staging Active",
+    syncEngine: "Google Drive 3-Folder Staging (Videos, Documents, Spreadsheets) Active",
+    spreadsheetFile: "VisionMysuru_2050_Edition2_MasterData.xlsx",
     status: "healthy",
   });
-};
-
-// ----------------------------------------------------
-// 2. Fetch All Submissions (with Juryza Metrics)
-// ----------------------------------------------------
-export const getEdition2Submissions = async (req, res) => {
-  try {
-    const { category, theme, status } = req.query;
-
-    let filter = {};
-    if (category && category !== "All") filter.category = category;
-    if (theme && theme !== "All") filter.theme = theme;
-    if (status && status !== "All") filter.status = status;
-
-    if (isDbConnected()) {
-      const submissions = await Edition2Submission.find(filter)
-        .sort({ eloRating: -1, zScore: -1 })
-        .lean();
-      return res.status(200).json({ count: submissions.length, data: submissions });
-    } else {
-      let filtered = [...localSubmissionsStore];
-      if (category && category !== "All")
-        filtered = filtered.filter((s) => s.category === category);
-      if (theme && theme !== "All") filtered = filtered.filter((s) => s.theme === theme);
-      if (status && status !== "All") filtered = filtered.filter((s) => s.status === status);
-
-      filtered.sort((a, b) => (b.eloRating || 0) - (a.eloRating || 0));
-      return res.status(200).json({ count: filtered.length, data: filtered });
-    }
-  } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch submissions", error: error.message });
-  }
-};
-
-// ----------------------------------------------------
-// 3. Jury Evaluation: 4-Factor Rubric Scoring + Z-Score Normalization
-// ----------------------------------------------------
-export const submitRubricEvaluation = async (req, res) => {
-  try {
-    const {
-      submissionId,
-      judgeId = "judge-sdmimd-01",
-      scores,
-      feedback = "",
-      round = 1,
-    } = req.body;
-
-    if (!submissionId || !scores) {
-      return res.status(400).json({ message: "Submission ID and score rubric are required" });
-    }
-
-    const {
-      problemClarity = 5,
-      innovationImpact = 5,
-      feasibilityScalability = 5,
-      videoPitchDelivery = 5,
-    } = scores;
-
-    const totalRawScore =
-      Number(problemClarity) +
-      Number(innovationImpact) +
-      Number(feasibilityScalability) +
-      Number(videoPitchDelivery);
-
-    if (isDbConnected()) {
-      // Save Evaluation
-      const evaluation = new Evaluation({
-        submissionId,
-        judgeId,
-        round,
-        type: "rubric",
-        scores: {
-          problemClarity,
-          innovationImpact,
-          feasibilityScalability,
-          videoPitchDelivery,
-        },
-        totalRawScore,
-        feedback,
-      });
-      await evaluation.save();
-
-      // Recalculate average and Z-score for this judge's evaluations
-      const judgeEvaluations = await Evaluation.find({ judgeId, type: "rubric" });
-      const rawScores = judgeEvaluations.map((e) => e.totalRawScore);
-      const mean = rawScores.reduce((a, b) => a + b, 0) / rawScores.length;
-      const variance =
-        rawScores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (rawScores.length || 1);
-      const stdDev = Math.sqrt(variance) || 1;
-
-      // Normalization: Z = (X - Mean) / StdDev
-      const computedZScore = Number(((totalRawScore - mean) / stdDev).toFixed(2));
-
-      // Update submission record
-      const submission = await Edition2Submission.findById(submissionId);
-      if (submission) {
-        submission.rubricAverage = totalRawScore;
-        submission.zScore = computedZScore;
-        submission.evaluationCount = (submission.evaluationCount || 0) + 1;
-        await submission.save();
-      }
-
-      return res.status(200).json({
-        message: "Rubric evaluation submitted & normalized successfully",
-        totalRawScore,
-        zScore: computedZScore,
-      });
-    } else {
-      // Local fallback
-      const target = localSubmissionsStore.find((s) => s._id === submissionId);
-      if (target) {
-        target.rubricAverage = totalRawScore;
-        target.zScore = Number(((totalRawScore - 20) / 7.5).toFixed(2)); // mock normalization
-        target.evaluationCount = (target.evaluationCount || 0) + 1;
-      }
-
-      return res.status(200).json({
-        message: "Rubric evaluation recorded (Local Mode)",
-        totalRawScore,
-        zScore: target?.zScore || 0,
-      });
-    }
-  } catch (error) {
-    console.error("Rubric evaluation error:", error);
-    return res.status(500).json({ message: "Evaluation failed", error: error.message });
-  }
-};
-
-// ----------------------------------------------------
-// 4. Jury Evaluation: Pairwise Duel Arena (Bradley-Terry Elo)
-// ----------------------------------------------------
-export const submitPairwiseDuelVote = async (req, res) => {
-  try {
-    const { winnerId, loserId, judgeId = "judge-sdmimd-01" } = req.body;
-
-    if (!winnerId || !loserId) {
-      return res.status(400).json({ message: "Winner and loser IDs are required" });
-    }
-
-    const K = 32; // Elo sensitivity factor
-
-    if (isDbConnected()) {
-      const [teamA, teamB] = await Promise.all([
-        Edition2Submission.findById(winnerId),
-        Edition2Submission.findById(loserId),
-      ]);
-
-      if (!teamA || !teamB) {
-        return res.status(404).json({ message: "One or both teams not found" });
-      }
-
-      // Expected outcome
-      const expectedA = 1 / (1 + Math.pow(10, (teamB.eloRating - teamA.eloRating) / 400));
-      const expectedB = 1 / (1 + Math.pow(10, (teamA.eloRating - teamB.eloRating) / 400));
-
-      teamA.eloRating = Math.round(teamA.eloRating + K * (1 - expectedA));
-      teamB.eloRating = Math.round(teamB.eloRating + K * (0 - expectedB));
-
-      await Promise.all([teamA.save(), teamB.save()]);
-
-      return res.status(200).json({
-        message: "Pairwise duel recorded successfully!",
-        winner: { id: teamA._id, name: teamA.teamName, newElo: teamA.eloRating },
-        loser: { id: teamB._id, name: teamB.teamName, newElo: teamB.eloRating },
-      });
-    } else {
-      const teamA = localSubmissionsStore.find((s) => s._id === winnerId);
-      const teamB = localSubmissionsStore.find((s) => s._id === loserId);
-
-      if (teamA && teamB) {
-        const expectedA = 1 / (1 + Math.pow(10, ((teamB.eloRating || 1200) - (teamA.eloRating || 1200)) / 400));
-        const expectedB = 1 / (1 + Math.pow(10, ((teamA.eloRating || 1200) - (teamB.eloRating || 1200)) / 400));
-
-        teamA.eloRating = Math.round((teamA.eloRating || 1200) + K * (1 - expectedA));
-        teamB.eloRating = Math.round((teamB.eloRating || 1200) + K * (0 - expectedB));
-      }
-
-      return res.status(200).json({
-        message: "Pairwise duel recorded (Local Mode)!",
-        winner: { id: teamA?._id, name: teamA?.teamName, newElo: teamA?.eloRating },
-        loser: { id: teamB?._id, name: teamB?.teamName, newElo: teamB?.eloRating },
-      });
-    }
-  } catch (error) {
-    return res.status(500).json({ message: "Duel vote failed", error: error.message });
-  }
-};
-
-// ----------------------------------------------------
-// 5. Matchmaking for Duels: Pick Two Balanced Teams
-// ----------------------------------------------------
-export const getDuelPair = async (req, res) => {
-  try {
-    const { category, theme } = req.query;
-
-    let pool = isDbConnected()
-      ? await Edition2Submission.find(category && category !== "All" ? { category } : {}).lean()
-      : [...localSubmissionsStore];
-
-    if (pool.length < 2) {
-      return res.status(200).json({ pair: pool });
-    }
-
-    // Pick two teams randomly or closest in Elo
-    const indexA = Math.floor(Math.random() * pool.length);
-    let indexB = (indexA + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
-
-    return res.status(200).json({ pair: [pool[indexA], pool[indexB]] });
-  } catch (error) {
-    return res.status(500).json({ message: "Failed to get duel pair", error: error.message });
-  }
-};
-
-// ----------------------------------------------------
-// 6. Advance / Update Status (Shortlist Command)
-// ----------------------------------------------------
-export const updateSubmissionStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (isDbConnected()) {
-      const updated = await Edition2Submission.findByIdAndUpdate(
-        id,
-        { status },
-        { returnDocument: "after" },
-      );
-      return res.status(200).json({ message: "Status updated", submission: updated });
-    } else {
-      const found = localSubmissionsStore.find((s) => s._id === id);
-      if (found) found.status = status;
-      return res.status(200).json({ message: "Status updated (Local)", submission: found });
-    }
-  } catch (error) {
-    return res.status(500).json({ message: "Update status failed", error: error.message });
-  }
 };
