@@ -65,10 +65,10 @@ const HeroSection = () => {
             </Link>
 
             <a
-              href="#timeline"
+              href="#registrations"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/30 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
             >
-              View timeline <FiCalendar />
+              Registrations Soon <FiArrowRight />
             </a>
           </div>
         </div>

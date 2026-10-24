@@ -5,14 +5,15 @@ import { FiX } from "react-icons/fi";
 import { TopNav } from "../Components/TopNav.jsx";
 import HeroSection from "../Components/landing/HeroSection.jsx";
 import TopicsSection from "../Components/landing/TopicsSection.jsx";
-import TimelineSection from "../Components/landing/TimelineSection.jsx";
+// import TimelineSection from "../Components/landing/TimelineSection.jsx";
 import ObjectivesSection from "../Components/landing/ObjectivesSection.jsx";
 import FooterSection from "../Components/FooterSection.jsx";
 import Participants from "../Components/landing/Participants.jsx";
 import About from "../Components/landing/About.jsx";
 import Sponsors from "../Components/landing/Sponsors.jsx";
 import BrandAmbassador from "../Components/landing/BrandAmbassador.jsx";
-import PrizesSection from "../Components/landing/PrizesSection.jsx";
+// import PrizesSection from "../Components/landing/PrizesSection.jsx";
+import RegistrationsSoonSection from "../Components/landing/RegistrationsSoonSection.jsx";
 import { Updates } from "../Components/landing/Updates.jsx";
 
 const LandingPage = () => {
@@ -89,8 +90,8 @@ const LandingPage = () => {
         <ObjectivesSection />
         <Participants />
         <TopicsSection />
-        <TimelineSection />
-        <PrizesSection />
+        {/* <TimelineSection /> - Hidden pending Edition 2 schedule release */}
+        <RegistrationsSoonSection />
         <FooterSection />
       </div>
     </>
