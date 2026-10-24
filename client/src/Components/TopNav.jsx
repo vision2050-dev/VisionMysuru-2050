@@ -56,6 +56,15 @@ export const TopNav = () => {
 
         {/* Action Button Group */}
         <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Jury Hub Button */}
+          <Link
+            to="/jury"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition whitespace-nowrap shadow-2xs"
+          >
+            <span>Jury Hub</span>
+            <span className="text-[11px]">⚖️</span>
+          </Link>
+
           {/* Consolidated Edition 1 Dropdown */}
           <div
             className="relative group hidden sm:block"
@@ -163,6 +172,15 @@ export const TopNav = () => {
             >
               <span>Register / Pitch (Ed. 2)</span>
               <span>🚀</span>
+            </Link>
+
+            <Link
+              to="/jury"
+              onClick={() => setOpen(false)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
+            >
+              <span>Juryza Evaluation Hub</span>
+              <span>⚖️</span>
             </Link>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
