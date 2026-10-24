@@ -1,3 +1,9 @@
 node_modules
 .env
+.env.*
 dist
+uploads/temp/*
+!uploads/temp/.gitkeep
+uploads/drive_sync/*
+!uploads/drive_sync/.gitkeep
+.DS_Store

@@ -14,6 +14,8 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage.jsx"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard.jsx"));
 const NotFoundPage = React.lazy(() => import("./pages/NotFoundPage.jsx"));
 const EditionOnePage = React.lazy(() => import("./pages/EditionOnePage.jsx"));
+const ParticipantPortal = React.lazy(() => import("./pages/ParticipantPortal.jsx"));
+const JuryzaHub = React.lazy(() => import("./pages/JuryzaHub.jsx"));
 
 const App = () => {
   return (
@@ -23,6 +25,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/edition-1" element={<EditionOnePage />} />
+            <Route path="/portal" element={<ParticipantPortal />} />
+            <Route path="/jury" element={<JuryzaHub />} />
             <Route path="/shortlist" element={<SubmitIdeaPage />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/certificates" element={<CertificatesPage />} />
