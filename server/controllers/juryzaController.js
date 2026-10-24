@@ -243,34 +243,18 @@ export const loginUser = async (req, res) => {
       return res.status(403).json({ message: "you do not have admin access" });
     }
 
-    // Direct match against ADMIN_PASSWORD from .env (defaults to "vision2050")
-    const envAdminPassword = process.env.ADMIN_PASSWORD || "vision2050";
-    if (
-      cleanEmail === ADMIN_EMAIL &&
-      (password === envAdminPassword || password === "vision2050")
-    ) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+    // Hardcoded Admin Password: Vision2050 (case-insensitive for convenience)
+    if (cleanEmail === ADMIN_EMAIL) {
+      const isCorrectPassword =
+        password === "Vision2050" ||
+        password === "vision2050" ||
+        password.toLowerCase() === "vision2050" ||
+        password === (process.env.ADMIN_PASSWORD || "Vision2050");
 
-      if (isDbConnected()) {
-        let adminUser = await JuryzaUser.findOne({ email: ADMIN_EMAIL });
-        if (!adminUser) {
-          adminUser = new JuryzaUser({
-            name: "Vision Mysuru Admin",
-            email: ADMIN_EMAIL,
-            password,
-            role: "admin",
-            organization: "SDMIMD Mysuru",
-          });
-        } else {
-          adminUser.password = password;
-        }
-        await adminUser.save();
-      } else {
-        let adminUser = localUsersStore.find((u) => u.email === ADMIN_EMAIL);
-        if (adminUser) {
-          adminUser.password = hashedPassword;
-        }
+      if (!isCorrectPassword) {
+        return res.status(401).json({
+          message: "Invalid admin password. The password is hardcoded to Vision2050.",
+        });
       }
 
       const token = generateToken({
