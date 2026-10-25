@@ -268,16 +268,6 @@ const EditionOnePage = () => {
                 </div>
               ))}
             </div>
-
-            <div className="mt-8 text-center">
-              <Link
-                to="/shortlist"
-                onClick={() => window.scrollTo(0, 0)}
-                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface-2)]"
-              >
-                View Full Edition 1 Finalist Table <FiArrowRight />
-              </Link>
-            </div>
           </div>
         </section>
 
