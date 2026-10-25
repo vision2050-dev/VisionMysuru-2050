@@ -169,7 +169,7 @@ const EditionOnePage = () => {
               to="/"
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--primary-hover)] sm:text-sm sm:px-4 sm:py-2"
             >
-              <FiArrowLeft /> Edition 2 Site
+              <FiArrowLeft /> Back to Edition 2
             </Link>
           </div>
         </div>
