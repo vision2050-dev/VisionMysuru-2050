@@ -318,10 +318,7 @@ const EditionOnePage = () => {
         <section className="py-14 sm:py-16 border-t border-[var(--border)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="rounded-3xl border-2 border-[var(--accent)]/30 bg-gradient-to-r from-[var(--accent-soft)] via-[var(--surface)] to-[var(--accent-soft)] p-8 sm:p-12 text-center">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)]/15 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
-                Outputs & Deliverables
-              </span>
-              <h2 className="mt-4 oswald text-2xl font-bold uppercase text-[var(--text)] sm:text-3xl">
+              <h2 className="oswald text-2xl font-bold uppercase text-[var(--text)] sm:text-3xl">
                 The Edition 1 White Paper
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-[var(--muted)] sm:text-base">
