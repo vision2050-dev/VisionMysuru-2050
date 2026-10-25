@@ -95,7 +95,7 @@ const EDITION_ONE_TIMELINE = [
   {
     phase: "Round 2",
     date: "March 15, 2026",
-    title: "Category Showdowns (MDP Hall)",
+    title: "Category Showdowns",
     desc: "Physical presentations before category-specific experts at the SDMIMD campus, narrowing the field down to 10 finalists.",
   },
   {
