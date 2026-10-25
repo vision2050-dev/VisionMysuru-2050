@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FiArrowRight, FiMenu, FiX, FiChevronDown } from "react-icons/fi";
+import { FiMenu, FiX } from "react-icons/fi";
 import ThemeToggle from "./ThemeToggle";
 
 export const TopNav = () => {
   const [open, setOpen] = useState(false);
-  const [editionDropdown, setEditionDropdown] = useState(false);
 
   const navItems = [
     { label: "About", href: "/#about" },
@@ -56,61 +55,13 @@ export const TopNav = () => {
 
         {/* Action Button Group */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Consolidated Edition 1 Dropdown */}
-          <div
-            className="relative group hidden sm:block"
-            onMouseEnter={() => setEditionDropdown(true)}
-            onMouseLeave={() => setEditionDropdown(false)}
+          {/* Edition 1 Direct Link (No dropdown) */}
+          <Link
+            to="/edition-1"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition whitespace-nowrap shadow-2xs"
           >
-            <Link
-              to="/edition-1"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:bg-[var(--surface-2)] transition whitespace-nowrap shadow-2xs"
-            >
-              <span>Edition 1</span>
-              <FiChevronDown
-                className={`h-3 w-3 text-[var(--muted)] transition-transform duration-200 ${
-                  editionDropdown ? "rotate-180" : ""
-                }`}
-              />
-            </Link>
-
-            {/* Dropdown Menu */}
-            <div
-              className={`absolute right-0 top-full mt-1.5 flex flex-col min-w-[210px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-2xl backdrop-blur-xl z-50 transition-all duration-150 ${
-                editionDropdown
-                  ? "opacity-100 visible translate-y-0"
-                  : "opacity-0 invisible -translate-y-1"
-              }`}
-            >
-              <Link
-                to="/edition-1"
-                onClick={() => setEditionDropdown(false)}
-                className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-2)] transition"
-              >
-                <span>📜 Edition 1 Archive</span>
-                <FiArrowRight className="h-3 w-3 text-[var(--muted)]" />
-              </Link>
-              <Link
-                to="/shortlist"
-                onClick={() => setEditionDropdown(false)}
-                className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-[var(--surface-2)] transition"
-              >
-                <span>🏆 Check Winners</span>
-                <FiArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Primary Edition 2 CTA: Opens in a New Tab */}
-          <a
-            href="/juryza"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-1.5 text-xs font-bold shadow-xs transition-all whitespace-nowrap hover:scale-[1.02]"
-          >
-            <span>Register</span>
-            <span className="text-xs">🚀</span>
-          </a>
+            <span>Edition 1</span>
+          </Link>
 
           {/* Theme Toggle Button */}
           <ThemeToggle size="sm" />
@@ -158,33 +109,13 @@ export const TopNav = () => {
 
           {/* Mobile Actions */}
           <div className="pt-3 border-t border-[var(--border)] space-y-2">
-            <a
-              href="/juryza"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/edition-1"
               onClick={() => setOpen(false)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-[var(--primary-hover)] transition"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
             >
-              <span>Register (Edition 2)</span>
-              <span>🚀</span>
-            </a>
-
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <Link
-                to="/edition-1"
-                onClick={() => setOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] transition"
-              >
-                <span>📜 Edition 1</span>
-              </Link>
-              <Link
-                to="/shortlist"
-                onClick={() => setOpen(false)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition"
-              >
-                <span>🏆 Check Winners</span>
-              </Link>
-            </div>
+              <span>📜 Edition 1</span>
+            </Link>
           </div>
 
           {/* Theme Row in Mobile */}
