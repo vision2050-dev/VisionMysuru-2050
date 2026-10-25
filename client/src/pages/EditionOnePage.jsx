@@ -180,11 +180,7 @@ const EditionOnePage = () => {
         <section className="relative overflow-hidden border-b border-[var(--border)] bg-gradient-to-b from-[var(--surface)] via-[var(--bg)] to-[var(--bg)] py-16 sm:py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-soft)] px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[var(--accent)] border border-[var(--accent)]/30">
-                Inaugural Edition Archive · 2026
-              </span>
-
-              <h1 className="mt-4 oswald text-4xl font-extrabold uppercase tracking-tight text-[var(--primary)] sm:text-5xl lg:text-6xl">
+              <h1 className="oswald text-4xl font-extrabold uppercase tracking-tight text-[var(--primary)] sm:text-5xl lg:text-6xl">
                 Vision Mysuru 2050 — Edition 1
               </h1>
 
