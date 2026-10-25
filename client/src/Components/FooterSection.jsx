@@ -9,8 +9,6 @@ const FooterSection = () => {
     { label: "About the initiative", href: "/#about", kind: "anchor" },
     { label: "Core objectives", href: "/#objectives", kind: "anchor" },
     { label: "Participation", href: "/#participation", kind: "anchor" },
-    { label: "Register for Edition 2 🚀", href: "/juryza", kind: "external" },
-    { label: "Rules & regulations", href: "/rules", kind: "route" },
   ];
 
   return (
