@@ -59,7 +59,7 @@ const HeroSection = () => {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-80"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
               </span>
-              <span>Registrations are starting soon</span>
+              <span>REGISTRATIONS ARE STARTING SOON!!</span>
             </div>
           </div>
         </div>

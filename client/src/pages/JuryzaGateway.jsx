@@ -13,10 +13,8 @@ import {
   FiPhone,
   FiBriefcase,
   FiAlertCircle,
-  FiExternalLink,
   FiEye,
   FiEyeOff,
-  FiActivity,
 } from "react-icons/fi";
 import api from "../utils/api";
 import { clientSignUp, clientSignIn } from "../services/juryzaStorage";
@@ -198,25 +196,12 @@ export const JuryzaGateway = () => {
                 Vision Mysuru 2050
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                Edition 2 • Juryza Gateway
+                Edition 2 • Registration Portal
               </span>
             </div>
           </Link>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Dual-Engine Resilient Auth</span>
-            </div>
-            <a
-              href="https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--text)] border border-[var(--border)] px-2.5 py-1.5 rounded-lg transition"
-            >
-              <span>Drive Storage</span>
-              <FiExternalLink className="h-3 w-3" />
-            </a>
             <ThemeToggle size="sm" />
           </div>
         </div>
@@ -227,7 +212,7 @@ export const JuryzaGateway = () => {
         {/* Title banner */}
         <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[var(--accent)] mb-3">
-            <span>⚖️ Official Juryza Portal</span>
+            <span>⚖️ Official Event Portal</span>
           </div>
           <h1 className="oswald text-3xl sm:text-5xl font-extrabold uppercase tracking-tight text-[var(--text)]">
             Vision Mysuru <span className="text-[var(--accent)]">2050</span> (Ed. 2)
@@ -609,25 +594,6 @@ export const JuryzaGateway = () => {
               )}
             </button>
           </form>
-
-          {/* Contextual Footer Note */}
-          <div className="mt-6 border-t border-[var(--border)] pt-4 text-center">
-            {activeTab === "participant" && (
-              <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                📌 <strong>Registration Notice:</strong> Pitch video (.mp4 ≤ 50 MB) and proposal deck (.pdf ≤ 5 MB) are compulsory to finalize team submission.
-              </p>
-            )}
-            {activeTab === "judge" && (
-              <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                ⚖️ <strong>Jury Notice:</strong> You will only see and score submissions alloted to your registered Gmail ID by the admin.
-              </p>
-            )}
-            {activeTab === "admin" && (
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 leading-relaxed font-semibold">
-                🛡️ Admin account with full authority to allocate submissions, score teams, and export master data.
-              </p>
-            )}
-          </div>
         </div>
       </main>
     </div>

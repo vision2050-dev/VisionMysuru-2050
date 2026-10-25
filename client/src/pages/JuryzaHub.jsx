@@ -219,7 +219,7 @@ export const JuryzaHub = () => {
             <div className="flex items-center gap-2">
               <img src="/logo_final.png" alt="Logo" className="h-6 w-auto rounded-full" />
               <span className="text-xs sm:text-sm font-bold text-[var(--text)]">
-                Juryza Evaluation Hub
+                Jury Evaluation Hub
               </span>
             </div>
           </div>
