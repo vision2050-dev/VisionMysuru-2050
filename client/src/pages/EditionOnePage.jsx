@@ -155,9 +155,6 @@ const EditionOnePage = () => {
               className="h-8 w-auto inline-block"
             />
             <span className="hidden sm:inline">Vision Mysuru 2050</span>
-            <span className="ml-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--accent)] border border-[var(--accent)]/30">
-              Edition 1 Archive
-            </span>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
