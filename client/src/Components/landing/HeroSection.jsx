@@ -1,5 +1,4 @@
-import { Link } from "react-router-dom";
-import { FiArrowRight, FiCalendar } from "react-icons/fi";
+import { FiArrowRight } from "react-icons/fi";
 import { motion } from "framer-motion";
 
 const HeroSection = () => {
@@ -56,22 +55,12 @@ const HeroSection = () => {
           </p>
 
           <div className="mt-28 md:mt-20 flex flex-col gap-3 sm:flex-row">
-            <Link
-              to="/shortlist"
-              className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--primary-hover)]"
-            >
-              Winners announced!{" "}
-              <FiArrowRight className="transition-transform group-hover:translate-x-1" />
-            </Link>
-
             <a
-              href="/juryza"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:brightness-110 hover:scale-[1.02]"
+              href="#registrations"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:brightness-110 hover:scale-[1.02]"
             >
-              <span>Register for Edition 2</span>
-              <span>🚀</span>
+              <span>Registrations are starting soon</span>
+              <FiArrowRight className="h-4 w-4" />
             </a>
           </div>
         </div>
