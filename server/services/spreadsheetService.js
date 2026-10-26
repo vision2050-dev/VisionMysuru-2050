@@ -170,6 +170,14 @@ export const updateMasterSpreadsheet = async ({ submissions = [], judges = [] })
         fileName: SPREADSHEET_FILE_NAME,
         mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         parentFolderId: TARGET_DRIVE_FOLDER_ID,
+        folderType: "Spreadsheets",
+      });
+      await uploadToGoogleDrive({
+        filePath: csvPath,
+        fileName: SPREADSHEET_CSV_NAME,
+        mimeType: "text/csv",
+        parentFolderId: TARGET_DRIVE_FOLDER_ID,
+        folderType: "Spreadsheets",
       });
     } catch (driveErr) {
       console.warn("[Spreadsheet] Drive sync note:", driveErr.message);

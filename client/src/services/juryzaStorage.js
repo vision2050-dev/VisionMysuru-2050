@@ -551,11 +551,10 @@ export const submitStoredRubricScore = ({ teamId, judgeEmail, totalScore, feedba
   return null;
 };
 
-/**
- * Export Master Data as CSV directly in the browser
- */
-export const exportClientSpreadsheetCsv = () => {
-  const subs = getStoredSubmissions();
+export const APPS_SCRIPT_DRIVE_URL =
+  "https://script.google.com/macros/s/AKfycby7S5N7UfxKKFmAKvJ-y5yww2NP9iSdRZkHXdwYLTMqO8bjup8B_KstzYmh5BHy0uF1/exec";
+
+export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => {
   const headers = [
     "Sl No",
     "Team ID",
@@ -563,30 +562,145 @@ export const exportClientSpreadsheetCsv = () => {
     "Category",
     "Theme / Focus Area",
     "Solution Name",
+    "Leader Name",
     "Leader Email",
+    "Leader Phone",
+    "Institution",
     "Current Stage",
     "Alloted Judge(s)",
     "Rubric Score",
-    "Duel Elo Rating",
     "Registration Timestamp",
   ];
 
-  const rows = subs.map((s, idx) => [
-    idx + 1,
-    s.teamId,
-    `"${(s.teamName || "").replace(/"/g, '""')}"`,
-    s.category,
-    `"${(s.theme || "").replace(/"/g, '""')}"`,
-    `"${(s.solutionName || "").replace(/"/g, '""')}"`,
-    s.participantEmail,
-    s.stage || "submitted",
-    `"${(s.allotedJudges || []).join(", ")}"`,
-    s.rubricAverage || 0,
-    s.eloRating || 1200,
-    new Date(s.createdAt).toLocaleString("en-IN"),
-  ]);
+  const rows = subs.map((s, idx) => {
+    const leader = s.members?.find((m) => m.isLeader) || s.members?.[0] || {};
+    return [
+      idx + 1,
+      s.teamId,
+      `"${(s.teamName || "").replace(/"/g, '""')}"`,
+      s.category,
+      `"${(s.theme || "").replace(/"/g, '""')}"`,
+      `"${(s.solutionName || "").replace(/"/g, '""')}"`,
+      `"${(leader.name || s.leadName || "").replace(/"/g, '""')}"`,
+      leader.email || s.participantEmail || "",
+      leader.phone || s.leadPhone || "",
+      `"${(leader.college || s.organizationDetails?.institution || "").replace(/"/g, '""')}"`,
+      s.stage || "submitted",
+      `"${(s.allotedJudges || []).join(", ")}"`,
+      s.rubricAverage || 0,
+      new Date(s.createdAt).toLocaleString("en-IN"),
+    ];
+  });
 
-  const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+};
+
+export const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result;
+      const base64 = typeof result === "string" ? result.split(",")[1] : "";
+      resolve(base64);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+export const syncSubmissionFilesToCloudDrive = async ({
+  submission,
+  videoFile,
+  documentFile,
+}) => {
+  if (!submission) return;
+
+  const cleanTeamName = (submission.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const videoName = `[${submission.teamId}]_${cleanTeamName}_Video.mp4`;
+  const docName = `[${submission.teamId}]_${cleanTeamName}_Proposal.pdf`;
+
+  // 1. Upload Document to Google Drive
+  if (documentFile) {
+    try {
+      const docBase64 = await fileToBase64(documentFile);
+      const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: docName,
+          mimeType: "application/pdf",
+          base64Data: docBase64,
+          folderType: "Documents",
+        }),
+      });
+      const data = await res.json();
+      if (data?.webViewLink && submission.document) {
+        submission.document.url = data.webViewLink;
+        submission.document.driveFileId = data.fileId;
+      }
+    } catch (e) {
+      console.warn("Cloud Drive Doc sync warning:", e);
+    }
+  }
+
+  // 2. Upload Video to Google Drive
+  if (videoFile) {
+    try {
+      const videoBase64 = await fileToBase64(videoFile);
+      const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: videoName,
+          mimeType: "video/mp4",
+          base64Data: videoBase64,
+          folderType: "Videos",
+        }),
+      });
+      const data = await res.json();
+      if (data?.webViewLink && submission.video) {
+        submission.video.url = data.webViewLink;
+        submission.video.driveFileId = data.fileId;
+      }
+    } catch (e) {
+      console.warn("Cloud Drive Video sync warning:", e);
+    }
+  }
+
+  // 3. Upload updated Master Spreadsheet (CSV) to Google Drive
+  try {
+    const subs = getStoredSubmissions();
+    const csvContent = generateSubmissionsCsvContent(subs);
+    const csvBase64 = btoa(unescape(encodeURIComponent(csvContent)));
+    await fetch(APPS_SCRIPT_DRIVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: "VisionMysuru_2050_Edition2_MasterData.csv",
+        mimeType: "text/csv",
+        base64Data: csvBase64,
+        folderType: "Spreadsheets",
+      }),
+    });
+  } catch (e) {
+    console.warn("Cloud Spreadsheet sync warning:", e);
+  }
+
+  // Save updated URLs to storage
+  const allSubs = getStoredSubmissions();
+  const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
+  if (idx !== -1) {
+    allSubs[idx] = submission;
+    saveStoredSubmissions(allSubs);
+  }
+};
+
+/**
+ * Export Master Data as CSV directly in the browser
+ */
+export const exportClientSpreadsheetCsv = () => {
+  const subs = getStoredSubmissions();
+  const csvContent = generateSubmissionsCsvContent(subs);
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

@@ -10,6 +10,10 @@ const __dirname = path.dirname(__filename);
 export const TARGET_DRIVE_FOLDER_ID =
   process.env.GOOGLE_DRIVE_FOLDER_ID || "1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e";
 
+export const APPS_SCRIPT_URL =
+  process.env.GOOGLE_APPS_SCRIPT_URL ||
+  "https://script.google.com/macros/s/AKfycby7S5N7UfxKKFmAKvJ-y5yww2NP9iSdRZkHXdwYLTMqO8bjup8B_KstzYmh5BHy0uF1/exec";
+
 // Local staging root directory for direct file staging & offline/local testing
 export const LOCAL_SYNC_DIR = path.join(
   __dirname,
@@ -131,11 +135,11 @@ export const uploadToGoogleDrive = async ({
   parentFolderId = TARGET_DRIVE_FOLDER_ID,
 }) => {
   // Option A: Google Apps Script Web App Webhook (no service account needed)
-  if (process.env.GOOGLE_APPS_SCRIPT_URL) {
+  if (APPS_SCRIPT_URL) {
     try {
       const fileBuffer = fs.readFileSync(filePath);
       const base64Data = fileBuffer.toString("base64");
-      const resp = await fetch(process.env.GOOGLE_APPS_SCRIPT_URL, {
+      const resp = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         redirect: "manual",

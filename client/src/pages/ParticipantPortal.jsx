@@ -19,7 +19,11 @@ import {
 } from "react-icons/fi";
 import { TOPIC_OPTIONS, CATEGORY } from "../constants/content";
 import api from "../utils/api";
-import { clientRegisterSubmission, getStoredSubmissions } from "../services/juryzaStorage";
+import {
+  clientRegisterSubmission,
+  getStoredSubmissions,
+  syncSubmissionFilesToCloudDrive,
+} from "../services/juryzaStorage";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -300,6 +304,16 @@ export const ParticipantPortal = () => {
       toast.success("Team registered successfully! Live tracking is active.");
       setHasRegistered(true);
       setMySubmission(newSub);
+
+      // Asynchronously sync media files & master CSV to Google Drive
+      syncSubmissionFilesToCloudDrive({
+        submission: newSub,
+        videoFile,
+        documentFile,
+      }).then(() => {
+        // Re-read submission once cloud links are persisted
+        fetchParticipantSubmission(currentUserEmail);
+      });
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
