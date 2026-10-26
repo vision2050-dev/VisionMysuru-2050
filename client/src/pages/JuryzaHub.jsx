@@ -29,6 +29,7 @@ import {
   updateStoredSubmissionStage,
   clientSignIn,
   getDriveFileId,
+  getMediaBlobUrl,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -315,13 +316,30 @@ export const JuryzaHub = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedSubmission?.teamId && !selectedSubmission.videoBlobUrl) {
+      getMediaBlobUrl(`video_${selectedSubmission.teamId}`).then((blobUrl) => {
+        if (blobUrl) {
+          setSelectedSubmission((prev) =>
+            prev && prev.teamId === selectedSubmission.teamId
+              ? { ...prev, videoBlobUrl: blobUrl }
+              : prev,
+          );
+        }
+      });
+    }
+  }, [selectedSubmission?.teamId]);
+
   const getVideoSrc = (sub) => {
-    if (!sub) return "";
-    if (sub.video?.url) return sub.video.url;
-    if (sub.video?.webViewLink) return sub.video.webViewLink;
+    if (!sub) return "/speech.mp4";
     if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
+    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
     const base = api.defaults.baseURL || "";
-    return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    }
+    return "/speech.mp4";
   };
 
   const getDocHref = (sub) => {
@@ -670,36 +688,16 @@ export const JuryzaHub = () => {
                       </span>
                     </div>
 
-                    {(() => {
-                      const driveVidId = getDriveFileId(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink);
-                      return (
-                        <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)] relative">
-                          {selectedSubmission.videoBlobUrl ? (
-                            <video
-                              controls
-                              key={selectedSubmission.teamId}
-                              src={selectedSubmission.videoBlobUrl}
-                              className="h-full w-full object-contain"
-                            />
-                          ) : driveVidId ? (
-                            <iframe
-                              key={selectedSubmission.teamId}
-                              src={`https://drive.google.com/file/d/${driveVidId}/preview`}
-                              title="Pitch Video"
-                              className="h-full w-full rounded-2xl border-0"
-                              allow="autoplay; fullscreen"
-                            />
-                          ) : (
-                            <video
-                              controls
-                              key={selectedSubmission.teamId}
-                              src={getVideoSrc(selectedSubmission)}
-                              className="h-full w-full object-contain"
-                            />
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <div className="overflow-hidden rounded-2xl shadow-lg border border-[var(--border)] bg-black">
+                      <video
+                        key={selectedSubmission.teamId}
+                        src={selectedSubmission.videoBlobUrl || getVideoSrc(selectedSubmission) || "/speech.mp4"}
+                        className="aspect-video w-full object-cover"
+                        controls
+                        preload="metadata"
+                        playsInline
+                      />
+                    </div>
 
                     {(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink) && (
                       <div className="mt-2.5 flex justify-end">

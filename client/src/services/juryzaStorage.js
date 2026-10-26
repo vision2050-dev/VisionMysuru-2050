@@ -23,6 +23,76 @@ export const hashPassword = async (password) => {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
+/**
+ * IndexedDB Media Blob Storage for Large Pitch Videos & Proposals
+ * Guarantees that uploaded videos persist across page refreshes and browser reopens.
+ */
+const MEDIA_DB_NAME = "JuryzaMediaDB";
+const MEDIA_STORE_NAME = "mediaBlobs";
+
+const openMediaDB = () => {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      return reject(new Error("IndexedDB not supported"));
+    }
+    const request = window.indexedDB.open(MEDIA_DB_NAME, 1);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(MEDIA_STORE_NAME)) {
+        db.createObjectStore(MEDIA_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const storeMediaBlob = async (key, fileOrBlob) => {
+  if (!key || !fileOrBlob) return false;
+  try {
+    const db = await openMediaDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE_NAME, "readwrite");
+      const store = tx.objectStore(MEDIA_STORE_NAME);
+      const req = store.put(fileOrBlob, key);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn("Failed to store media in IndexedDB:", e);
+    return false;
+  }
+};
+
+export const getMediaBlob = async (key) => {
+  if (!key) return null;
+  try {
+    const db = await openMediaDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE_NAME, "readonly");
+      const store = tx.objectStore(MEDIA_STORE_NAME);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn("Failed to get media from IndexedDB:", e);
+    return null;
+  }
+};
+
+export const getMediaBlobUrl = async (key) => {
+  try {
+    const blob = await getMediaBlob(key);
+    if (blob && (blob instanceof Blob || blob instanceof File)) {
+      return URL.createObjectURL(blob);
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
 const USERS_KEY = "juryza_users_store";
 const SUBMISSIONS_KEY = "juryza_submissions_store";
 
@@ -800,4 +870,36 @@ export const exportClientSpreadsheetCsv = () => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+/**
+ * Export Master Data as Excel XLSX directly in the browser
+ */
+export const exportClientSpreadsheetXlsx = () => {
+  const subs = getStoredSubmissions();
+  const rows = subs.map((s, i) => {
+    const leader = s.members?.find((m) => m.isLeader) || s.members?.[0] || {};
+    return {
+      "Sl No": i + 1,
+      "Team ID": s.teamId,
+      "Team Name": s.teamName,
+      "Category": s.category,
+      "Focus Area / Theme": s.theme,
+      "Solution Name": s.solutionName,
+      "Leader Name": leader.name || s.leadName || "",
+      "Leader Email": leader.email || s.participantEmail || "",
+      "Leader Phone": leader.phone || s.leadPhone || "",
+      "Institution": leader.college || s.organizationDetails?.institution || "",
+      "Current Stage": s.stage || "submitted",
+      "Alloted Judge(s)": (s.allotedJudges || []).join(", "),
+      "Rubric Average": s.rubricAverage || 0,
+      "Pitch Video URL": s.video?.url || s.video?.webViewLink || "",
+      "Proposal PDF URL": s.document?.url || s.document?.webViewLink || "",
+      "Registered At": new Date(s.createdAt).toLocaleString("en-IN"),
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Master Data");
+  XLSX.writeFile(wb, "VisionMysuru_2050_Edition2_MasterData.xlsx");
 };

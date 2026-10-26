@@ -37,6 +37,7 @@ import {
   allocateStoredSubmission,
   autoAllocateStoredSubmissions,
   exportClientSpreadsheetCsv,
+  exportClientSpreadsheetXlsx,
   clientSignIn,
   clientCreateJudge,
 } from "../services/juryzaStorage";
@@ -371,6 +372,11 @@ export const AdminJuryzaPlatform = () => {
     toast.success("Master Spreadsheet CSV downloaded!");
   };
 
+  const handleDownloadXlsx = () => {
+    exportClientSpreadsheetXlsx();
+    toast.success("Master Spreadsheet Excel (XLSX) downloaded!");
+  };
+
   // Render Login Card if not authenticated as Admin
   if (!isAdminAuth) {
     return (
@@ -511,10 +517,21 @@ export const AdminJuryzaPlatform = () => {
 
             <button
               type="button"
-              onClick={handleDownloadCsv}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] transition cursor-pointer"
+              onClick={handleDownloadXlsx}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--accent)] hover:border-[var(--accent)] transition cursor-pointer"
+              title="Download Master Spreadsheet as Excel (.xlsx)"
             >
               <FiDownload className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <span>Export XLSX</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadCsv}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] transition cursor-pointer"
+              title="Download Master Spreadsheet as CSV"
+            >
+              <FiDownload className="h-3.5 w-3.5 text-[var(--muted)]" />
               <span>Export CSV</span>
             </button>
 

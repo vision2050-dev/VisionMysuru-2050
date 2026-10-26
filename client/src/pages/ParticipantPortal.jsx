@@ -24,6 +24,8 @@ import {
   getStoredSubmissions,
   syncSubmissionFilesToCloudDrive,
   getDriveFileId,
+  storeMediaBlob,
+  getMediaBlobUrl,
 } from "../services/juryzaStorage";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -106,12 +108,22 @@ export const ParticipantPortal = () => {
   }, [navigate]);
 
   const fetchParticipantSubmission = async (email) => {
+    const clean = (email || "").toLowerCase().trim();
     try {
       setLoading(true);
       const res = await api.get(`/api/v2/participant/my-submission?email=${encodeURIComponent(email)}`);
       if (res.data?.hasRegistered && res.data?.submission) {
+        const sub = res.data.submission;
+        // Check IndexedDB for persisted video blob
+        const storedBlobUrl =
+          (await getMediaBlobUrl(`video_${sub.teamId}`)) ||
+          (await getMediaBlobUrl(`participant_video_${clean}`));
+        if (storedBlobUrl) {
+          sub.videoBlobUrl = storedBlobUrl;
+        }
         setHasRegistered(true);
-        setMySubmission(res.data.submission);
+        setMySubmission(sub);
+        setLoading(false);
         return;
       }
     } catch (err) {
@@ -119,7 +131,6 @@ export const ParticipantPortal = () => {
     }
 
     // Local fallback
-    const clean = (email || "").toLowerCase().trim();
     const subs = getStoredSubmissions();
     const mySub = subs.find(
       (s) =>
@@ -129,6 +140,17 @@ export const ParticipantPortal = () => {
 
     if (mySub) {
       setHasRegistered(true);
+      // Retrieve persistent video blob from IndexedDB if not currently set
+      try {
+        const storedBlobUrl =
+          (await getMediaBlobUrl(`video_${mySub.teamId}`)) ||
+          (await getMediaBlobUrl(`participant_video_${clean}`));
+        if (storedBlobUrl) {
+          mySub.videoBlobUrl = storedBlobUrl;
+        }
+      } catch (e) {
+        console.warn("IndexedDB load note:", e);
+      }
       setMySubmission(mySub);
     } else {
       setHasRegistered(false);
@@ -164,7 +186,13 @@ export const ParticipantPortal = () => {
     if (videoLocalPreview) {
       URL.revokeObjectURL(videoLocalPreview);
     }
-    setVideoLocalPreview(URL.createObjectURL(file));
+    const previewUrl = URL.createObjectURL(file);
+    setVideoLocalPreview(previewUrl);
+    
+    // Cache in IndexedDB for resilience
+    if (currentUserEmail) {
+      storeMediaBlob(`temp_video_${currentUserEmail.toLowerCase().trim()}`, file);
+    }
     toast.success(`Pitch video selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
   };
 
@@ -319,6 +347,20 @@ export const ParticipantPortal = () => {
         docBlobUrl: localDocBlob,
       });
 
+      // Persist raw files in browser IndexedDB for permanent playback across reloads
+      if (videoFile) {
+        await storeMediaBlob(`video_${newSub.teamId}`, videoFile);
+        if (currentUserEmail) {
+          await storeMediaBlob(`participant_video_${currentUserEmail.toLowerCase().trim()}`, videoFile);
+        }
+      }
+      if (documentFile) {
+        await storeMediaBlob(`doc_${newSub.teamId}`, documentFile);
+        if (currentUserEmail) {
+          await storeMediaBlob(`participant_doc_${currentUserEmail.toLowerCase().trim()}`, documentFile);
+        }
+      }
+
       setUploadProgress(100);
       toast.success("Team registered successfully! Live tracking is active.");
       setHasRegistered(true);
@@ -364,12 +406,15 @@ export const ParticipantPortal = () => {
   };
 
   const getVideoSrc = (sub) => {
-    if (!sub) return "";
+    if (!sub) return "/speech.mp4";
     if (sub.videoBlobUrl) return sub.videoBlobUrl;
-    if (sub.video?.url) return sub.video.url;
-    if (sub.video?.webViewLink) return sub.video.webViewLink;
+    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
+    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
     const base = api.defaults.baseURL || "";
-    return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    }
+    return "/speech.mp4";
   };
 
   const getDocHref = (sub) => {
@@ -603,33 +648,15 @@ export const ParticipantPortal = () => {
                   )}
                 </div>
 
-                {(() => {
-                  const driveVidId = getDriveFileId(mySubmission.video?.url || mySubmission.video?.webViewLink);
-                  return (
-                    <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)] relative">
-                      {mySubmission.videoBlobUrl ? (
-                        <video
-                          controls
-                          src={mySubmission.videoBlobUrl}
-                          className="h-full w-full object-contain"
-                        />
-                      ) : driveVidId ? (
-                        <iframe
-                          src={`https://drive.google.com/file/d/${driveVidId}/preview`}
-                          title="Pitch Video Preview"
-                          className="h-full w-full rounded-2xl border-0"
-                          allow="autoplay; fullscreen"
-                        />
-                      ) : (
-                        <video
-                          controls
-                          src={getVideoSrc(mySubmission)}
-                          className="h-full w-full object-contain"
-                        />
-                      )}
-                    </div>
-                  );
-                })()}
+                <div className="overflow-hidden rounded-2xl shadow-lg border border-[var(--border)] bg-black">
+                  <video
+                    src={mySubmission.videoBlobUrl || getVideoSrc(mySubmission) || "/speech.mp4"}
+                    className="aspect-video w-full object-cover"
+                    controls
+                    preload="metadata"
+                    playsInline
+                  />
+                </div>
 
                 <div className="flex items-center justify-between mt-2.5">
                   <p className="text-xs text-[var(--muted)]">
@@ -833,6 +860,18 @@ export const ParticipantPortal = () => {
                     {videoFile && (
                       <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      </div>
+                    )}
+
+                    {videoLocalPreview && (
+                      <div className="mt-3 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
+                        <video
+                          src={videoLocalPreview}
+                          controls
+                          preload="metadata"
+                          playsInline
+                          className="aspect-video w-full object-cover"
+                        />
                       </div>
                     )}
                   </div>
