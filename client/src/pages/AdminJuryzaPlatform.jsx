@@ -25,6 +25,7 @@ import {
   FiArrowRight,
   FiAlertCircle,
   FiBriefcase,
+  FiFolder,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
@@ -497,6 +498,17 @@ export const AdminJuryzaPlatform = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <a
+              href="https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--primary)] hover:border-[var(--primary)] transition cursor-pointer"
+            >
+              <FiFolder className="h-3.5 w-3.5" />
+              <span>Event Drive Folder</span>
+              <FiExternalLink className="h-3 w-3" />
+            </a>
+
             <button
               type="button"
               onClick={handleDownloadCsv}
@@ -689,18 +701,44 @@ export const AdminJuryzaPlatform = () => {
                           </td>
 
                           {/* Media Uploads */}
-                          <td className="px-4 py-3.5 space-y-1">
+                          <td className="px-4 py-3.5 space-y-1.5">
                             <div className="flex items-center gap-1.5 text-[11px]">
-                              <FiVideo className="h-3 w-3 text-red-500" />
-                              <span className="truncate max-w-[120px] text-[var(--text)]" title={videoName}>
-                                {videoName}
-                              </span>
+                              <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
+                              {sub.video?.url || sub.video?.webViewLink ? (
+                                <a
+                                  href={sub.video.url || sub.video.webViewLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
+                                  title={`Open Video: ${videoName}`}
+                                >
+                                  <span className="truncate">{videoName}</span>
+                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="truncate max-w-[130px] text-[var(--text)]" title={videoName}>
+                                  {videoName}
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px]">
-                              <FiFileText className="h-3 w-3 text-amber-500" />
-                              <span className="truncate max-w-[120px] text-[var(--text)]" title={docName}>
-                                {docName}
-                              </span>
+                              <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
+                              {sub.document?.url || sub.document?.webViewLink ? (
+                                <a
+                                  href={sub.document.url || sub.document.webViewLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
+                                  title={`Open PDF: ${docName}`}
+                                >
+                                  <span className="truncate">{docName}</span>
+                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="truncate max-w-[130px] text-[var(--text)]" title={docName}>
+                                  {docName}
+                                </span>
+                              )}
                             </div>
                           </td>
 

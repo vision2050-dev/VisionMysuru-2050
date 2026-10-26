@@ -141,8 +141,8 @@ export const uploadToGoogleDrive = async ({
       const base64Data = fileBuffer.toString("base64");
       const resp = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        redirect: "manual",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        redirect: "follow",
         body: JSON.stringify({
           fileName,
           mimeType,
@@ -152,17 +152,7 @@ export const uploadToGoogleDrive = async ({
         }),
       });
 
-      let data = null;
-      if (resp.status === 302 || resp.status === 301 || resp.status === 307) {
-        const redirectUrl = resp.headers.get("location");
-        if (redirectUrl) {
-          const res2 = await fetch(redirectUrl, { method: "GET" });
-          data = await res2.json();
-        }
-      } else {
-        data = await resp.json();
-      }
-
+      const data = await resp.json();
       if (data && (data.success || data.fileId)) {
         return {
           synced: true,

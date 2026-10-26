@@ -23,6 +23,7 @@ import {
   clientRegisterSubmission,
   getStoredSubmissions,
   syncSubmissionFilesToCloudDrive,
+  getDriveFileId,
 } from "../services/juryzaStorage";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -294,6 +295,11 @@ export const ParticipantPortal = () => {
       await fetchParticipantSubmission(currentUserEmail);
     } catch (err) {
       console.warn("Backend registration failed, saving locally for zero downtime:", err.message);
+      
+      // Create local blob previews for instant playback
+      const localVideoBlob = videoFile ? URL.createObjectURL(videoFile) : null;
+      const localDocBlob = documentFile ? URL.createObjectURL(documentFile) : null;
+
       // Client-side fallback registration
       const newSub = clientRegisterSubmission({
         teamName: formData.teamName.trim(),
@@ -309,21 +315,29 @@ export const ParticipantPortal = () => {
         members,
         videoFileName: videoFile?.name,
         documentFileName: documentFile?.name,
+        videoBlobUrl: localVideoBlob,
+        docBlobUrl: localDocBlob,
       });
 
       setUploadProgress(100);
       toast.success("Team registered successfully! Live tracking is active.");
       setHasRegistered(true);
-      setMySubmission(newSub);
+      setMySubmission({ ...newSub, videoBlobUrl: localVideoBlob, docBlobUrl: localDocBlob });
 
-      // Asynchronously sync media files & master CSV to Google Drive
+      // Asynchronously sync media files & master spreadsheets to Google Drive
       syncSubmissionFilesToCloudDrive({
         submission: newSub,
         videoFile,
         documentFile,
-      }).then(() => {
-        // Re-read submission once cloud links are persisted
-        fetchParticipantSubmission(currentUserEmail);
+      }).then((updatedSub) => {
+        if (updatedSub) {
+          setMySubmission((prev) => ({
+            ...prev,
+            ...updatedSub,
+            videoBlobUrl: prev?.videoBlobUrl || localVideoBlob,
+            docBlobUrl: prev?.docBlobUrl || localDocBlob,
+          }));
+        }
       });
     } finally {
       setSubmitting(false);
@@ -351,18 +365,18 @@ export const ParticipantPortal = () => {
 
   const getVideoSrc = (sub) => {
     if (!sub) return "";
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
     if (sub.video?.url) return sub.video.url;
     if (sub.video?.webViewLink) return sub.video.webViewLink;
-    if (sub.videoBlobUrl) return sub.videoBlobUrl;
     const base = api.defaults.baseURL || "";
     return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
   };
 
   const getDocHref = (sub) => {
     if (!sub) return "#";
+    if (sub.docBlobUrl) return sub.docBlobUrl;
     if (sub.document?.url) return sub.document.url;
     if (sub.document?.webViewLink) return sub.document.webViewLink;
-    if (sub.docBlobUrl) return sub.docBlobUrl;
     const base = api.defaults.baseURL || "";
     return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
   };
@@ -571,28 +585,89 @@ export const ParticipantPortal = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Pitch Video (.mp4) Review Card */}
               <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md">
-                <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)] mb-3">
-                  <FiVideo className="h-4 w-4 text-[var(--accent)]" />
-                  <span>Compulsory Pitch Video (.mp4)</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
+                    <FiVideo className="h-4 w-4 text-[var(--accent)]" />
+                    <span>Compulsory Pitch Video (.mp4)</span>
+                  </div>
+                  {(mySubmission.video?.url || mySubmission.video?.webViewLink) && (
+                    <a
+                      href={mySubmission.video.url || mySubmission.video.webViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] hover:underline"
+                    >
+                      <span>Drive Link</span>
+                      <FiExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
-                <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)]">
-                  <video
-                    controls
-                    src={getVideoSrc(mySubmission)}
-                    className="h-full w-full object-contain"
-                  />
+
+                {(() => {
+                  const driveVidId = getDriveFileId(mySubmission.video?.url || mySubmission.video?.webViewLink);
+                  return (
+                    <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)] relative">
+                      {mySubmission.videoBlobUrl ? (
+                        <video
+                          controls
+                          src={mySubmission.videoBlobUrl}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : driveVidId ? (
+                        <iframe
+                          src={`https://drive.google.com/file/d/${driveVidId}/preview`}
+                          title="Pitch Video Preview"
+                          className="h-full w-full rounded-2xl border-0"
+                          allow="autoplay; fullscreen"
+                        />
+                      ) : (
+                        <video
+                          controls
+                          src={getVideoSrc(mySubmission)}
+                          className="h-full w-full object-contain"
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center justify-between mt-2.5">
+                  <p className="text-xs text-[var(--muted)]">
+                    File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || "Uploaded Pitch Video"}</strong>
+                  </p>
+                  {(mySubmission.video?.url || mySubmission.video?.webViewLink) && (
+                    <a
+                      href={mySubmission.video.url || mySubmission.video.webViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--accent)] hover:underline"
+                    >
+                      <span>Open in Google Drive</span>
+                      <FiExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
-                <p className="text-xs text-[var(--muted)] mt-2">
-                  File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || "Uploaded Pitch Video"}</strong>
-                </p>
               </div>
 
               {/* Proposal Document (.pdf) Review Card */}
               <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)] mb-3">
-                    <FiFileText className="h-4 w-4 text-[var(--primary)]" />
-                    <span>Compulsory Proposal Deck (.pdf)</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
+                      <FiFileText className="h-4 w-4 text-[var(--primary)]" />
+                      <span>Compulsory Proposal Deck (.pdf)</span>
+                    </div>
+                    {(mySubmission.document?.url || mySubmission.document?.webViewLink) && (
+                      <a
+                        href={mySubmission.document.url || mySubmission.document.webViewLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] hover:underline"
+                      >
+                        <span>Drive Link</span>
+                        <FiExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                   <div className="p-4 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)]">
                     <h5 className="font-bold text-sm text-[var(--text)]">{mySubmission.solutionName}</h5>
@@ -603,12 +678,12 @@ export const ParticipantPortal = () => {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-[var(--border)] flex gap-2">
+                <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
                   <a
                     href={getDocHref(mySubmission)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer"
                   >
                     <span>View Full Proposal PDF</span>
                     <FiExternalLink className="h-3.5 w-3.5" />

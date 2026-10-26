@@ -28,6 +28,7 @@ import {
   submitStoredRubricScore,
   updateStoredSubmissionStage,
   clientSignIn,
+  getDriveFileId,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -662,21 +663,57 @@ export const JuryzaHub = () => {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
                         <FiVideo className="h-4 w-4 text-[var(--primary)]" />
-                        <span>Pitch Video (.mp4 stream)</span>
+                        <span>Pitch Video (.mp4)</span>
                       </div>
                       <span className="text-[11px] text-[var(--muted)] font-mono">
                         {selectedSubmission.video?.originalName || "Team Pitch Video"}
                       </span>
                     </div>
 
-                    <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)]">
-                      <video
-                        controls
-                        key={selectedSubmission.teamId}
-                        src={getVideoSrc(selectedSubmission)}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
+                    {(() => {
+                      const driveVidId = getDriveFileId(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink);
+                      return (
+                        <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)] relative">
+                          {selectedSubmission.videoBlobUrl ? (
+                            <video
+                              controls
+                              key={selectedSubmission.teamId}
+                              src={selectedSubmission.videoBlobUrl}
+                              className="h-full w-full object-contain"
+                            />
+                          ) : driveVidId ? (
+                            <iframe
+                              key={selectedSubmission.teamId}
+                              src={`https://drive.google.com/file/d/${driveVidId}/preview`}
+                              title="Pitch Video"
+                              className="h-full w-full rounded-2xl border-0"
+                              allow="autoplay; fullscreen"
+                            />
+                          ) : (
+                            <video
+                              controls
+                              key={selectedSubmission.teamId}
+                              src={getVideoSrc(selectedSubmission)}
+                              className="h-full w-full object-contain"
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink) && (
+                      <div className="mt-2.5 flex justify-end">
+                        <a
+                          href={selectedSubmission.video.url || selectedSubmission.video.webViewLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)] hover:underline"
+                        >
+                          <span>Open Video on Google Drive</span>
+                          <FiExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Proposal Deck & Proposal Abstract */}
@@ -690,9 +727,9 @@ export const JuryzaHub = () => {
                         href={getDocHref(selectedSubmission)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--accent)] hover:underline"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer"
                       >
-                        <span>Open PDF</span>
+                        <span>Open Proposal PDF</span>
                         <FiExternalLink className="h-3 w-3" />
                       </a>
                     </div>

@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 /**
  * Juryza Resilient Client-Side Storage Engine
  * Ensures 100% reliable functionality for Participant, Judge, and Admin portals
@@ -66,10 +68,16 @@ const DEFAULT_SUBMISSIONS = [
     video: {
       originalName: "EcoFlow_Kukkarahalli_Pitch.mp4",
       size: 14500000,
+      url: "/speech.mp4",
+      webViewLink: "/speech.mp4",
     },
     document: {
       name: "EcoFlow_Lake_Restoration_Report.pdf",
+      originalName: "EcoFlow_Lake_Restoration_Report.pdf",
       size: 2400000,
+      url: "https://drive.google.com/file/d/1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr/view?usp=drivesdk",
+      webViewLink: "https://drive.google.com/file/d/1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr/view?usp=drivesdk",
+      driveFileId: "1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr",
     },
     members: [
       {
@@ -370,6 +378,8 @@ export const clientRegisterSubmission = ({
   members,
   videoFileName,
   documentFileName,
+  videoBlobUrl,
+  docBlobUrl,
 }) => {
   const subs = getStoredSubmissions();
   const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
@@ -395,12 +405,18 @@ export const clientRegisterSubmission = ({
     video: {
       originalName: videoFileName || videoName,
       size: 15000000,
+      url: "",
+      webViewLink: "",
     },
     document: {
       name: documentFileName || docName,
       originalName: documentFileName || docName,
       size: 2000000,
+      url: "",
+      webViewLink: "",
     },
+    videoBlobUrl: videoBlobUrl || null,
+    docBlobUrl: docBlobUrl || null,
     members: members || [
       {
         name: leadName || "Team Lead",
@@ -554,6 +570,25 @@ export const submitStoredRubricScore = ({ teamId, judgeEmail, totalScore, feedba
 export const APPS_SCRIPT_DRIVE_URL =
   "https://script.google.com/macros/s/AKfycby7S5N7UfxKKFmAKvJ-y5yww2NP9iSdRZkHXdwYLTMqO8bjup8B_KstzYmh5BHy0uF1/exec";
 
+export const getDriveFileId = (url) => {
+  if (!url || typeof url !== "string") return null;
+  const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch) return fileMatch[1];
+  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return idMatch[1];
+  const dMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch) return dMatch[1];
+  return null;
+};
+
+export const getDrivePreviewUrl = (url) => {
+  const fileId = getDriveFileId(url);
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+  return url || "";
+};
+
 export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => {
   const headers = [
     "Sl No",
@@ -569,6 +604,8 @@ export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => 
     "Current Stage",
     "Alloted Judge(s)",
     "Rubric Score",
+    "Pitch Video Link",
+    "Proposal PDF Link",
     "Registration Timestamp",
   ];
 
@@ -588,6 +625,8 @@ export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => 
       s.stage || "submitted",
       `"${(s.allotedJudges || []).join(", ")}"`,
       s.rubricAverage || 0,
+      s.video?.url || s.video?.webViewLink || "",
+      s.document?.url || s.document?.webViewLink || "",
       new Date(s.createdAt).toLocaleString("en-IN"),
     ];
   });
@@ -613,19 +652,19 @@ export const syncSubmissionFilesToCloudDrive = async ({
   videoFile,
   documentFile,
 }) => {
-  if (!submission) return;
+  if (!submission) return null;
 
   const cleanTeamName = (submission.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
   const videoName = `[${submission.teamId}]_${cleanTeamName}_Video.mp4`;
   const docName = `[${submission.teamId}]_${cleanTeamName}_Proposal.pdf`;
 
-  // 1. Upload Document to Google Drive
+  // 1. Upload Document to Google Drive (text/plain avoids CORS preflight)
   if (documentFile) {
     try {
       const docBase64 = await fileToBase64(documentFile);
       const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           fileName: docName,
           mimeType: "application/pdf",
@@ -634,22 +673,25 @@ export const syncSubmissionFilesToCloudDrive = async ({
         }),
       });
       const data = await res.json();
-      if (data?.webViewLink && submission.document) {
-        submission.document.url = data.webViewLink;
+      if (data?.fileId) {
+        if (!submission.document) submission.document = {};
+        submission.document.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
+        submission.document.webViewLink = submission.document.url;
         submission.document.driveFileId = data.fileId;
+        submission.document.name = docName;
       }
     } catch (e) {
       console.warn("Cloud Drive Doc sync warning:", e);
     }
   }
 
-  // 2. Upload Video to Google Drive
+  // 2. Upload Pitch Video to Google Drive (text/plain avoids CORS preflight)
   if (videoFile) {
     try {
       const videoBase64 = await fileToBase64(videoFile);
       const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           fileName: videoName,
           mimeType: "video/mp4",
@@ -658,23 +700,36 @@ export const syncSubmissionFilesToCloudDrive = async ({
         }),
       });
       const data = await res.json();
-      if (data?.webViewLink && submission.video) {
-        submission.video.url = data.webViewLink;
+      if (data?.fileId) {
+        if (!submission.video) submission.video = {};
+        submission.video.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
+        submission.video.webViewLink = submission.video.url;
         submission.video.driveFileId = data.fileId;
+        submission.video.originalName = videoFile.name || videoName;
       }
     } catch (e) {
       console.warn("Cloud Drive Video sync warning:", e);
     }
   }
 
-  // 3. Upload updated Master Spreadsheet (CSV) to Google Drive
+  // Save updated URLs to storage immediately
+  const allSubs = getStoredSubmissions();
+  const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
+  if (idx !== -1) {
+    allSubs[idx] = { ...allSubs[idx], ...submission };
+    saveStoredSubmissions(allSubs);
+  }
+
+  // 3. Upload updated Master Spreadsheet (both CSV and XLSX) to Google Drive
   try {
-    const subs = getStoredSubmissions();
-    const csvContent = generateSubmissionsCsvContent(subs);
+    const currentSubs = getStoredSubmissions();
+    const csvContent = generateSubmissionsCsvContent(currentSubs);
     const csvBase64 = btoa(unescape(encodeURIComponent(csvContent)));
+
+    // Upload CSV
     await fetch(APPS_SCRIPT_DRIVE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         fileName: "VisionMysuru_2050_Edition2_MasterData.csv",
         mimeType: "text/csv",
@@ -682,17 +737,53 @@ export const syncSubmissionFilesToCloudDrive = async ({
         folderType: "Spreadsheets",
       }),
     });
+
+    // Upload XLSX
+    try {
+      const rows = currentSubs.map((s, i) => {
+        const leader = s.members?.find((m) => m.isLeader) || s.members?.[0] || {};
+        return {
+          "Sl No": i + 1,
+          "Team ID": s.teamId,
+          "Team Name": s.teamName,
+          "Category": s.category,
+          "Focus Area / Theme": s.theme,
+          "Solution Name": s.solutionName,
+          "Leader Name": leader.name || s.leadName || "",
+          "Leader Email": leader.email || s.participantEmail || "",
+          "Leader Phone": leader.phone || s.leadPhone || "",
+          "Institution": leader.college || s.organizationDetails?.institution || "",
+          "Current Stage": s.stage || "submitted",
+          "Alloted Judge(s)": (s.allotedJudges || []).join(", "),
+          "Rubric Average": s.rubricAverage || 0,
+          "Pitch Video Drive URL": s.video?.url || s.video?.webViewLink || "",
+          "Proposal PDF Drive URL": s.document?.url || s.document?.webViewLink || "",
+          "Registered At": new Date(s.createdAt).toLocaleString("en-IN"),
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Master Data");
+      const xlsxBase64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+
+      await fetch(APPS_SCRIPT_DRIVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          fileName: "VisionMysuru_2050_Edition2_MasterData.xlsx",
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          base64Data: xlsxBase64,
+          folderType: "Spreadsheets",
+        }),
+      });
+    } catch (xlsxErr) {
+      console.warn("Cloud XLSX sync warning:", xlsxErr);
+    }
   } catch (e) {
     console.warn("Cloud Spreadsheet sync warning:", e);
   }
 
-  // Save updated URLs to storage
-  const allSubs = getStoredSubmissions();
-  const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
-  if (idx !== -1) {
-    allSubs[idx] = submission;
-    saveStoredSubmissions(allSubs);
-  }
+  return submission;
 };
 
 /**
