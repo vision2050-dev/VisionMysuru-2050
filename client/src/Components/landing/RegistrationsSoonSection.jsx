@@ -33,7 +33,7 @@ export const RegistrationsSoonSection = () => {
               <span className="text-[var(--accent)]">REGISTRATIONS</span> ARE NOW OPEN!
             </h2>
             <p className="mt-3 text-sm text-[var(--muted)] max-w-md">
-              Submit your team's innovative ideas for Vision Mysuru 2050 and compete for exciting awards.
+              Submit your team's innovative ideas for Vision Mysuru 2050.
             </p>
             <Link
               to="/register"

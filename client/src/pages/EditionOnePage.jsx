@@ -73,7 +73,7 @@ const AnimatedStatValue = ({ value }) => {
 };
 
 const EDITION_ONE_STATS = [
-  { label: "Total Submissions", value: "317+", icon: FiFileText, color: "border-yellow-500" },
+  { label: "Total Submissions", value: "517+", icon: FiFileText, color: "border-yellow-500" },
   { label: "Jury Panel Members", value: "32", icon: FiUsers, color: "border-purple-500" },
   { label: "Grand Finale Teams", value: "Top 5", icon: FiAward, color: "border-emerald-500" },
   { label: "Partner Organizations", value: "15+", icon: FiCheckCircle, color: "border-sky-500" },

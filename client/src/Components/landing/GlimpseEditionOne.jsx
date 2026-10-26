@@ -11,7 +11,7 @@ import {
 const EDITION_ONE_STATS = [
   {
     label: "Total Submissions",
-    value: "317+",
+    value: "517+",
     icon: FiFileText,
     color: "border-yellow-500",
   },

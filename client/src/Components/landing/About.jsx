@@ -8,8 +8,8 @@ const About = () => {
       <p className="text-3xl font-semibold dm-sans tracking-tight text-[var(--accent)] ">
         Vision Mysuru 2050
       </p>
-      <div className="text-lg font-semibold italic text-[var(--text)]">
-        EDITION 2 - IDEAS TO IMPACT{" "}
+      <div className="text-base sm:text-lg font-semibold italic tracking-wider text-[var(--text)]">
+        EDITION 2 &nbsp;—&nbsp; IDEAS TO IMPACT
       </div>
       <div className="flex flex-col gap-6 md:flex-row md:gap-12">
         <div className=" max-w-xl mx-auto py-3 md:py-6">

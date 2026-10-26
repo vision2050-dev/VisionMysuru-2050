@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { FiArrowRight } from "react-icons/fi";
+import { FiArrowRight, FiClock } from "react-icons/fi";
 
 const HeroSection = () => {
   return (
@@ -42,8 +42,8 @@ const HeroSection = () => {
             <span className="inline-block w-fit  bg-white px-3  text-[var(--accent)]">
               Vision Mysuru 2050
             </span>
-            <span className="text-3xl italic md:text-5xl">
-              EDITION 2 - IDEAS TO IMPACT{" "}
+            <span className="text-2xl sm:text-3xl md:text-5xl italic font-semibold tracking-wider text-white">
+              EDITION 2 &nbsp;—&nbsp; IDEAS TO IMPACT
             </span>
           </h1>
           <p className="mt-6 text-lg text-white/90 font-medium  leading-[0.94]">
@@ -63,6 +63,20 @@ const HeroSection = () => {
               <span>APPLY NOW!</span>
               <FiArrowRight className="h-5 w-5" />
             </Link>
+            <a
+              href="#timeline"
+              onClick={(e) => {
+                e.preventDefault();
+                const el = document.getElementById("timeline");
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl border-2 border-white/60 bg-white/10 backdrop-blur-md px-8 py-3.5 text-base font-bold text-white shadow-xl hover:bg-white hover:text-[var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+            >
+              <FiClock className="h-5 w-5" />
+              <span>TIMELINE</span>
+            </a>
           </div>
         </div>
       </div>
