@@ -3,10 +3,16 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import submissionRoutes from "./routes/submissionRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import juryzaRoutes from "./routes/juryzaRoutes.js";
 import mongoose from "mongoose";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -53,6 +59,17 @@ app.use("/api/v1/admin", adminRoutes);
 
 // Edition 2 Juryza Platform Routes
 app.use("/api/v2", juryzaRoutes);
+
+// Serve static client assets in production if client/dist exists
+const clientDistPath = path.join(__dirname, "../client/dist");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  // Catch-all route for SPA navigation (redirects non-API requests to index.html)
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 const startServer = () => {
   app.listen(PORT, () => {
