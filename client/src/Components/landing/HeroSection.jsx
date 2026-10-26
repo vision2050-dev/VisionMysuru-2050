@@ -43,7 +43,7 @@ const HeroSection = () => {
               Vision Mysuru 2050
             </span>
             <span className="text-3xl italic md:text-5xl">
-              IDEAS TO IMPACT{" "}
+              EDITION 2 - IDEAS TO IMPACT{" "}
             </span>
           </h1>
           <p className="mt-6 text-lg text-white/90 font-medium  leading-[0.94]">
