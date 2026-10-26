@@ -96,53 +96,52 @@ const TOPICS = [
 const TIMELINE = [
   {
     title: "Registration Opens",
-    date: "Feb 01, 2026",
+    date: "Oct 26, 2026",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Registrations open for all participants to identify on-ground urban challenges across key city domains.",
   },
   {
     title: "Registration Closes",
-    date: "Mar 13, 2026",
+    date: "Jan 10, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Final deadline to submit your ideas. Extended due to overwhelming demand! Ensure all required documents and field evidence are uploaded before this date.",
+      "Final deadline to submit your ideas and proposals. Ensure all required documents, video pitches, and deck submissions are uploaded.",
   },
   {
     title: "Round Zero: Administrative Check",
-    date: "Mar 14, 2026",
+    date: "Jan 11, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "All submissions undergo an administrative check to verify completeness and eligibility across all four categories.",
   },
-
   {
     title: "Round 1: Expert Screening",
-    date: "Mar 14, 2026",
+    date: "Jan 13, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Category experts review submissions. Top 10 teams from each category (40 in total) advance to the next round.",
+      "Category experts review submissions. Top teams from each category advance to the category showdown round.",
   },
   {
     title: "Round 2: Category Showdown",
-    date: "Mar 15, 2026",
+    date: "Jan 16, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
-      "Physical presentation at SDMIMD Campus before category-specific experts. The top 10 highest scoring teams (regardless of category) advance to the round 3",
+      "Physical presentations before category-specific experts at the SDMIMD campus to determine the highest scoring teams.",
   },
   {
     title: "Round 3: Proposal Presentation",
-    date: "Mar 16, 2026",
-    eligibleFor: ["Top 10 Finalists", "Track 1", "Track 2"],
+    date: "Jan 19, 2027",
+    eligibleFor: ["Shortlisted Finalists", "Track 1", "Track 2"],
     detail:
-      "Presentation infront of 5 jury members (academia, industry, government) at SDMIMD Campus to select Top 5 teams for grand finale from the 10 shortlisted teams from Track 1 and Track 2.",
+      "Presentation before senior jury members (academia, industry, government) at SDMIMD Campus to select teams for the Grand Finale.",
   },
   {
-    title: "Grand Finale",
-    date: "Mar 23, 2026",
-    eligibleFor: ["Top 5 Finalists"],
+    title: "Grand Finale: Final Event",
+    date: "Jan 26, 2027",
+    eligibleFor: ["Grand Finalists"],
     detail:
-      "Final pitch before Mysuru district Authorities. Attractive cash prizes for top 3 winners. Ideas of top 10 finalists will be published as a White Paper",
+      "Final pitch before Mysuru district authorities and distinguished jury panel. Attractive awards for top winners and civic policy compilation.",
   },
 ];
 
