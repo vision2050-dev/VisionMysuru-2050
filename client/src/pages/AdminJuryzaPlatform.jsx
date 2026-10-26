@@ -26,6 +26,7 @@ import {
   FiAlertCircle,
   FiBriefcase,
   FiFolder,
+  FiTrash2,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
@@ -41,6 +42,9 @@ import {
   clientSignIn,
   clientCreateJudge,
   getMediaBlobUrl,
+  deleteStoredSubmission,
+  deleteStoredJudge,
+  clearAllPortalData,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -192,11 +196,9 @@ export const AdminJuryzaPlatform = () => {
       setSubmissions(subList);
       setJudges(judgeList);
 
-      if (subList.length > 0) saveStoredSubmissions(subList);
-      if (judgeList.length > 0) {
-        const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
-        saveStoredUsers([...otherUsers, ...judgeList]);
-      }
+      saveStoredSubmissions(subList);
+      const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
+      saveStoredUsers([...otherUsers, ...judgeList]);
     } catch (err) {
       console.warn("Backend API unreachable, using resilient client storage:", err.message);
       const localSubs = getStoredSubmissions();
@@ -400,6 +402,80 @@ export const AdminJuryzaPlatform = () => {
     toast.success("Master Spreadsheet Excel (XLSX) downloaded!");
   };
 
+  // Delete a single submission
+  const handleDeleteSubmission = async (teamId, teamName) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete team "${teamName}" (${teamId})? This will remove the submission and its records.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.delete(`/api/v2/admin/submissions/${teamId}`);
+    } catch {
+      console.warn("Backend unavailable, deleting locally...");
+    }
+    deleteStoredSubmission(teamId);
+    setSubmissions((prev) => prev.filter((s) => s.teamId !== teamId));
+    toast.success(`Team "${teamName}" deleted.`);
+  };
+
+  // Delete a single judge
+  const handleDeleteJudge = async (judgeEmail, judgeName) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete judge "${judgeName}" (${judgeEmail})? This will revoke their evaluation credentials.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.delete(`/api/v2/admin/judges/${encodeURIComponent(judgeEmail)}`);
+    } catch {
+      console.warn("Backend unavailable, deleting locally...");
+    }
+    deleteStoredJudge(judgeEmail);
+    setJudges((prev) => prev.filter((j) => (j.email || "").toLowerCase() !== judgeEmail.toLowerCase()));
+    setSubmissions((prev) =>
+      prev.map((s) => {
+        if (Array.isArray(s.allotedJudges) && s.allotedJudges.includes(judgeEmail)) {
+          return {
+            ...s,
+            allotedJudges: s.allotedJudges.filter((e) => e !== judgeEmail),
+            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
+          };
+        }
+        return s;
+      })
+    );
+    toast.success(`Judge "${judgeName}" deleted.`);
+  };
+
+  // Purge all portal data (teams & judges)
+  const handlePurgeAll = async () => {
+    const confirmation = window.prompt(
+      '⚠️ DANGER: You are about to DELETE ALL teams, judges, and uploaded files from the portal.\n\nType "RESET" to confirm and proceed:'
+    );
+    if (confirmation !== "RESET") {
+      if (confirmation !== null) {
+        toast.error('Reset cancelled: You must type "RESET" exactly.');
+      }
+      return;
+    }
+
+    try {
+      await api.post("/api/v2/admin/purge-all");
+    } catch {
+      console.warn("Backend unavailable, purging resilient client data...");
+    }
+
+    await clearAllPortalData();
+    setSubmissions([]);
+    setJudges([]);
+    toast.success("All teams, judges, and uploaded files have been deleted from the portal.");
+  };
+
   const getDocHref = (sub) => {
     if (!sub) return "/sample_proposal.pdf";
     if (sub.docBlobUrl) return sub.docBlobUrl;
@@ -591,6 +667,16 @@ export const AdminJuryzaPlatform = () => {
               <FiRefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
 
+            <button
+              type="button"
+              onClick={handlePurgeAll}
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 text-xs font-bold transition cursor-pointer border border-red-500/20"
+              title="Purge all teams, judges, and media files from portal"
+            >
+              <FiTrash2 className="h-3.5 w-3.5" />
+              <span>Reset Portal</span>
+            </button>
+
             <ThemeToggle size="sm" />
 
             <button
@@ -717,12 +803,13 @@ export const AdminJuryzaPlatform = () => {
                       <th className="px-4 py-3">Alloted Judge</th>
                       <th className="px-4 py-3">Submission Stage</th>
                       <th className="px-4 py-3">Score</th>
+                      <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {submissions.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="text-center py-12 text-[var(--muted)]">
+                        <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
                           No team submissions registered yet.
                         </td>
                       </tr>
@@ -832,6 +919,18 @@ export const AdminJuryzaPlatform = () => {
                               ? `${sub.rubricAverage.toFixed(1)}/50`
                               : "Pending"}
                           </td>
+
+                          {/* Delete Submission */}
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSubmission(sub.teamId, sub.teamName)}
+                              title="Delete Submission"
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                            >
+                              <FiTrash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -892,12 +991,13 @@ export const AdminJuryzaPlatform = () => {
                       <th className="px-4 py-3">Specialization Track</th>
                       <th className="px-4 py-3">Alloted Teams Count</th>
                       <th className="px-4 py-3">Registered Date</th>
+                      <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {judges.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="text-center py-12 text-[var(--muted)]">
+                        <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
                           No judges registered yet. Click &apos;Generate Judge Account&apos; above.
                         </td>
                       </tr>
@@ -934,6 +1034,16 @@ export const AdminJuryzaPlatform = () => {
                             {judge.createdAt
                               ? new Date(judge.createdAt).toLocaleDateString("en-IN")
                               : "Active"}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteJudge(judge.email, judge.name)}
+                              title="Delete Judge Account"
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                            >
+                              <FiTrash2 className="h-3.5 w-3.5" />
+                            </button>
                           </td>
                         </tr>
                       );

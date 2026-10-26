@@ -107,47 +107,69 @@ export const updateMasterSpreadsheet = async ({ submissions = [], judges = [] })
       };
     });
 
-    // 3. Create Workbook
+    // 3. Column Header Definitions
+    const SUBMISSION_HEADERS = [
+      "Sl No",
+      "Team ID",
+      "Team Name",
+      "Category",
+      "Theme / Focus Area",
+      "Solution Name",
+      "Leader Name",
+      "Leader Gmail",
+      "Leader Phone",
+      "College / Institution",
+      "Other Members",
+      "Pitch Video (.mp4)",
+      "Pitch Proposal (.pdf)",
+      "Registration Timestamp",
+      "Current Stage",
+      "Alloted Judge(s)",
+      "Rubric Score",
+      "Duel Elo Rating",
+      "Drive Stored Folder",
+    ];
+
+    const JUDGE_HEADERS = [
+      "Sl No",
+      "Judge Name",
+      "Judge Gmail",
+      "Organization",
+      "Assigned Domain / Specialization",
+      "Registration Timestamp",
+      "Alloted Teams Count",
+      "Alloted Team IDs",
+      "Role",
+    ];
+
+    // 4. Create Workbook
     const workbook = XLSX.utils.book_new();
 
-    const subSheet = XLSX.utils.json_to_sheet(
-      submissionsData.length > 0
-        ? submissionsData
-        : [
-            {
-              "Message": "No submissions recorded yet",
-              "Status": "Waiting for team registrations",
-            },
-          ],
-    );
+    const subSheet = XLSX.utils.json_to_sheet(submissionsData, {
+      header: SUBMISSION_HEADERS,
+    });
 
-    const judgeSheet = XLSX.utils.json_to_sheet(
-      judgesData.length > 0
-        ? judgesData
-        : [
-            {
-              "Message": "No judges registered yet",
-              "Status": "Waiting for judge signups",
-            },
-          ],
-    );
+    const judgeSheet = XLSX.utils.json_to_sheet(judgesData, {
+      header: JUDGE_HEADERS,
+    });
 
     // Auto-fit column widths
-    const setColWidths = (sheet, data) => {
-      if (!data || data.length === 0) return;
-      const keys = Object.keys(data[0]);
+    const setColWidths = (sheet, data, headers) => {
+      const keys = headers || (data && data.length > 0 ? Object.keys(data[0]) : []);
       sheet["!cols"] = keys.map((key) => {
         let maxLen = key.length;
-        data.forEach((row) => {
-          const val = row[key] ? String(row[key]) : "";
-          if (val.length > maxLen) maxLen = val.length;
-        });
+        if (data && data.length > 0) {
+          data.forEach((row) => {
+            const val = row[key] ? String(row[key]) : "";
+            if (val.length > maxLen) maxLen = val.length;
+          });
+        }
         return { wch: Math.min(Math.max(maxLen + 3, 12), 40) };
       });
     };
 
-    setColWidths(subSheet, submissionsData);
-    setColWidths(judgeSheet, judgesData);
+    setColWidths(subSheet, submissionsData, SUBMISSION_HEADERS);
+    setColWidths(judgeSheet, judgesData, JUDGE_HEADERS);
 
     XLSX.utils.book_append_sheet(workbook, subSheet, "Submissions_Teams");
     XLSX.utils.book_append_sheet(workbook, judgeSheet, "Judges_Roster");

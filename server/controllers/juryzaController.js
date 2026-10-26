@@ -35,72 +35,10 @@ let localUsersStore = [
     allotedTeams: [],
     createdAt: new Date(),
   },
-  {
-    _id: "judge-demo-1",
-    name: "Dr. K. Srinivas",
-    email: "judge.srinivas@gmail.com",
-    role: "judge",
-    password: null,
-    organization: "SDMIMD Panel",
-    specialization: "Sustainability & Clean Tech",
-    allotedTeams: ["VM2-ST-88F4A1"],
-    createdAt: new Date(),
-  },
 ];
 
 // In-Memory store for submissions
-let localSubmissionsStore = [
-  {
-    _id: "demo-sub-1",
-    teamId: "VM2-ST-88F4A1",
-    teamName: "EcoFlow Mysuru",
-    participantEmail: "participant.aditi@gmail.com",
-    category: "students",
-    city: "Mysuru",
-    theme: "Environmental Sustainability",
-    solutionName: "Decentralized Kukkarahalli Lake Micro-Filtration Network",
-    shortDescription:
-      "A solar-powered IoT filtration and bio-remediation barrier to eliminate urban storm drainage pollutants flowing into Kukkarahalli Lake.",
-    detailedProposal:
-      "Our team documented untreated discharge canals entering Kukkarahalli lake. We deploy indigenous biomimetic filters with solar-powered aeration units to clean 40,000 liters daily.",
-    video: {
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "EcoFlow Pitch Video",
-      originalName: "EcoFlow_Pitch.mp4",
-      driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
-      size: 14500000,
-    },
-    document: {
-      name: "EcoFlow_Kukkarahalli_Lake_Blueprint.pdf",
-      originalName: "EcoFlow_Blueprint.pdf",
-      url: "https://drive.google.com/file/d/sample1",
-      driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
-      size: 2400000,
-    },
-    members: [
-      {
-        name: "Aditi Rao",
-        email: "participant.aditi@gmail.com",
-        phone: "+91 98451 12345",
-        isLeader: true,
-        college: "The National Institute of Engineering, Mysuru",
-        department: "Civil & Environmental Engineering",
-      },
-    ],
-    organizationDetails: {
-      institution: "NIE Mysuru",
-      department: "Environmental Engineering",
-    },
-    stage: "allocated to a judge",
-    allotedJudges: ["judge.srinivas@gmail.com"],
-    allotedJudgeNames: ["Dr. K. Srinivas"],
-    eloRating: 1248,
-    zScore: 1.42,
-    rubricAverage: 34.5,
-    evaluationCount: 1,
-    createdAt: new Date(),
-  },
-];
+let localSubmissionsStore = [];
 
 // Helper to check if MongoDB is connected
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -1274,4 +1212,128 @@ export const getDriveSyncStatus = (req, res) => {
     spreadsheetFile: "VisionMysuru_2050_Edition2_MasterData.xlsx",
     status: "healthy",
   });
+};
+
+/**
+ * Admin Action: Delete a single submission and its associated files
+ */
+export const deleteSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isDbConnected()) {
+      await Edition2Submission.deleteOne({ teamId: id });
+      await JuryzaUser.updateMany({}, { $pull: { allotedTeams: id } });
+    }
+
+    localSubmissionsStore = localSubmissionsStore.filter((s) => s.teamId !== id);
+    localUsersStore.forEach((u) => {
+      if (Array.isArray(u.allotedTeams)) {
+        u.allotedTeams = u.allotedTeams.filter((t) => t !== id);
+      }
+    });
+
+    await triggerSpreadsheetUpdate();
+    return res.status(200).json({ success: true, message: `Submission ${id} deleted successfully.` });
+  } catch (error) {
+    console.error("Delete submission error:", error);
+    return res.status(500).json({ message: "Failed to delete submission.", error: error.message });
+  }
+};
+
+/**
+ * Admin Action: Delete a single judge
+ */
+export const deleteJudge = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cleanId = String(id).toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const judge = await JuryzaUser.findOne({
+        $or: [{ _id: mongoose.isValidObjectId(id) ? id : null }, { email: cleanId }],
+        role: "judge",
+      });
+      if (judge) {
+        await Edition2Submission.updateMany(
+          {},
+          { $pull: { allotedJudges: judge.email, allotedJudgeNames: judge.name } }
+        );
+        await JuryzaUser.deleteOne({ _id: judge._id });
+      }
+    }
+
+    const targetJudge = localUsersStore.find(
+      (u) => (u._id === id || u.email?.toLowerCase() === cleanId) && u.role === "judge"
+    );
+    if (targetJudge) {
+      localSubmissionsStore.forEach((s) => {
+        if (Array.isArray(s.allotedJudges)) {
+          s.allotedJudges = s.allotedJudges.filter((e) => e !== targetJudge.email);
+        }
+      });
+      localUsersStore = localUsersStore.filter(
+        (u) => u._id !== targetJudge._id && u.email !== targetJudge.email
+      );
+    }
+
+    await triggerSpreadsheetUpdate();
+    return res.status(200).json({ success: true, message: "Judge deleted successfully." });
+  } catch (error) {
+    console.error("Delete judge error:", error);
+    return res.status(500).json({ message: "Failed to delete judge.", error: error.message });
+  }
+};
+
+/**
+ * Admin Action: Purge all submissions, judges, and uploaded files from the portal
+ */
+export const purgeAllPortalData = async (req, res) => {
+  try {
+    // 1. Database purge
+    if (isDbConnected()) {
+      await Edition2Submission.deleteMany({});
+      await JuryzaUser.deleteMany({ role: "judge" });
+      await Evaluation.deleteMany({});
+    }
+
+    // 2. Memory store purge
+    localSubmissionsStore = [];
+    localUsersStore = localUsersStore.filter((u) => u.role === "admin");
+
+    // 3. Purge uploaded files from disk
+    const videosDir = path.join(
+      process.cwd(),
+      "server/uploads/drive_sync/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e/Videos"
+    );
+    const docsDir = path.join(
+      process.cwd(),
+      "server/uploads/drive_sync/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e/Documents"
+    );
+
+    [videosDir, docsDir].forEach((dir) => {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        files.forEach((file) => {
+          if (file !== ".gitkeep") {
+            try {
+              fs.unlinkSync(path.join(dir, file));
+            } catch (e) {
+              console.warn(`Could not delete file ${file}:`, e.message);
+            }
+          }
+        });
+      }
+    });
+
+    // 4. Reset master spreadsheets (both XLSX and CSV)
+    await triggerSpreadsheetUpdate();
+
+    return res.status(200).json({
+      success: true,
+      message: "All teams, judges, and uploaded media files have been purged from the portal.",
+    });
+  } catch (error) {
+    console.error("Purge error:", error);
+    return res.status(500).json({ message: "Failed to purge portal data.", error: error.message });
+  }
 };

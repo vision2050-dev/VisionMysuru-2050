@@ -98,10 +98,27 @@ export const getMediaBlobUrl = async (key) => {
   }
 };
 
+export const clearMediaDB = async () => {
+  try {
+    const db = await openMediaDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE_NAME, "readwrite");
+      const store = tx.objectStore(MEDIA_STORE_NAME);
+      const req = store.clear();
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn("Failed to clear media DB:", e);
+    return false;
+  }
+};
+
 const USERS_KEY = "juryza_users_store";
 const SUBMISSIONS_KEY = "juryza_submissions_store";
+const PURGE_VERSION_KEY = "juryza_purge_v3_clean";
 
-// Initial Seed Users
+// Initial Seed Users (Admin Only)
 const DEFAULT_USERS = [
   {
     id: "user-admin-default",
@@ -112,65 +129,29 @@ const DEFAULT_USERS = [
     organization: "SDMIMD Mysuru",
     createdAt: new Date().toISOString(),
   },
-  {
-    id: "user-judge-default",
-    name: "Dr. K. Srinivas",
-    email: "judge.srinivas@gmail.com",
-    passwordHash: null,
-    role: "judge",
-    organization: "SDMIMD Panel",
-    specialization: "Sustainability & Clean Tech",
-    allotedTeams: ["VM2-ST-88F4A1"],
-    createdAt: new Date().toISOString(),
-  },
 ];
 
-// Initial Seed Submissions
-const DEFAULT_SUBMISSIONS = [
-  {
-    _id: "demo-sub-1",
-    teamId: "VM2-ST-88F4A1",
-    teamName: "EcoFlow Mysuru",
-    participantEmail: "participant.aditi@gmail.com",
-    category: "students",
-    city: "Mysuru",
-    theme: "Environmental Sustainability",
-    solutionName: "Decentralized Kukkarahalli Lake Micro-Filtration Network",
-    shortDescription:
-      "A solar-powered IoT filtration and bio-remediation barrier to eliminate urban storm drainage pollutants flowing into Kukkarahalli Lake.",
-    detailedProposal:
-      "Our team documented untreated discharge canals entering Kukkarahalli lake. We deploy indigenous biomimetic filters with solar-powered aeration units to clean 40,000 liters daily.",
-    video: {
-      originalName: "EcoFlow_Kukkarahalli_Pitch.mp4",
-      size: 14500000,
-      url: "/speech.mp4",
-      webViewLink: "/speech.mp4",
-    },
-    document: {
-      name: "EcoFlow_Lake_Restoration_Report.pdf",
-      originalName: "EcoFlow_Lake_Restoration_Report.pdf",
-      size: 2400000,
-      url: "/sample_proposal.pdf",
-      webViewLink: "/sample_proposal.pdf",
-      driveFileId: null,
-    },
-    members: [
-      {
-        name: "Aditi Rao",
-        email: "participant.aditi@gmail.com",
-        phone: "+91 98451 12345",
-        isLeader: true,
-        college: "The National Institute of Engineering, Mysuru",
-      },
-    ],
-    stage: "allocated to a judge",
-    allotedJudges: ["judge.srinivas@gmail.com"],
-    allotedJudgeNames: ["Dr. K. Srinivas"],
-    rubricAverage: 38.5,
-    eloRating: 1248,
-    createdAt: new Date().toISOString(),
-  },
-];
+// Initial Seed Submissions (Clean Slate: 0 teams)
+const DEFAULT_SUBMISSIONS = [];
+
+// Automatic one-time migration to wipe cached test teams/judges in returning browsers
+if (typeof window !== "undefined") {
+  try {
+    if (!localStorage.getItem(PURGE_VERSION_KEY)) {
+      localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify([]));
+      const existingUsers = JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
+      const cleanedUsers = existingUsers.filter((u) => u.role === "admin");
+      if (cleanedUsers.length === 0) {
+        cleanedUsers.push(DEFAULT_USERS[0]);
+      }
+      localStorage.setItem(USERS_KEY, JSON.stringify(cleanedUsers));
+      localStorage.setItem(PURGE_VERSION_KEY, "true");
+      clearMediaDB();
+    }
+  } catch {
+    // ignore
+  }
+}
 
 export const getStoredUsers = () => {
   try {
@@ -211,6 +192,55 @@ export const saveStoredSubmissions = (subs) => {
     localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(subs));
   } catch (e) {
     console.warn("Storage warning:", e);
+  }
+};
+
+export const deleteStoredSubmission = (teamId) => {
+  const subs = getStoredSubmissions().filter((s) => s.teamId !== teamId);
+  saveStoredSubmissions(subs);
+  const users = getStoredUsers();
+  users.forEach((u) => {
+    if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
+      u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+    }
+  });
+  saveStoredUsers(users);
+  return subs;
+};
+
+export const deleteStoredJudge = (judgeEmailOrId) => {
+  const clean = (judgeEmailOrId || "").toLowerCase().trim();
+  const users = getStoredUsers().filter(
+    (u) => u.id !== judgeEmailOrId && (u.email || "").toLowerCase() !== clean,
+  );
+  saveStoredUsers(users);
+
+  const subs = getStoredSubmissions();
+  subs.forEach((s) => {
+    if (Array.isArray(s.allotedJudges)) {
+      s.allotedJudges = s.allotedJudges.filter((email) => email.toLowerCase() !== clean);
+      if (s.allotedJudges.length === 0 && s.stage === "allocated to a judge") {
+        s.stage = "submitted";
+      }
+    }
+  });
+  saveStoredSubmissions(subs);
+  return users.filter((u) => u.role === "judge");
+};
+
+export const clearAllPortalData = async () => {
+  try {
+    await clearMediaDB();
+    saveStoredSubmissions([]);
+    const users = getStoredUsers().filter((u) => u.role === "admin");
+    if (users.length === 0) {
+      users.push(DEFAULT_USERS[0]);
+    }
+    saveStoredUsers(users);
+    return true;
+  } catch (e) {
+    console.warn("Failed to clear portal data:", e);
+    return false;
   }
 };
 

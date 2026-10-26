@@ -18,6 +18,9 @@ import {
   streamSubmissionVideo,
   previewSubmissionDocument,
   getDriveSyncStatus,
+  deleteSubmission,
+  deleteJudge,
+  purgeAllPortalData,
 } from "../controllers/juryzaController.js";
 import { submissionUpload } from "../middleware/upload.js";
 import {
@@ -91,6 +94,11 @@ router.post("/admin/create-judge", verifyAuthToken, requireAdmin, createJudgeAcc
 router.post("/admin/judges/create", verifyAuthToken, requireAdmin, createJudgeAccount); // Alias
 router.post("/admin/allocate", verifyAuthToken, requireAdmin, allocateSubmission);
 router.get("/judges", getJudges); // Alias for allocation panels
+
+// Delete & Purge Actions
+router.delete("/admin/submissions/:id", verifyAuthToken, requireAdmin, deleteSubmission);
+router.delete("/admin/judges/:id", verifyAuthToken, requireAdmin, deleteJudge);
+router.post("/admin/purge-all", verifyAuthToken, requireAdmin, purgeAllPortalData);
 
 // Live Master Spreadsheet
 router.get("/spreadsheet/download", downloadSpreadsheet);
