@@ -15,19 +15,34 @@ import {
   FiLogOut,
   FiExternalLink,
   FiClock,
+  FiMail,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+  FiArrowRight,
+  FiAlertCircle,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
   getStoredSubmissions,
   submitStoredRubricScore,
   updateStoredSubmissionStage,
+  clientSignIn,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
 export const JuryzaHub = () => {
   const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [judgeEmail, setJudgeEmail] = useState("");
   const [judgeName, setJudgeName] = useState("");
+
+  // Judge Login form state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const [activeTab, setActiveTab] = useState("rubric"); // "rubric" | "duel"
   const [submissions, setSubmissions] = useState([]);
@@ -59,17 +74,100 @@ export const JuryzaHub = () => {
     const email = localStorage.getItem("juryzaEmail");
     const name = localStorage.getItem("juryzaName");
 
-    if (!token || !email) {
-      toast("Please sign in as a judge to access the Jury Evaluation Hub.", { icon: "⚖️" });
-      navigate("/juryza");
+    if (token && email && (role === "judge" || role === "admin")) {
+      setIsAuthenticated(true);
+      setJudgeEmail(email);
+      setJudgeName(name || "Jury Member");
+      fetchSubmissions();
+      fetchDuelPair();
+    } else {
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  }, []);
+
+  const handleJudgeLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    const cleanEmail = (loginEmail || "").toLowerCase().trim();
+
+    if (!cleanEmail) {
+      setLoginError("Please enter your registered Judge Gmail ID.");
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError("Please enter your password.");
       return;
     }
 
-    setJudgeEmail(email);
-    setJudgeName(name || "Jury Member");
-    fetchSubmissions();
-    fetchDuelPair();
-  }, [navigate]);
+    setLoginLoading(true);
+
+    try {
+      let authData = null;
+      try {
+        const res = await api.post("/api/v2/auth/signin", {
+          email: cleanEmail,
+          password: loginPassword,
+          requestedRole: "judge",
+        });
+        authData = res.data;
+      } catch (apiErr) {
+        const status = apiErr.response?.status;
+        const sMsg = apiErr.response?.data?.message;
+        if (status === 401 || status === 403) {
+          setLoginError(sMsg || "Invalid judge credentials or unauthorized account.");
+          setLoginLoading(false);
+          return;
+        }
+
+        // Local fallback
+        authData = await clientSignIn({
+          email: cleanEmail,
+          password: loginPassword,
+          requestedRole: "judge",
+        });
+      }
+
+      if (authData && (authData.token || authData.user)) {
+        const user = authData.user || {};
+        const token = authData.token || `session-${Date.now()}`;
+        const userRole = user.role || "judge";
+
+        if (userRole !== "judge" && userRole !== "admin") {
+          setLoginError("Access denied. This portal is strictly for appointed jury members.");
+          setLoginLoading(false);
+          return;
+        }
+
+        localStorage.setItem("juryzaToken", token);
+        localStorage.setItem("juryzaRole", userRole);
+        localStorage.setItem("juryzaEmail", user.email || cleanEmail);
+        localStorage.setItem("juryzaName", user.name || "Jury Member");
+
+        setJudgeEmail(user.email || cleanEmail);
+        setJudgeName(user.name || "Jury Member");
+        setIsAuthenticated(true);
+        toast.success("Welcome to the Jury Evaluation Hub!");
+        fetchSubmissions();
+        fetchDuelPair();
+      }
+    } catch (err) {
+      setLoginError(err.message || "Failed to authenticate judge. Please check your credentials.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("juryzaToken");
+    localStorage.removeItem("juryzaRole");
+    localStorage.removeItem("juryzaEmail");
+    localStorage.removeItem("juryzaName");
+    setIsAuthenticated(false);
+    setJudgeEmail("");
+    setJudgeName("");
+    toast.success("Signed out from Jury Hub.");
+  };
 
   const fetchSubmissions = async () => {
     try {
@@ -193,14 +291,106 @@ export const JuryzaHub = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("juryzaToken");
-    localStorage.removeItem("juryzaRole");
-    localStorage.removeItem("juryzaEmail");
-    localStorage.removeItem("juryzaName");
-    toast.success("Signed out from Jury Hub.");
-    navigate("/juryza");
-  };
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white flex flex-col">
+        {/* Top Header */}
+        <header className="border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md sticky top-0 z-40">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-[var(--muted)] hover:text-[var(--text)] transition"
+            >
+              <FiArrowLeft className="h-4 w-4" />
+              <span>Back to Site</span>
+            </Link>
+            <ThemeToggle size="sm" />
+          </div>
+        </header>
+
+        {/* Center Container */}
+        <main className="flex-1 flex items-center justify-center px-4 py-12 sm:px-6">
+          <div className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8 shadow-xl">
+            <div className="text-center mb-6">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/15 text-[var(--primary)] mb-3">
+                <FiAward className="h-6 w-6" />
+              </div>
+              <h1 className="text-xl font-bold text-[var(--text)]">
+                Jury Evaluation Panel
+              </h1>
+              <p className="text-xs text-[var(--muted)] mt-1.5 leading-relaxed">
+                Enter your official judge credentials provided by the organizing team to evaluate alloted submissions.
+              </p>
+            </div>
+
+            {loginError && (
+              <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-600 dark:text-red-400">
+                <FiAlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleJudgeLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  Judge Gmail / Email ID
+                </label>
+                <div className="relative">
+                  <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
+                  <input
+                    type="email"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="judge.gmail@gmail.com"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
+                  <input
+                    type={showLoginPassword ? "text" : "password"}
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="Enter judge password"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-10 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword((prev) => !prev)}
+                    tabIndex={-1}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                  >
+                    {showLoginPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white shadow-md bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-all duration-200 cursor-pointer disabled:opacity-60"
+              >
+                {loginLoading ? <span>Authenticating...</span> : (
+                  <>
+                    <span>Sign In to Evaluation Hub</span>
+                    <FiArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white">
