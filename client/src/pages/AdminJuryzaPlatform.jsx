@@ -634,6 +634,12 @@ export const AdminJuryzaPlatform = () => {
                     )}
                     {submissions.map((sub) => {
                       const alloted = (sub.allotedJudges || [])[0] || "";
+                      const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
+                      const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
+                      const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
+                      const focusArea = sub.theme || sub.thematicArea || "Focus Area";
+                      const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
+                      const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
 
                       return (
                         <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
@@ -650,16 +656,16 @@ export const AdminJuryzaPlatform = () => {
                             </div>
                           </td>
 
-                          {/* Focus Area */}
+                          {/* Focus Area & Team Leader */}
                           <td className="px-4 py-3.5">
                             <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[var(--accent)] border border-amber-500/30">
-                              {sub.thematicArea || "Focus Area"}
+                              {focusArea}
                             </span>
                             <div className="text-[11px] text-[var(--text)] font-medium mt-1">
-                              {sub.teamLeadName}
+                              {leaderName}
                             </div>
                             <div className="text-[10px] text-[var(--muted)] font-mono">
-                              {sub.teamLeadEmail}
+                              {leaderEmail}
                             </div>
                           </td>
 
@@ -667,14 +673,14 @@ export const AdminJuryzaPlatform = () => {
                           <td className="px-4 py-3.5 space-y-1">
                             <div className="flex items-center gap-1.5 text-[11px]">
                               <FiVideo className="h-3 w-3 text-red-500" />
-                              <span className="truncate max-w-[120px] text-[var(--text)]">
-                                {sub.videoFileName || "Pitch Video (.mp4)"}
+                              <span className="truncate max-w-[120px] text-[var(--text)]" title={videoName}>
+                                {videoName}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px]">
                               <FiFileText className="h-3 w-3 text-amber-500" />
-                              <span className="truncate max-w-[120px] text-[var(--text)]">
-                                {sub.proposalDeckFileName || "Proposal (.pdf)"}
+                              <span className="truncate max-w-[120px] text-[var(--text)]" title={docName}>
+                                {docName}
                               </span>
                             </div>
                           </td>
