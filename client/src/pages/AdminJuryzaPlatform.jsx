@@ -43,7 +43,6 @@ import {
   clientCreateJudge,
   getMediaBlobUrl,
   deleteStoredSubmission,
-  deleteStoredJudge,
   clearAllPortalData,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -419,37 +418,6 @@ export const AdminJuryzaPlatform = () => {
     deleteStoredSubmission(teamId);
     setSubmissions((prev) => prev.filter((s) => s.teamId !== teamId));
     toast.success(`Team "${teamName}" deleted.`);
-  };
-
-  // Delete a single judge
-  const handleDeleteJudge = async (judgeEmail, judgeName) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete judge "${judgeName}" (${judgeEmail})? This will revoke their evaluation credentials.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await api.delete(`/api/v2/admin/judges/${encodeURIComponent(judgeEmail)}`);
-    } catch {
-      console.warn("Backend unavailable, deleting locally...");
-    }
-    deleteStoredJudge(judgeEmail);
-    setJudges((prev) => prev.filter((j) => (j.email || "").toLowerCase() !== judgeEmail.toLowerCase()));
-    setSubmissions((prev) =>
-      prev.map((s) => {
-        if (Array.isArray(s.allotedJudges) && s.allotedJudges.includes(judgeEmail)) {
-          return {
-            ...s,
-            allotedJudges: s.allotedJudges.filter((e) => e !== judgeEmail),
-            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
-          };
-        }
-        return s;
-      })
-    );
-    toast.success(`Judge "${judgeName}" deleted.`);
   };
 
   // Purge all portal data (teams & judges)
@@ -991,13 +959,12 @@ export const AdminJuryzaPlatform = () => {
                       <th className="px-4 py-3">Specialization Track</th>
                       <th className="px-4 py-3">Alloted Teams Count</th>
                       <th className="px-4 py-3">Registered Date</th>
-                      <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {judges.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
+                        <td colSpan={6} className="text-center py-12 text-[var(--muted)]">
                           No judges registered yet. Click &apos;Generate Judge Account&apos; above.
                         </td>
                       </tr>
@@ -1034,16 +1001,6 @@ export const AdminJuryzaPlatform = () => {
                             {judge.createdAt
                               ? new Date(judge.createdAt).toLocaleDateString("en-IN")
                               : "Active"}
-                          </td>
-                          <td className="px-4 py-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteJudge(judge.email, judge.name)}
-                              title="Delete Judge Account"
-                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
-                            >
-                              <FiTrash2 className="h-3.5 w-3.5" />
-                            </button>
                           </td>
                         </tr>
                       );
