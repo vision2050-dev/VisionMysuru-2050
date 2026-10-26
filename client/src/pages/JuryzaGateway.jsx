@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiUsers,
-  FiAward,
-  FiShield,
+  FiMail,
+  FiLock,
+  FiUser,
   FiArrowRight,
   FiCheckCircle,
-  FiLock,
-  FiMail,
-  FiUser,
   FiPhone,
   FiBriefcase,
   FiAlertCircle,
@@ -22,7 +20,6 @@ import ThemeToggle from "../Components/ThemeToggle";
 
 export const JuryzaGateway = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("participant"); // "participant" | "judge" | "admin"
   const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup"
 
   // Form states
@@ -31,7 +28,6 @@ export const JuryzaGateway = () => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [organization, setOrganization] = useState("");
-  const [specialization, setSpecialization] = useState("Environmental Sustainability");
 
   // Show/hide password state
   const [showPassword, setShowPassword] = useState(false);
@@ -41,16 +37,6 @@ export const JuryzaGateway = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setError("");
-    setSuccess("");
-    // Pre-fill email placeholder or prompt if switching
-    if (tab === "admin" && !email) {
-      setEmail("vision2050@sdmimd.ac.in");
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -58,24 +44,30 @@ export const JuryzaGateway = () => {
 
     const cleanEmail = (email || "").toLowerCase().trim();
     if (!cleanEmail) {
-      setError("Please enter a valid Gmail ID.");
+      setError("Please enter a valid Gmail / Email ID.");
       return;
     }
 
-    if (!password || password.length < 4) {
-      setError("Password must be at least 4 characters long.");
-      return;
+    if (authMode === "signup") {
+      if (!password || password.length < 8) {
+        setError("Password must be at least 8 characters long.");
+        return;
+      }
+    } else {
+      if (!password) {
+        setError("Please enter your password.");
+        return;
+      }
     }
 
     if (authMode === "signup" && !name.trim()) {
-      setError("Please enter your full name.");
+      setError("Please enter the team leader or participant name.");
       return;
     }
 
     setLoading(true);
 
     let authData = null;
-    let authError = null;
 
     // 1. Primary Engine: Attempt Backend API
     try {
@@ -84,10 +76,9 @@ export const JuryzaGateway = () => {
           name: name.trim(),
           email: cleanEmail,
           password,
-          role: activeTab,
+          role: "participant",
           phone: phone.trim(),
           organization: organization.trim(),
-          specialization,
         };
         const res = await api.post("/api/v2/auth/signup", payload);
         authData = res.data;
@@ -95,49 +86,42 @@ export const JuryzaGateway = () => {
         const payload = {
           email: cleanEmail,
           password,
-          requestedRole: activeTab,
+          requestedRole: "participant",
         };
         const res = await api.post("/api/v2/auth/signin", payload);
         authData = res.data;
       }
     } catch (backendErr) {
-      authError = backendErr;
       console.warn("Backend API unreachable or returned error:", backendErr.message);
 
-      // If backend returned a clear business error from DB (e.g. invalid password or unauthorized role),
-      // check if it's a network error (no response) vs 401/403/404 from active server
       const status = backendErr.response?.status;
       const serverMessage = backendErr.response?.data?.message;
 
-      // If backend is active and gave a definitive auth rejection (e.g. wrong password or unauthorized role)
       if (status === 401 || status === 403) {
         setError(serverMessage || "Authentication failed. Please verify your credentials.");
         setLoading(false);
         return;
       }
 
-      // If backend is offline, network failed, or not found on deployed domain:
-      // Seamlessly fall back to client storage engine
+      // Fallback to client storage engine
       try {
         if (authMode === "signup") {
           authData = await clientSignUp({
             name: name.trim(),
             email: cleanEmail,
             password,
-            role: activeTab,
+            role: "participant",
             phone: phone.trim(),
             organization: organization.trim(),
-            specialization,
           });
         } else {
           authData = await clientSignIn({
             email: cleanEmail,
             password,
-            requestedRole: activeTab,
+            requestedRole: "participant",
           });
         }
       } catch (clientErr) {
-        // Fallback also failed or gave a user-friendly message
         const finalMsg =
           clientErr.message ||
           serverMessage ||
@@ -151,31 +135,20 @@ export const JuryzaGateway = () => {
     if (authData && (authData.token || authData.user)) {
       const user = authData.user || {};
       const token = authData.token || `session-${Date.now()}`;
-      const userRole = user.role || activeTab;
 
       localStorage.setItem("juryzaToken", token);
-      localStorage.setItem("juryzaRole", userRole);
+      localStorage.setItem("juryzaRole", "participant");
       localStorage.setItem("juryzaEmail", user.email || cleanEmail);
-      localStorage.setItem("juryzaName", user.name || name || "User");
-
-      if (userRole === "admin") {
-        localStorage.setItem("adminToken", token);
-      }
+      localStorage.setItem("juryzaName", user.name || name || "Participant");
 
       setSuccess(
         authMode === "signup"
-          ? "Account registered successfully! Redirecting..."
-          : "Signed in successfully! Redirecting...",
+          ? "Account registered successfully! Redirecting to submission portal..."
+          : "Signed in successfully! Redirecting to submission portal...",
       );
 
       setTimeout(() => {
-        if (userRole === "admin") {
-          navigate("/admin");
-        } else if (userRole === "judge") {
-          navigate("/jury");
-        } else {
-          navigate("/portal");
-        }
+        navigate("/portal");
       }, 500);
     } else {
       setError("Unable to process authentication. Please try again.");
@@ -196,7 +169,7 @@ export const JuryzaGateway = () => {
                 Vision Mysuru 2050
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                Edition 2 • Registration Portal
+                Edition 2 • Participant Portal
               </span>
             </div>
           </Link>
@@ -211,104 +184,29 @@ export const JuryzaGateway = () => {
       <main className="mx-auto max-w-5xl px-4 py-8 sm:py-12 sm:px-6">
         {/* Title banner */}
         <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-[var(--accent)] mb-3">
-            <span>⚖️ Official Event Portal</span>
-          </div>
           <h1 className="oswald text-3xl sm:text-5xl font-extrabold uppercase tracking-tight text-[var(--text)]">
             Vision Mysuru <span className="text-[var(--accent)]">2050</span> (Ed. 2)
           </h1>
           <p className="mt-2.5 text-sm sm:text-base text-[var(--muted)]">
-            One unified platform for participant registrations, jury evaluations, and administrative oversight.
+            Participant registration and live project submission portal.
           </p>
-        </div>
-
-        {/* 3 Portal Role Selector Tabs */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 max-w-3xl mx-auto">
-          {/* Participant Tab */}
-          <button
-            type="button"
-            onClick={() => handleTabChange("participant")}
-            className={`flex flex-col items-center text-center p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
-              activeTab === "participant"
-                ? "border-[var(--accent)] bg-amber-500/10 shadow-md ring-2 ring-[var(--accent)]/30"
-                : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
-            }`}
-          >
-            <div
-              className={`h-11 w-11 rounded-xl flex items-center justify-center mb-2.5 transition ${
-                activeTab === "participant"
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--surface-2)] text-[var(--muted)]"
-              }`}
-            >
-              <FiUsers className="h-5 w-5" />
-            </div>
-            <h3 className="font-bold text-sm text-[var(--text)]">1. Participants</h3>
-            <p className="text-[11px] text-[var(--muted)] mt-1">
-              Register team & track submission live
-            </p>
-          </button>
-
-          {/* Judge Tab */}
-          <button
-            type="button"
-            onClick={() => handleTabChange("judge")}
-            className={`flex flex-col items-center text-center p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
-              activeTab === "judge"
-                ? "border-[var(--primary)] bg-red-500/10 shadow-md ring-2 ring-[var(--primary)]/30"
-                : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
-            }`}
-          >
-            <div
-              className={`h-11 w-11 rounded-xl flex items-center justify-center mb-2.5 transition ${
-                activeTab === "judge"
-                  ? "bg-[var(--primary)] text-white"
-                  : "bg-[var(--surface-2)] text-[var(--muted)]"
-              }`}
-            >
-              <FiAward className="h-5 w-5" />
-            </div>
-            <h3 className="font-bold text-sm text-[var(--text)]">2. Judges (Jury)</h3>
-            <p className="text-[11px] text-[var(--muted)] mt-1">
-              Score only alloted team submissions
-            </p>
-          </button>
-
-          {/* Admin Tab */}
-          <button
-            type="button"
-            onClick={() => handleTabChange("admin")}
-            className={`flex flex-col items-center text-center p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
-              activeTab === "admin"
-                ? "border-emerald-500 bg-emerald-500/10 shadow-md ring-2 ring-emerald-500/30"
-                : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
-            }`}
-          >
-            <div
-              className={`h-11 w-11 rounded-xl flex items-center justify-center mb-2.5 transition ${
-                activeTab === "admin"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-[var(--surface-2)] text-[var(--muted)]"
-              }`}
-            >
-              <FiShield className="h-5 w-5" />
-            </div>
-            <h3 className="font-bold text-sm text-[var(--text)]">3. Admin</h3>
-            <p className="text-[11px] text-[var(--muted)] mt-1">
-              Full control, allocations & master data
-            </p>
-          </button>
         </div>
 
         {/* Dynamic Card Container */}
         <div className="max-w-md mx-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8 shadow-xl">
           {/* Card Header & Sign-in / Sign-up toggle */}
           <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold text-[var(--text)] flex items-center justify-center gap-2">
-              {activeTab === "participant" && <span>Participant Portal</span>}
-              {activeTab === "judge" && <span>Jury Panel Portal</span>}
-              {activeTab === "admin" && <span>Admin Control Room</span>}
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] mb-3">
+              <FiUsers className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-bold text-[var(--text)]">
+              Participant Portal
             </h2>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              {authMode === "signup"
+                ? "Register your team to submit your idea"
+                : "Sign in to track submission or upload project files"}
+            </p>
 
             <div className="mt-4 inline-flex p-1 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
               <button
@@ -337,7 +235,7 @@ export const JuryzaGateway = () => {
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
-                Sign Up (New)
+                Sign Up (New Team)
               </button>
             </div>
           </div>
@@ -356,7 +254,6 @@ export const JuryzaGateway = () => {
                   <span className="font-semibold leading-relaxed">{error}</span>
                 </div>
 
-                {/* Helpful quick actions based on error */}
                 {error.toLowerCase().includes("no account found") && authMode === "signin" && (
                   <button
                     type="button"
@@ -407,7 +304,7 @@ export const JuryzaGateway = () => {
             {authMode === "signup" && (
               <div>
                 <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
-                  Full Name
+                  Team Leader / Participant Full Name
                 </label>
                 <div className="relative">
                   <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
@@ -416,13 +313,7 @@ export const JuryzaGateway = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={
-                      activeTab === "judge"
-                        ? "Dr. / Prof. / Judge Name"
-                        : activeTab === "admin"
-                        ? "Admin Name / SDMIMD Officer"
-                        : "Team Leader Name"
-                    }
+                    placeholder="e.g. Prajwal M S"
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                   />
                 </div>
@@ -433,7 +324,7 @@ export const JuryzaGateway = () => {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-semibold text-[var(--text)]">
-                  Gmail / Official Email ID
+                  Gmail / Email ID
                 </label>
                 <span className="text-[11px] text-[var(--muted)] font-normal">
                   Must be accessible
@@ -446,13 +337,7 @@ export const JuryzaGateway = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={
-                    activeTab === "admin"
-                      ? "vision2050@sdmimd.ac.in"
-                      : activeTab === "judge"
-                      ? "judge.mysuru@gmail.com"
-                      : "teamleader@gmail.com"
-                  }
+                  placeholder="teamlead@gmail.com"
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                 />
               </div>
@@ -463,7 +348,7 @@ export const JuryzaGateway = () => {
               <>
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
-                    Phone Number
+                    Phone / WhatsApp Number
                   </label>
                   <div className="relative">
                     <FiPhone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
@@ -479,7 +364,7 @@ export const JuryzaGateway = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
-                    Institution / Organization
+                    College / Institution / Organization
                   </label>
                   <div className="relative">
                     <FiBriefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
@@ -487,36 +372,11 @@ export const JuryzaGateway = () => {
                       type="text"
                       value={organization}
                       onChange={(e) => setOrganization(e.target.value)}
-                      placeholder={
-                        activeTab === "admin"
-                          ? "SDMIMD Mysuru"
-                          : "e.g. NIE / SDMIMD / Infosys"
-                      }
+                      placeholder="e.g. NIE Mysuru / SDMIMD / Infosys"
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                     />
                   </div>
                 </div>
-
-                {activeTab === "judge" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
-                      Evaluation Domain / Track
-                    </label>
-                    <select
-                      value={specialization}
-                      onChange={(e) => setSpecialization(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
-                    >
-                      <option value="Environmental Sustainability">Environmental Sustainability</option>
-                      <option value="Urban Infrastructure & Mobility">Urban Infrastructure & Mobility</option>
-                      <option value="Heritage & Tourism">Heritage & Tourism</option>
-                      <option value="Smart Governance & Digital Tech">Smart Governance & Digital Tech</option>
-                      <option value="Healthcare & Wellbeing">Healthcare & Wellbeing</option>
-                      <option value="Education & Skill Development">Education & Skill Development</option>
-                      <option value="All Tracks / General">All Tracks / General</option>
-                    </select>
-                  </div>
-                )}
               </>
             )}
 
@@ -527,7 +387,7 @@ export const JuryzaGateway = () => {
                   {authMode === "signup" ? "Create Password" : "Password"}
                 </label>
                 {authMode === "signup" && (
-                  <span className="text-[11px] text-[var(--muted)]">Min. 4 characters</span>
+                  <span className="text-[11px] text-[var(--muted)]">Min. 8 characters</span>
                 )}
               </div>
               <div className="relative">
@@ -535,11 +395,12 @@ export const JuryzaGateway = () => {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
+                  minLength={authMode === "signup" ? 8 : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={
                     authMode === "signup"
-                      ? "Enter your secure password"
+                      ? "Enter secure password (min. 8 characters)"
                       : "Enter your password"
                   }
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-10 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
@@ -560,13 +421,9 @@ export const JuryzaGateway = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white shadow-md transition-all duration-200 cursor-pointer ${
-                activeTab === "admin"
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : activeTab === "judge"
-                  ? "bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
-                  : "bg-[var(--accent)] hover:brightness-110"
-              } ${loading ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.01]"}`}
+              className={`w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white shadow-md bg-[var(--accent)] hover:brightness-110 transition-all duration-200 cursor-pointer ${
+                loading ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.01]"
+              }`}
             >
               {loading ? (
                 <span>Processing...</span>
@@ -574,20 +431,8 @@ export const JuryzaGateway = () => {
                 <>
                   <span>
                     {authMode === "signup"
-                      ? `Create ${
-                          activeTab === "admin"
-                            ? "Admin"
-                            : activeTab === "judge"
-                            ? "Judge"
-                            : "Participant"
-                        } Account`
-                      : `Sign In to ${
-                          activeTab === "admin"
-                            ? "Admin Control Room"
-                            : activeTab === "judge"
-                            ? "Jury Hub"
-                            : "Participant Portal"
-                        }`}
+                      ? "Create Participant Account"
+                      : "Sign In to Participant Portal"}
                   </span>
                   <FiArrowRight className="h-4 w-4" />
                 </>
