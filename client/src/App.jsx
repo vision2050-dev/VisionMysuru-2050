@@ -29,12 +29,30 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/edition-1" element={<EditionOnePage />} />
+
+            {/* Participant Registration & Portals */}
             <Route path="/register" element={<JuryzaGateway />} />
+            <Route path="/signup" element={<Navigate to="/register" replace />} />
+            <Route path="/participant" element={<Navigate to="/register" replace />} />
+            <Route path="/participate" element={<Navigate to="/register" replace />} />
             <Route path="/juryza" element={<Navigate to="/register" replace />} />
+            
+            {/* Participant Submission Dashboard */}
             <Route path="/portal" element={<ParticipantPortal />} />
+            <Route path="/submission" element={<Navigate to="/portal" replace />} />
+            <Route path="/submissions" element={<Navigate to="/portal" replace />} />
+            <Route path="/participant-portal" element={<Navigate to="/portal" replace />} />
+
+            {/* Jury / Judge Evaluation Hub */}
             <Route path="/jury" element={<JuryzaHub />} />
             <Route path="/judge" element={<Navigate to="/jury" replace />} />
+            <Route path="/judges" element={<Navigate to="/jury" replace />} />
+            <Route path="/jury-portal" element={<Navigate to="/jury" replace />} />
+
+            {/* Admin Platform Console */}
             <Route path="/admin" element={<AdminJuryzaPlatform />} />
+            <Route path="/admin-portal" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin/console" element={<Navigate to="/admin" replace />} />
             <Route path="/shortlist" element={<SubmitIdeaPage />} />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/certificates" element={<CertificatesPage />} />
