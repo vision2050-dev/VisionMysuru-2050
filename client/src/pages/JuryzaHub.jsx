@@ -291,6 +291,24 @@ export const JuryzaHub = () => {
     }
   };
 
+  const getVideoSrc = (sub) => {
+    if (!sub) return "";
+    if (sub.video?.url) return sub.video.url;
+    if (sub.video?.webViewLink) return sub.video.webViewLink;
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    const base = api.defaults.baseURL || "";
+    return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+  };
+
+  const getDocHref = (sub) => {
+    if (!sub) return "#";
+    if (sub.document?.url) return sub.document.url;
+    if (sub.document?.webViewLink) return sub.document.webViewLink;
+    if (sub.docBlobUrl) return sub.docBlobUrl;
+    const base = api.defaults.baseURL || "";
+    return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white flex flex-col">
@@ -627,7 +645,7 @@ export const JuryzaHub = () => {
                       <video
                         controls
                         key={selectedSubmission.teamId}
-                        src={`http://localhost:5001/api/v2/submissions/${selectedSubmission.teamId}/video-stream`}
+                        src={getVideoSrc(selectedSubmission)}
                         className="h-full w-full object-contain"
                       />
                     </div>
@@ -641,7 +659,7 @@ export const JuryzaHub = () => {
                         <span>Proposal Document (.pdf) & Abstract</span>
                       </div>
                       <a
-                        href={`http://localhost:5001/api/v2/submissions/${selectedSubmission.teamId}/document-preview`}
+                        href={getDocHref(selectedSubmission)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--accent)] hover:underline"

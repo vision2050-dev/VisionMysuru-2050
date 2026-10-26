@@ -324,6 +324,24 @@ export const ParticipantPortal = () => {
     return "pending";
   };
 
+  const getVideoSrc = (sub) => {
+    if (!sub) return "";
+    if (sub.video?.url) return sub.video.url;
+    if (sub.video?.webViewLink) return sub.video.webViewLink;
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    const base = api.defaults.baseURL || "";
+    return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+  };
+
+  const getDocHref = (sub) => {
+    if (!sub) return "#";
+    if (sub.document?.url) return sub.document.url;
+    if (sub.document?.webViewLink) return sub.document.webViewLink;
+    if (sub.docBlobUrl) return sub.docBlobUrl;
+    const base = api.defaults.baseURL || "";
+    return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white">
       {/* Top Header */}
@@ -390,18 +408,6 @@ export const ParticipantPortal = () => {
                     Team ID: <strong className="text-[var(--text)] font-mono">{mySubmission.teamId}</strong> • Registered:{" "}
                     {new Date(mySubmission.createdAt).toLocaleString("en-IN")}
                   </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href="https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] transition"
-                  >
-                    <span>Event Drive Folder</span>
-                    <FiExternalLink className="h-3 w-3" />
-                  </a>
                 </div>
               </div>
 
@@ -547,7 +553,7 @@ export const ParticipantPortal = () => {
                 <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden border border-[var(--border)]">
                   <video
                     controls
-                    src={`http://localhost:5001/api/v2/submissions/${mySubmission.teamId}/video-stream`}
+                    src={getVideoSrc(mySubmission)}
                     className="h-full w-full object-contain"
                   />
                 </div>
@@ -574,7 +580,7 @@ export const ParticipantPortal = () => {
 
                 <div className="mt-4 pt-4 border-t border-[var(--border)] flex gap-2">
                   <a
-                    href={`http://localhost:5001/api/v2/submissions/${mySubmission.teamId}/document-preview`}
+                    href={getDocHref(mySubmission)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition"
