@@ -69,12 +69,17 @@ export const JuryzaHub = () => {
   const [votingDuel, setVotingDuel] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("juryzaToken");
-    const role = localStorage.getItem("juryzaRole");
-    const email = localStorage.getItem("juryzaEmail");
-    const name = localStorage.getItem("juryzaName");
+    const token =
+      localStorage.getItem("juryzaJudgeToken") ||
+      (localStorage.getItem("juryzaRole") === "judge" ? localStorage.getItem("juryzaToken") : null);
+    const email =
+      localStorage.getItem("juryzaJudgeEmail") ||
+      (localStorage.getItem("juryzaRole") === "judge" ? localStorage.getItem("juryzaEmail") : null);
+    const name =
+      localStorage.getItem("juryzaJudgeName") ||
+      (localStorage.getItem("juryzaRole") === "judge" ? localStorage.getItem("juryzaName") : null);
 
-    if (token && email && (role === "judge" || role === "admin")) {
+    if (token && email) {
       setIsAuthenticated(true);
       setJudgeEmail(email);
       setJudgeName(name || "Jury Member");
@@ -139,10 +144,17 @@ export const JuryzaHub = () => {
           return;
         }
 
-        localStorage.setItem("juryzaToken", token);
-        localStorage.setItem("juryzaRole", userRole);
-        localStorage.setItem("juryzaEmail", user.email || cleanEmail);
-        localStorage.setItem("juryzaName", user.name || "Jury Member");
+        localStorage.setItem("juryzaJudgeToken", token);
+        localStorage.setItem("juryzaJudgeRole", "judge");
+        localStorage.setItem("juryzaJudgeEmail", user.email || cleanEmail);
+        localStorage.setItem("juryzaJudgeName", user.name || "Jury Member");
+
+        if (localStorage.getItem("juryzaRole") !== "admin") {
+          localStorage.setItem("juryzaToken", token);
+          localStorage.setItem("juryzaRole", "judge");
+          localStorage.setItem("juryzaEmail", user.email || cleanEmail);
+          localStorage.setItem("juryzaName", user.name || "Jury Member");
+        }
 
         setJudgeEmail(user.email || cleanEmail);
         setJudgeName(user.name || "Jury Member");
@@ -159,10 +171,16 @@ export const JuryzaHub = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("juryzaToken");
-    localStorage.removeItem("juryzaRole");
-    localStorage.removeItem("juryzaEmail");
-    localStorage.removeItem("juryzaName");
+    localStorage.removeItem("juryzaJudgeToken");
+    localStorage.removeItem("juryzaJudgeRole");
+    localStorage.removeItem("juryzaJudgeEmail");
+    localStorage.removeItem("juryzaJudgeName");
+    if (localStorage.getItem("juryzaRole") === "judge") {
+      localStorage.removeItem("juryzaToken");
+      localStorage.removeItem("juryzaRole");
+      localStorage.removeItem("juryzaEmail");
+      localStorage.removeItem("juryzaName");
+    }
     setIsAuthenticated(false);
     setJudgeEmail("");
     setJudgeName("");
@@ -181,7 +199,12 @@ export const JuryzaHub = () => {
     } catch {
       // Local fallback
       const stored = getStoredSubmissions();
-      const myEmail = (localStorage.getItem("juryzaEmail") || "").toLowerCase().trim();
+      const myEmail = (
+        judgeEmail ||
+        localStorage.getItem("juryzaJudgeEmail") ||
+        localStorage.getItem("juryzaEmail") ||
+        ""
+      ).toLowerCase().trim();
       const myTeams = stored.filter(
         (s) =>
           (s.allotedJudges || []).map((j) => j.toLowerCase()).includes(myEmail) ||

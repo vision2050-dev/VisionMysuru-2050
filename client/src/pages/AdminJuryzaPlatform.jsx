@@ -74,11 +74,18 @@ export const AdminJuryzaPlatform = () => {
   const [judgeCreationSuccess, setJudgeCreationSuccess] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("juryzaToken");
-    const role = localStorage.getItem("juryzaRole");
-    const email = (localStorage.getItem("juryzaEmail") || "").toLowerCase().trim();
+    const token =
+      localStorage.getItem("juryzaAdminToken") ||
+      (localStorage.getItem("juryzaRole") === "admin" ? localStorage.getItem("juryzaToken") : null) ||
+      localStorage.getItem("adminToken");
+    const role = localStorage.getItem("juryzaAdminRole") || localStorage.getItem("juryzaRole");
+    const email = (
+      localStorage.getItem("juryzaAdminEmail") ||
+      localStorage.getItem("juryzaEmail") ||
+      ""
+    ).toLowerCase().trim();
 
-    if (token && role === "admin" && (email === ADMIN_EMAIL || !email)) {
+    if (token && (role === "admin" || !role) && (email === ADMIN_EMAIL || !email)) {
       setIsAdminAuth(true);
       setAdminEmail(ADMIN_EMAIL);
       setAdminName("Administrator");
@@ -129,9 +136,14 @@ export const AdminJuryzaPlatform = () => {
         const user = authData.user || {};
         const token = authData.token || `admin-session-${Date.now()}`;
 
+        localStorage.setItem("juryzaAdminToken", token);
+        localStorage.setItem("juryzaAdminRole", "admin");
+        localStorage.setItem("juryzaAdminEmail", ADMIN_EMAIL);
+        localStorage.setItem("juryzaAdminName", user.name || "Administrator");
+        localStorage.setItem("adminToken", token);
+
         localStorage.setItem("juryzaToken", token);
         localStorage.setItem("juryzaRole", "admin");
-        localStorage.setItem("adminToken", token);
         localStorage.setItem("juryzaEmail", ADMIN_EMAIL);
         localStorage.setItem("juryzaName", user.name || "Administrator");
 
@@ -147,10 +159,17 @@ export const AdminJuryzaPlatform = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("juryzaToken");
-    localStorage.removeItem("juryzaRole");
-    localStorage.removeItem("juryzaEmail");
+    localStorage.removeItem("juryzaAdminToken");
+    localStorage.removeItem("juryzaAdminRole");
+    localStorage.removeItem("juryzaAdminEmail");
+    localStorage.removeItem("juryzaAdminName");
     localStorage.removeItem("adminToken");
+    if (localStorage.getItem("juryzaRole") === "admin") {
+      localStorage.removeItem("juryzaToken");
+      localStorage.removeItem("juryzaRole");
+      localStorage.removeItem("juryzaEmail");
+      localStorage.removeItem("juryzaName");
+    }
     setIsAdminAuth(false);
     setLoginPassword("");
     toast.success("Signed out from Admin Console.");

@@ -72,9 +72,15 @@ export const ParticipantPortal = () => {
 
   // Check auth and fetch submission on mount
   useEffect(() => {
-    const token = localStorage.getItem("juryzaToken");
-    const email = localStorage.getItem("juryzaEmail");
-    const name = localStorage.getItem("juryzaName");
+    const token =
+      localStorage.getItem("juryzaParticipantToken") ||
+      (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaToken") : null);
+    const email =
+      localStorage.getItem("juryzaParticipantEmail") ||
+      (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaEmail") : null);
+    const name =
+      localStorage.getItem("juryzaParticipantName") ||
+      (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaName") : null);
 
     if (!token || !email) {
       toast("Please sign in to access the participant submission portal.", { icon: "🔑" });
@@ -213,10 +219,15 @@ export const ParticipantPortal = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("juryzaToken");
-    localStorage.removeItem("juryzaRole");
-    localStorage.removeItem("juryzaEmail");
-    localStorage.removeItem("juryzaName");
+    localStorage.removeItem("juryzaParticipantToken");
+    localStorage.removeItem("juryzaParticipantEmail");
+    localStorage.removeItem("juryzaParticipantName");
+    if (localStorage.getItem("juryzaRole") === "participant") {
+      localStorage.removeItem("juryzaToken");
+      localStorage.removeItem("juryzaRole");
+      localStorage.removeItem("juryzaEmail");
+      localStorage.removeItem("juryzaName");
+    }
     toast.success("Signed out successfully.");
     navigate("/register");
   };

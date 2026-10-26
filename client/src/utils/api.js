@@ -26,15 +26,50 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token =
-      localStorage.getItem("juryzaToken") ||
-      localStorage.getItem("adminToken");
+    let token = null;
+    let userEmail = null;
+
+    if (typeof window !== "undefined") {
+      const pathname = window.location.pathname || "";
+      if (pathname.startsWith("/admin")) {
+        token =
+          localStorage.getItem("juryzaAdminToken") ||
+          (localStorage.getItem("juryzaRole") === "admin" ? localStorage.getItem("juryzaToken") : null) ||
+          localStorage.getItem("adminToken");
+        userEmail =
+          localStorage.getItem("juryzaAdminEmail") ||
+          (localStorage.getItem("juryzaRole") === "admin" ? localStorage.getItem("juryzaEmail") : null);
+      } else if (pathname.startsWith("/jury") || pathname.startsWith("/judge")) {
+        token =
+          localStorage.getItem("juryzaJudgeToken") ||
+          (localStorage.getItem("juryzaRole") === "judge" ? localStorage.getItem("juryzaToken") : null);
+        userEmail =
+          localStorage.getItem("juryzaJudgeEmail") ||
+          (localStorage.getItem("juryzaRole") === "judge" ? localStorage.getItem("juryzaEmail") : null);
+      } else {
+        token =
+          localStorage.getItem("juryzaParticipantToken") ||
+          (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaToken") : null) ||
+          (localStorage.getItem("juryzaRole") !== "admin" && localStorage.getItem("juryzaRole") !== "judge"
+            ? localStorage.getItem("juryzaToken")
+            : null);
+        userEmail =
+          localStorage.getItem("juryzaParticipantEmail") ||
+          (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaEmail") : null) ||
+          (localStorage.getItem("juryzaRole") !== "admin" && localStorage.getItem("juryzaRole") !== "judge"
+            ? localStorage.getItem("juryzaEmail")
+            : null);
+      }
+    } else {
+      token = localStorage.getItem("juryzaToken") || localStorage.getItem("adminToken");
+      userEmail = localStorage.getItem("juryzaEmail");
+    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       config.headers["x-auth-token"] = token;
     }
 
-    const userEmail = localStorage.getItem("juryzaEmail");
     if (userEmail) {
       config.headers["x-user-email"] = userEmail;
     }

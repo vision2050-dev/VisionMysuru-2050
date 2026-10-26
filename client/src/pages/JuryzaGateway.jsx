@@ -136,6 +136,10 @@ export const JuryzaGateway = () => {
       const user = authData.user || {};
       const token = authData.token || `session-${Date.now()}`;
 
+      localStorage.setItem("juryzaParticipantToken", token);
+      localStorage.setItem("juryzaParticipantEmail", user.email || cleanEmail);
+      localStorage.setItem("juryzaParticipantName", user.name || name || "Participant");
+
       localStorage.setItem("juryzaToken", token);
       localStorage.setItem("juryzaRole", "participant");
       localStorage.setItem("juryzaEmail", user.email || cleanEmail);
