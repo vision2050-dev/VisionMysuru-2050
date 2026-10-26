@@ -678,15 +678,59 @@ export const ParticipantPortal = () => {
                   )}
                 </div>
 
-                <div className="overflow-hidden rounded-2xl shadow-lg border border-[var(--border)] bg-black">
-                  <video
-                    src={mySubmission.videoBlobUrl || getVideoSrc(mySubmission) || "/speech.mp4"}
-                    className="aspect-video w-full object-cover"
-                    controls
-                    preload="metadata"
-                    playsInline
-                  />
-                </div>
+                {(() => {
+                  const driveVidId =
+                    mySubmission.video?.driveFileId ||
+                    getDriveFileId(mySubmission.video?.url || mySubmission.video?.webViewLink);
+                  const activeVideoBlob = mySubmission.videoBlobUrl;
+                  const isDirectMp4 =
+                    (mySubmission.video?.url && mySubmission.video.url.toLowerCase().endsWith(".mp4")) ||
+                    (mySubmission.video?.webViewLink && mySubmission.video.webViewLink.toLowerCase().endsWith(".mp4"));
+                  const directMp4Url = isDirectMp4
+                    ? mySubmission.video.url || mySubmission.video.webViewLink
+                    : null;
+
+                  return (
+                    <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                      {activeVideoBlob ? (
+                        <video
+                          key={`blob-${mySubmission.teamId}-${activeVideoBlob}`}
+                          src={activeVideoBlob}
+                          className="h-full w-full object-cover"
+                          controls
+                          preload="metadata"
+                          playsInline
+                        />
+                      ) : driveVidId ? (
+                        <iframe
+                          key={`drive-${mySubmission.teamId}-${driveVidId}`}
+                          src={`https://drive.google.com/file/d/${driveVidId}/preview`}
+                          title="Pitch Video Preview"
+                          className="h-full w-full border-0 rounded-2xl"
+                          allow="autoplay; fullscreen"
+                        />
+                      ) : directMp4Url ? (
+                        <video
+                          key={`mp4-${mySubmission.teamId}-${directMp4Url}`}
+                          src={directMp4Url}
+                          className="h-full w-full object-cover"
+                          controls
+                          preload="metadata"
+                          playsInline
+                        />
+                      ) : (
+                        <video
+                          key={`fallback-${mySubmission.teamId}`}
+                          src="/speech.mp4"
+                          className="h-full w-full object-cover"
+                          controls
+                          preload="metadata"
+                          playsInline
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center justify-between mt-2.5">
                   <p className="text-xs text-[var(--muted)]">

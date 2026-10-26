@@ -51,10 +51,15 @@ export const storeMediaBlob = async (key, fileOrBlob) => {
   if (!key || !fileOrBlob) return false;
   try {
     const db = await openMediaDB();
+    // Ensure we store a pure Blob to prevent DataCloneError on WebKit/Safari
+    let dataToStore = fileOrBlob;
+    if (typeof File !== "undefined" && fileOrBlob instanceof File) {
+      dataToStore = fileOrBlob.slice(0, fileOrBlob.size, fileOrBlob.type);
+    }
     return new Promise((resolve, reject) => {
       const tx = db.transaction(MEDIA_STORE_NAME, "readwrite");
       const store = tx.objectStore(MEDIA_STORE_NAME);
-      const req = store.put(fileOrBlob, key);
+      const req = store.put(dataToStore, key);
       req.onsuccess = () => resolve(true);
       req.onerror = () => reject(req.error);
     });
