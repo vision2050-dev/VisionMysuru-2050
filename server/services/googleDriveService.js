@@ -34,15 +34,19 @@ export const SPREADSHEETS_SUBDIR = path.join(LOCAL_SYNC_DIR, "Spreadsheets");
  */
 export const getDriveClient = () => {
   try {
-    // 1. Service Account Key JSON provided via env
-    if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    // 0. Auto-detect service-account.json in server root if not explicitly in env
+    const defaultKeyPath = path.join(__dirname, "../service-account.json");
+    const keySource = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || (fs.existsSync(defaultKeyPath) ? defaultKeyPath : null);
+
+    // 1. Service Account Key JSON provided via env or file
+    if (keySource) {
       let credentials;
       try {
-        credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+        credentials = JSON.parse(keySource);
       } catch {
-        if (fs.existsSync(process.env.GOOGLE_SERVICE_ACCOUNT_KEY)) {
+        if (fs.existsSync(keySource)) {
           credentials = JSON.parse(
-            fs.readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, "utf-8"),
+            fs.readFileSync(keySource, "utf-8"),
           );
         }
       }
@@ -126,6 +130,49 @@ export const uploadToGoogleDrive = async ({
   folderType = "Videos", // "Videos" | "Documents" | "Spreadsheets"
   parentFolderId = TARGET_DRIVE_FOLDER_ID,
 }) => {
+  // Option A: Google Apps Script Web App Webhook (no service account needed)
+  if (process.env.GOOGLE_APPS_SCRIPT_URL) {
+    try {
+      const fileBuffer = fs.readFileSync(filePath);
+      const base64Data = fileBuffer.toString("base64");
+      const resp = await fetch(process.env.GOOGLE_APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        redirect: "manual",
+        body: JSON.stringify({
+          fileName,
+          mimeType,
+          base64Data,
+          folderType,
+          parentFolderId,
+        }),
+      });
+
+      let data = null;
+      if (resp.status === 302 || resp.status === 301 || resp.status === 307) {
+        const redirectUrl = resp.headers.get("location");
+        if (redirectUrl) {
+          const res2 = await fetch(redirectUrl, { method: "GET" });
+          data = await res2.json();
+        }
+      } else {
+        data = await resp.json();
+      }
+
+      if (data && (data.success || data.fileId)) {
+        return {
+          synced: true,
+          fileId: data.fileId,
+          webViewLink: data.webViewLink,
+          driveFolderId: parentFolderId,
+        };
+      }
+    } catch (scriptErr) {
+      console.warn("[Drive Apps Script Note]:", scriptErr.message);
+    }
+  }
+
+  // Option B: Google Cloud Service Account or OAuth2 Client
   const drive = getDriveClient();
   if (!drive) {
     return {
@@ -170,6 +217,35 @@ export const uploadToGoogleDrive = async ({
       driveFolderId: parentFolderId,
     };
   }
+};
+
+/**
+ * Sync all files currently stored in local staging directories to Google Drive
+ */
+export const syncAllStagedFilesToDrive = async () => {
+  const categories = [
+    { dir: VIDEOS_SUBDIR, type: "Videos", mime: "video/mp4" },
+    { dir: DOCUMENTS_SUBDIR, type: "Documents", mime: "application/pdf" },
+    { dir: SPREADSHEETS_SUBDIR, type: "Spreadsheets", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  ];
+
+  const results = [];
+  for (const cat of categories) {
+    if (!fs.existsSync(cat.dir)) continue;
+    const fileList = fs.readdirSync(cat.dir);
+    for (const f of fileList) {
+      if (f.startsWith(".") || f.endsWith(".gitkeep")) continue;
+      const fullPath = path.join(cat.dir, f);
+      const res = await uploadToGoogleDrive({
+        filePath: fullPath,
+        fileName: f,
+        mimeType: cat.mime,
+        folderType: cat.type,
+      });
+      results.push({ file: f, category: cat.type, ...res });
+    }
+  }
+  return results;
 };
 
 /**
