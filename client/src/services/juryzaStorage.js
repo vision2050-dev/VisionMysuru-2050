@@ -145,9 +145,9 @@ const DEFAULT_SUBMISSIONS = [
       name: "EcoFlow_Lake_Restoration_Report.pdf",
       originalName: "EcoFlow_Lake_Restoration_Report.pdf",
       size: 2400000,
-      url: "https://drive.google.com/file/d/1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr/view?usp=drivesdk",
-      webViewLink: "https://drive.google.com/file/d/1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr/view?usp=drivesdk",
-      driveFileId: "1RIzhf9UBWoUQNhzVCqeEaiJAhkgD9mCr",
+      url: "/sample_proposal.pdf",
+      webViewLink: "/sample_proposal.pdf",
+      driveFileId: null,
     },
     members: [
       {

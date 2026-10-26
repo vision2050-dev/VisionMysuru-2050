@@ -16,6 +16,8 @@ import {
   FiClock,
   FiCompass,
   FiAlertCircle,
+  FiEye,
+  FiDownload,
 } from "react-icons/fi";
 import { TOPIC_OPTIONS, CATEGORY } from "../constants/content";
 import api from "../utils/api";
@@ -55,6 +57,7 @@ export const ParticipantPortal = () => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoLocalPreview, setVideoLocalPreview] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
+  const [documentLocalPreview, setDocumentLocalPreview] = useState(null);
 
   const [formData, setFormData] = useState({
     teamName: "",
@@ -114,12 +117,19 @@ export const ParticipantPortal = () => {
       const res = await api.get(`/api/v2/participant/my-submission?email=${encodeURIComponent(email)}`);
       if (res.data?.hasRegistered && res.data?.submission) {
         const sub = res.data.submission;
-        // Check IndexedDB for persisted video blob
+        // Check IndexedDB for persisted video and doc blobs
         const storedBlobUrl =
           (await getMediaBlobUrl(`video_${sub.teamId}`)) ||
           (await getMediaBlobUrl(`participant_video_${clean}`));
         if (storedBlobUrl) {
           sub.videoBlobUrl = storedBlobUrl;
+        }
+
+        const storedDocBlob =
+          (await getMediaBlobUrl(`doc_${sub.teamId}`)) ||
+          (await getMediaBlobUrl(`participant_doc_${clean}`));
+        if (storedDocBlob) {
+          sub.docBlobUrl = storedDocBlob;
         }
         setHasRegistered(true);
         setMySubmission(sub);
@@ -140,13 +150,20 @@ export const ParticipantPortal = () => {
 
     if (mySub) {
       setHasRegistered(true);
-      // Retrieve persistent video blob from IndexedDB if not currently set
+      // Retrieve persistent video and doc blobs from IndexedDB if not currently set
       try {
         const storedBlobUrl =
           (await getMediaBlobUrl(`video_${mySub.teamId}`)) ||
           (await getMediaBlobUrl(`participant_video_${clean}`));
         if (storedBlobUrl) {
           mySub.videoBlobUrl = storedBlobUrl;
+        }
+
+        const storedDocBlob =
+          (await getMediaBlobUrl(`doc_${mySub.teamId}`)) ||
+          (await getMediaBlobUrl(`participant_doc_${clean}`));
+        if (storedDocBlob) {
+          mySub.docBlobUrl = storedDocBlob;
         }
       } catch (e) {
         console.warn("IndexedDB load note:", e);
@@ -217,6 +234,16 @@ export const ParticipantPortal = () => {
     }
 
     setDocumentFile(file);
+    if (documentLocalPreview) {
+      URL.revokeObjectURL(documentLocalPreview);
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setDocumentLocalPreview(previewUrl);
+
+    // Cache in IndexedDB for resilience
+    if (currentUserEmail) {
+      storeMediaBlob(`temp_doc_${currentUserEmail.toLowerCase().trim()}`, file);
+    }
     toast.success(`Proposal PDF selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
   };
 
@@ -418,12 +445,15 @@ export const ParticipantPortal = () => {
   };
 
   const getDocHref = (sub) => {
-    if (!sub) return "#";
+    if (!sub) return "/sample_proposal.pdf";
     if (sub.docBlobUrl) return sub.docBlobUrl;
-    if (sub.document?.url) return sub.document.url;
-    if (sub.document?.webViewLink) return sub.document.webViewLink;
+    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
+    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
     const base = api.defaults.baseURL || "";
-    return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+    }
+    return "/sample_proposal.pdf";
   };
 
   return (
@@ -684,23 +714,32 @@ export const ParticipantPortal = () => {
                       <FiFileText className="h-4 w-4 text-[var(--primary)]" />
                       <span>Compulsory Proposal Deck (.pdf)</span>
                     </div>
-                    {(mySubmission.document?.url || mySubmission.document?.webViewLink) && (
-                      <a
-                        href={mySubmission.document.url || mySubmission.document.webViewLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] hover:underline"
-                      >
-                        <span>Drive Link</span>
-                        <FiExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                    {(mySubmission.document?.url || mySubmission.document?.webViewLink) &&
+                      !mySubmission.document.url?.includes("sample_proposal.pdf") && (
+                        <a
+                          href={mySubmission.document.url || mySubmission.document.webViewLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] hover:underline"
+                        >
+                          <span>Drive Link</span>
+                          <FiExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
                   </div>
-                  <div className="p-4 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)]">
-                    <h5 className="font-bold text-sm text-[var(--text)]">{mySubmission.solutionName}</h5>
-                    <p className="text-xs text-[var(--muted)] mt-1 line-clamp-3">{mySubmission.shortDescription}</p>
-                    <p className="text-[11px] text-[var(--muted)] mt-3">
-                      PDF File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
+
+                  {/* Embedded PDF Viewer Preview */}
+                  <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
+                    <iframe
+                      src={`${getDocHref(mySubmission)}#toolbar=0&navpanes=0`}
+                      title="Proposal PDF Document"
+                      className="h-full w-full border-0 rounded-2xl"
+                    />
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-xs text-[var(--muted)] truncate">
+                      File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
                     </p>
                   </div>
                 </div>
@@ -710,10 +749,18 @@ export const ParticipantPortal = () => {
                     href={getDocHref(mySubmission)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-md"
                   >
-                    <span>View Full Proposal PDF</span>
-                    <FiExternalLink className="h-3.5 w-3.5" />
+                    <FiEye className="h-4 w-4" />
+                    <span>View Fullscreen</span>
+                  </a>
+                  <a
+                    href={getDocHref(mySubmission)}
+                    download={mySubmission.document?.name || "Proposal.pdf"}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] px-4 py-2.5 text-xs font-semibold hover:border-[var(--primary)] transition cursor-pointer"
+                  >
+                    <FiDownload className="h-4 w-4" />
+                    <span>Download</span>
                   </a>
                 </div>
               </div>
@@ -900,6 +947,32 @@ export const ParticipantPortal = () => {
                     {documentFile && (
                       <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         ✓ {documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      </div>
+                    )}
+
+                    {documentLocalPreview && (
+                      <div className="mt-3 overflow-hidden rounded-xl border border-[var(--primary)]/30 shadow-md">
+                        <div className="p-2 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-[var(--text)] truncate max-w-[180px]">
+                            📄 {documentFile?.name}
+                          </span>
+                          <a
+                            href={documentLocalPreview}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--primary)] hover:underline"
+                          >
+                            <span>Preview</span>
+                            <FiExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                        <div className="h-44 w-full bg-[var(--surface-2)]">
+                          <iframe
+                            src={`${documentLocalPreview}#toolbar=0&navpanes=0`}
+                            title="Selected Proposal PDF Preview"
+                            className="w-full h-full border-0"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

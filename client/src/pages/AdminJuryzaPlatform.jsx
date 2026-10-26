@@ -40,6 +40,7 @@ import {
   exportClientSpreadsheetXlsx,
   clientSignIn,
   clientCreateJudge,
+  getMediaBlobUrl,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -203,6 +204,28 @@ export const AdminJuryzaPlatform = () => {
       const localJudges = localUsers.filter((u) => u.role === "judge");
       setSubmissions(localSubs);
       setJudges(localJudges);
+
+      // Enrich with local IndexedDB media if available
+      for (const s of localSubs) {
+        if (!s.docBlobUrl) {
+          getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
+            if (url) {
+              setSubmissions((prev) =>
+                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, docBlobUrl: url } : sub)),
+              );
+            }
+          });
+        }
+        if (!s.videoBlobUrl) {
+          getMediaBlobUrl(`video_${s.teamId}`).then((url) => {
+            if (url) {
+              setSubmissions((prev) =>
+                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, videoBlobUrl: url } : sub)),
+              );
+            }
+          });
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -375,6 +398,30 @@ export const AdminJuryzaPlatform = () => {
   const handleDownloadXlsx = () => {
     exportClientSpreadsheetXlsx();
     toast.success("Master Spreadsheet Excel (XLSX) downloaded!");
+  };
+
+  const getDocHref = (sub) => {
+    if (!sub) return "/sample_proposal.pdf";
+    if (sub.docBlobUrl) return sub.docBlobUrl;
+    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
+    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+    }
+    return "/sample_proposal.pdf";
+  };
+
+  const getVideoHref = (sub) => {
+    if (!sub) return "/speech.mp4";
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
+    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    }
+    return "/speech.mp4";
   };
 
   // Render Login Card if not authenticated as Admin
@@ -721,41 +768,29 @@ export const AdminJuryzaPlatform = () => {
                           <td className="px-4 py-3.5 space-y-1.5">
                             <div className="flex items-center gap-1.5 text-[11px]">
                               <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
-                              {sub.video?.url || sub.video?.webViewLink ? (
-                                <a
-                                  href={sub.video.url || sub.video.webViewLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
-                                  title={`Open Video: ${videoName}`}
-                                >
-                                  <span className="truncate">{videoName}</span>
-                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                </a>
-                              ) : (
-                                <span className="truncate max-w-[130px] text-[var(--text)]" title={videoName}>
-                                  {videoName}
-                                </span>
-                              )}
+                              <a
+                                href={getVideoHref(sub)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
+                                title={`Open Video: ${videoName}`}
+                              >
+                                <span className="truncate">{videoName}</span>
+                                <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                              </a>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px]">
                               <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
-                              {sub.document?.url || sub.document?.webViewLink ? (
-                                <a
-                                  href={sub.document.url || sub.document.webViewLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
-                                  title={`Open PDF: ${docName}`}
-                                >
-                                  <span className="truncate">{docName}</span>
-                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                </a>
-                              ) : (
-                                <span className="truncate max-w-[130px] text-[var(--text)]" title={docName}>
-                                  {docName}
-                                </span>
-                              )}
+                              <a
+                                href={getDocHref(sub)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
+                                title={`Open PDF: ${docName}`}
+                              >
+                                <span className="truncate">{docName}</span>
+                                <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                              </a>
                             </div>
                           </td>
 
