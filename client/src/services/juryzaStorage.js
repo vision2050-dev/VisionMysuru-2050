@@ -132,7 +132,7 @@ export const saveStoredSubmissions = (subs) => {
 };
 
 /**
- * Client-Side Auth: Sign Up (Any role: participant, judge, admin)
+ * Client-Side Auth: Sign Up (Strictly for Participants)
  */
 export const clientSignUp = async ({
   name,
@@ -143,6 +143,14 @@ export const clientSignUp = async ({
   organization = "",
   specialization = "",
 }) => {
+  if (role && role !== "participant") {
+    throw new Error("Public account creation is strictly restricted to participants.");
+  }
+
+  if (!password || password.length < 8) {
+    throw new Error("Password must be at least 8 characters long.");
+  }
+
   const cleanEmail = email.toLowerCase().trim();
   const users = getStoredUsers();
 
@@ -160,7 +168,7 @@ export const clientSignUp = async ({
     existing.phone = phone || existing.phone;
     existing.organization = organization || existing.organization;
     existing.specialization = specialization || existing.specialization;
-    existing.role = role || existing.role;
+    existing.role = "participant";
     newUser = existing;
   } else {
     newUser = {
@@ -168,9 +176,9 @@ export const clientSignUp = async ({
       name,
       email: cleanEmail,
       passwordHash,
-      role,
+      role: "participant",
       phone,
-      organization: organization || (role === "admin" ? "SDMIMD Admin Panel" : "Participant"),
+      organization: organization || "Participant",
       specialization: specialization || "General",
       allotedTeams: [],
       createdAt: new Date().toISOString(),
@@ -193,6 +201,67 @@ export const clientSignUp = async ({
 };
 
 /**
+ * Client-Side Admin Action: Generate Judge Account
+ */
+export const clientCreateJudge = async ({
+  name,
+  email,
+  password,
+  organization = "SDMIMD Panel",
+  specialization = "All Tracks",
+}) => {
+  const cleanEmail = email.toLowerCase().trim();
+  const users = getStoredUsers();
+
+  const existing = users.find((u) => u.email === cleanEmail);
+  if (existing && existing.passwordHash) {
+    throw new Error("An account with this email already exists.");
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  let judgeUser;
+  if (existing) {
+    existing.name = name.trim();
+    existing.passwordHash = passwordHash;
+    existing.role = "judge";
+    existing.organization = organization.trim();
+    existing.specialization = specialization;
+    judgeUser = existing;
+  } else {
+    judgeUser = {
+      id: `user-judge-${Date.now()}`,
+      name: name.trim(),
+      email: cleanEmail,
+      passwordHash,
+      role: "judge",
+      organization: organization.trim(),
+      specialization,
+      allotedTeams: [],
+      createdAt: new Date().toISOString(),
+    };
+    users.push(judgeUser);
+  }
+
+  saveStoredUsers(users);
+
+  return {
+    message: "Judge account generated successfully!",
+    judge: {
+      id: judgeUser.id,
+      name: judgeUser.name,
+      email: judgeUser.email,
+      role: "judge",
+      organization: judgeUser.organization,
+      specialization: judgeUser.specialization,
+      createdAt: judgeUser.createdAt,
+    },
+  };
+};
+
+export const OFFICIAL_ADMIN_PASSWORD = "Vision2050@edition2";
+
+/**
  * Client-Side Auth: Sign In (Any role: participant, judge, admin)
  */
 export const clientSignIn = async ({ email, password, requestedRole }) => {
@@ -201,7 +270,7 @@ export const clientSignIn = async ({ email, password, requestedRole }) => {
 
   const user = users.find((u) => u.email === cleanEmail);
   if (!user) {
-    throw new Error("No account found with this email. Please click Sign Up first.");
+    throw new Error("No account found with this email. Please verify your credentials.");
   }
 
   if (requestedRole === "admin" && user.role !== "admin") {
@@ -209,17 +278,35 @@ export const clientSignIn = async ({ email, password, requestedRole }) => {
   }
 
   if (requestedRole && requestedRole !== user.role && user.role !== "admin") {
-    throw new Error(`This email is registered as a ${user.role}. Please switch to the ${user.role} tab.`);
+    throw new Error(`This account is registered as a ${user.role}. Please access the appropriate portal.`);
   }
 
   const inputHash = await hashPassword(password);
+
+  // Admin Account Authentication (with official password support)
+  if (cleanEmail === "vision2050@sdmimd.ac.in" || user.role === "admin") {
+    if (password === OFFICIAL_ADMIN_PASSWORD) {
+      user.passwordHash = inputHash;
+      saveStoredUsers(users);
+      const token = `admin-token-${Date.now()}`;
+      return {
+        token,
+        user: {
+          id: user.id || "user-admin-default",
+          name: user.name || "Vision Mysuru Admin",
+          email: "vision2050@sdmimd.ac.in",
+          role: "admin",
+        },
+      };
+    }
+  }
 
   // If user has not set a password yet (seeded account), initialize it with their entered password
   if (!user.passwordHash) {
     user.passwordHash = inputHash;
     saveStoredUsers(users);
   } else if (user.passwordHash !== inputHash) {
-    throw new Error("Invalid password. Please try again or create a new account.");
+    throw new Error("Invalid password. Please try again or verify your credentials.");
   }
 
   const token = `token-${user.id}-${Date.now()}`;
@@ -230,6 +317,38 @@ export const clientSignIn = async ({ email, password, requestedRole }) => {
       name: user.name,
       email: user.email,
       role: user.role,
+    },
+  };
+};
+
+export const clientResetAdminPassword = async (newPassword) => {
+  const users = getStoredUsers();
+  const admin = users.find((u) => u.email === "vision2050@sdmimd.ac.in");
+  const passwordHash = await hashPassword(newPassword);
+
+  if (admin) {
+    admin.passwordHash = passwordHash;
+  } else {
+    users.push({
+      id: "user-admin-default",
+      name: "Vision Mysuru Admin",
+      email: "vision2050@sdmimd.ac.in",
+      passwordHash,
+      role: "admin",
+      organization: "SDMIMD Mysuru",
+      createdAt: new Date().toISOString(),
+    });
+  }
+  saveStoredUsers(users);
+
+  const token = `admin-token-${Date.now()}`;
+  return {
+    token,
+    user: {
+      id: "user-admin-default",
+      name: "Vision Mysuru Admin",
+      email: "vision2050@sdmimd.ac.in",
+      role: "admin",
     },
   };
 };
@@ -321,33 +440,66 @@ export const updateStoredSubmissionStage = (teamId, newStage) => {
 };
 
 /**
- * Client-Side Judge Allocation
+ * Client-Side Judge Allocation & Unallocation
  */
 export const allocateStoredSubmission = (teamId, judgeEmail) => {
-  const cleanEmail = judgeEmail.toLowerCase().trim();
+  const cleanEmail = (judgeEmail || "").toLowerCase().trim();
   const subs = getStoredSubmissions();
   const users = getStoredUsers();
 
   const subIndex = subs.findIndex((s) => s.teamId === teamId);
-  if (subIndex !== -1) {
-    if (!subs[subIndex].allotedJudges) subs[subIndex].allotedJudges = [];
-    if (!subs[subIndex].allotedJudges.includes(cleanEmail)) {
-      subs[subIndex].allotedJudges.push(cleanEmail);
+
+  // If unallocating
+  if (!cleanEmail || cleanEmail === "unallocated") {
+    if (subIndex !== -1) {
+      subs[subIndex].allotedJudges = [];
+      subs[subIndex].allotedJudgeNames = [];
+      if (subs[subIndex].stage === "allocated to a judge") {
+        subs[subIndex].stage = "submitted";
+      }
+      saveStoredSubmissions(subs);
     }
-    subs[subIndex].stage = "allocated to a judge";
+
+    // Remove teamId from all judges' allotedTeams
+    users.forEach((u) => {
+      if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
+        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+      }
+    });
+    saveStoredUsers(users);
+
+    return { success: true, teamId, unallocated: true, subs, users };
+  }
+
+  // Allocating to a specific judge
+  const targetJudge = users.find((u) => u.email === cleanEmail && u.role === "judge");
+  const judgeName = targetJudge ? targetJudge.name : cleanEmail;
+
+  if (subIndex !== -1) {
+    subs[subIndex].allotedJudges = [cleanEmail];
+    subs[subIndex].allotedJudgeNames = [judgeName];
+    if (subs[subIndex].stage === "submitted") {
+      subs[subIndex].stage = "allocated to a judge";
+    }
     saveStoredSubmissions(subs);
   }
 
-  const judgeIndex = users.findIndex((u) => u.email === cleanEmail && u.role === "judge");
-  if (judgeIndex !== -1) {
-    if (!users[judgeIndex].allotedTeams) users[judgeIndex].allotedTeams = [];
-    if (!users[judgeIndex].allotedTeams.includes(teamId)) {
-      users[judgeIndex].allotedTeams.push(teamId);
+  // Remove teamId from all other judges, and add to target judge
+  users.forEach((u) => {
+    if (u.role === "judge") {
+      if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
+      if (u.email === cleanEmail) {
+        if (!u.allotedTeams.includes(teamId)) {
+          u.allotedTeams.push(teamId);
+        }
+      } else {
+        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+      }
     }
-    saveStoredUsers(users);
-  }
+  });
+  saveStoredUsers(users);
 
-  return { success: true, teamId, judgeEmail: cleanEmail };
+  return { success: true, teamId, judgeEmail: cleanEmail, subs, users };
 };
 
 /**
@@ -360,13 +512,19 @@ export const autoAllocateStoredSubmissions = () => {
 
   if (judges.length === 0) return { success: false, message: "No judges registered yet." };
 
+  // Clear previous allocations
+  judges.forEach((j) => {
+    j.allotedTeams = [];
+  });
+
   subs.forEach((sub, idx) => {
     const judge = judges[idx % judges.length];
     sub.allotedJudges = [judge.email];
     sub.allotedJudgeNames = [judge.name];
-    sub.stage = "allocated to a judge";
+    if (sub.stage === "submitted") {
+      sub.stage = "allocated to a judge";
+    }
 
-    if (!judge.allotedTeams) judge.allotedTeams = [];
     if (!judge.allotedTeams.includes(sub.teamId)) {
       judge.allotedTeams.push(sub.teamId);
     }
@@ -374,7 +532,7 @@ export const autoAllocateStoredSubmissions = () => {
 
   saveStoredSubmissions(subs);
   saveStoredUsers(users);
-  return { success: true, count: subs.length };
+  return { success: true, count: subs.length, subs, users };
 };
 
 /**

@@ -73,8 +73,8 @@ export const ParticipantPortal = () => {
     const name = localStorage.getItem("juryzaName");
 
     if (!token || !email) {
-      toast("Please sign in with your Gmail to access the participant portal.", { icon: "🔑" });
-      navigate("/juryza");
+      toast("Please sign in to access the participant submission portal.", { icon: "🔑" });
+      navigate("/register");
       return;
     }
 
@@ -214,7 +214,7 @@ export const ParticipantPortal = () => {
     localStorage.removeItem("juryzaEmail");
     localStorage.removeItem("juryzaName");
     toast.success("Signed out successfully.");
-    navigate("/juryza");
+    navigate("/register");
   };
 
   // Form Submission
