@@ -1,5 +1,5 @@
 import React, { Suspense, memo } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./Components/ProtectedRoute";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -29,10 +29,11 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/edition-1" element={<EditionOnePage />} />
-            <Route path="/juryza" element={<JuryzaGateway />} />
             <Route path="/register" element={<JuryzaGateway />} />
+            <Route path="/juryza" element={<Navigate to="/register" replace />} />
             <Route path="/portal" element={<ParticipantPortal />} />
             <Route path="/jury" element={<JuryzaHub />} />
+            <Route path="/judge" element={<Navigate to="/jury" replace />} />
             <Route path="/admin" element={<AdminJuryzaPlatform />} />
             <Route path="/shortlist" element={<SubmitIdeaPage />} />
             <Route path="/news" element={<NewsPage />} />
