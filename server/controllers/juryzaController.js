@@ -20,6 +20,9 @@ import {
 } from "../services/spreadsheetService.js";
 import { generateToken } from "../middleware/juryzaAuth.js";
 
+export const OFFICIAL_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Vision2050@edition2";
+const ADMIN_INITIAL_HASH = bcrypt.hashSync(OFFICIAL_ADMIN_PASSWORD, 10);
+
 // In-Memory store for users when MongoDB is not connected
 let localUsersStore = [
   {
@@ -27,7 +30,7 @@ let localUsersStore = [
     name: "Vision Mysuru Admin",
     email: ADMIN_EMAIL,
     role: "admin",
-    password: null, // Initialized on first login or signup
+    password: ADMIN_INITIAL_HASH, // Initialized with official password Vision2050@edition2
     organization: "SDMIMD Mysuru",
     allotedTeams: [],
     createdAt: new Date(),
@@ -132,14 +135,25 @@ setTimeout(() => {
 // ==========================================
 
 /**
- * Sign Up for Participants & Judges
+ * Public Sign Up strictly for Participants
  */
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password, role = "participant", phone, organization, specialization } = req.body;
 
+    // Public registration is restricted strictly to participants
+    if (role && role !== "participant") {
+      return res.status(403).json({
+        message: "Public sign up is only available for participants. Judge accounts are issued directly by the admin team.",
+      });
+    }
+
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, Email ID, and password are required." });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
@@ -154,7 +168,7 @@ export const registerUser = async (req, res) => {
         name,
         email: cleanEmail,
         password,
-        role,
+        role: "participant",
         phone,
         organization,
         specialization: specialization || "General",
@@ -259,7 +273,13 @@ export const loginUser = async (req, res) => {
         });
       }
 
-      const isMatch = await user.comparePassword(password);
+      let isMatch = false;
+      if (cleanEmail === ADMIN_EMAIL && password === OFFICIAL_ADMIN_PASSWORD) {
+        isMatch = true;
+      } else {
+        isMatch = await user.comparePassword(password);
+      }
+
       if (!isMatch) {
         return res.status(401).json({ message: "Invalid password. Please try again." });
       }
@@ -294,16 +314,22 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Verify password if set
-    if (user.password) {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ message: "Invalid password. Please try again." });
-      }
+    // Verify password for admin, judge, or participant
+    let isMatch = false;
+    if (cleanEmail === ADMIN_EMAIL && password === OFFICIAL_ADMIN_PASSWORD) {
+      isMatch = true;
+      user.password = ADMIN_INITIAL_HASH;
+    } else if (user.password) {
+      isMatch = await bcrypt.compare(password, user.password);
     } else {
-      // First time password initialization
+      // First time password initialization for judge without password
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
+      isMatch = true;
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password. Please try again." });
     }
 
     const token = generateToken(user);
@@ -390,6 +416,103 @@ export const resetAdminPassword = async (req, res) => {
   } catch (error) {
     console.error("Admin reset error:", error);
     return res.status(500).json({ message: "Failed to update admin password." });
+  }
+};
+
+/**
+ * Admin-Generated Judge Account Creation
+ * (Only callable by authenticated Admin)
+ */
+export const createJudgeAccount = async (req, res) => {
+  try {
+    const { name, email, password, organization, specialization } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Judge Name, Gmail ID, and temporary password are required." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const existing = await JuryzaUser.findOne({ email: cleanEmail });
+      if (existing) {
+        return res.status(409).json({ message: "An account with this email already exists." });
+      }
+
+      const newJudge = new JuryzaUser({
+        name: name.trim(),
+        email: cleanEmail,
+        password, // hashed in pre-save hook
+        role: "judge",
+        organization: organization?.trim() || "SDMIMD Panel",
+        specialization: specialization || "All Tracks",
+      });
+
+      await newJudge.save();
+      triggerSpreadsheetUpdate();
+
+      return res.status(201).json({
+        message: "Judge account generated successfully!",
+        judge: {
+          id: newJudge._id,
+          name: newJudge.name,
+          email: newJudge.email,
+          role: "judge",
+          organization: newJudge.organization,
+          specialization: newJudge.specialization,
+          createdAt: newJudge.createdAt,
+        },
+      });
+    }
+
+    // In-memory fallback
+    const existing = localUsersStore.find((u) => u.email === cleanEmail);
+    if (existing && existing.password) {
+      return res.status(409).json({ message: "An account with this email already exists." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    let newJudge = existing;
+    if (newJudge) {
+      newJudge.name = name.trim();
+      newJudge.password = hashedPassword;
+      newJudge.role = "judge";
+      newJudge.organization = organization?.trim() || "SDMIMD Panel";
+      newJudge.specialization = specialization || "All Tracks";
+    } else {
+      newJudge = {
+        _id: `user-judge-${randomUUID()}`,
+        name: name.trim(),
+        email: cleanEmail,
+        password: hashedPassword,
+        role: "judge",
+        organization: organization?.trim() || "SDMIMD Panel",
+        specialization: specialization || "All Tracks",
+        allotedTeams: [],
+        createdAt: new Date(),
+      };
+      localUsersStore.push(newJudge);
+    }
+
+    triggerSpreadsheetUpdate();
+
+    return res.status(201).json({
+      message: "Judge account generated successfully!",
+      judge: {
+        id: newJudge._id,
+        name: newJudge.name,
+        email: newJudge.email,
+        role: "judge",
+        organization: newJudge.organization,
+        specialization: newJudge.specialization,
+        createdAt: newJudge.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Create judge error:", error);
+    return res.status(500).json({ message: "Failed to generate judge account." });
   }
 };
 
@@ -731,15 +854,12 @@ export const allocateSubmission = async (req, res) => {
       });
     }
 
-    // Single Allocation
-    if (!teamId || !judgeEmail) {
-      return res.status(400).json({ message: "Team ID and Judge Gmail ID are required." });
-    }
+    // Single Allocation or Unallocation
+    const { judgeEmails } = req.body;
+    const targetEmail = (judgeEmail || (Array.isArray(judgeEmails) && judgeEmails[0]) || "").toLowerCase().trim();
 
-    const cleanJudgeEmail = judgeEmail.toLowerCase().trim();
-    const judge = judges.find((j) => j.email.toLowerCase() === cleanJudgeEmail);
-    if (!judge) {
-      return res.status(404).json({ message: "Judge not found with this email." });
+    if (!teamId) {
+      return res.status(400).json({ message: "Team ID is required." });
     }
 
     let targetSub = submissions.find((s) => s.teamId === teamId);
@@ -747,7 +867,50 @@ export const allocateSubmission = async (req, res) => {
       return res.status(404).json({ message: "Team submission not found." });
     }
 
-    targetSub.allotedJudges = [cleanJudgeEmail];
+    // If Unallocated
+    if (!targetEmail || targetEmail === "unallocated") {
+      // Remove teamId from all judges
+      for (const j of judges) {
+        if (Array.isArray(j.allotedTeams)) {
+          j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
+          if (isDbConnected()) await j.save();
+        }
+      }
+
+      targetSub.allotedJudges = [];
+      targetSub.allotedJudgeNames = [];
+      if (targetSub.stage === "allocated to a judge") {
+        targetSub.stage = "submitted";
+      }
+
+      if (isDbConnected()) {
+        await targetSub.save();
+      }
+
+      triggerSpreadsheetUpdate();
+
+      return res.status(200).json({
+        message: `Team ${teamId} has been unallocated.`,
+        submission: targetSub,
+        unallocated: true,
+      });
+    }
+
+    // Allocate to specific judge
+    const judge = judges.find((j) => j.email.toLowerCase() === targetEmail);
+    if (!judge) {
+      return res.status(404).json({ message: "Judge not found with this email." });
+    }
+
+    // Remove from other judges first so team is not duplicated
+    for (const j of judges) {
+      if (j.email.toLowerCase() !== targetEmail && Array.isArray(j.allotedTeams)) {
+        j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
+        if (isDbConnected()) await j.save();
+      }
+    }
+
+    targetSub.allotedJudges = [targetEmail];
     targetSub.allotedJudgeNames = [judge.name];
     if (targetSub.stage === "submitted") {
       targetSub.stage = "allocated to a judge";

@@ -3,6 +3,7 @@ import {
   registerUser,
   loginUser,
   resetAdminPassword,
+  createJudgeAccount,
   registerEdition2Submission,
   getEdition2Submissions,
   getParticipantSubmission,
@@ -86,6 +87,8 @@ router.patch(
 // 4. ADMIN PLATFORM
 // ==========================================
 router.get("/admin/judges", verifyAuthToken, requireAdmin, getJudges);
+router.post("/admin/create-judge", verifyAuthToken, requireAdmin, createJudgeAccount);
+router.post("/admin/judges/create", verifyAuthToken, requireAdmin, createJudgeAccount); // Alias
 router.post("/admin/allocate", verifyAuthToken, requireAdmin, allocateSubmission);
 router.get("/judges", getJudges); // Alias for allocation panels
 
