@@ -954,17 +954,28 @@ export const updateSubmissionStatus = async (req, res) => {
     const { id } = req.params;
     const { stage, notes } = req.body;
 
-    const allowedStages = [
-      "submitted",
-      "allocated to a judge",
+    const judgeAllowedStages = [
       "under evaluation",
       "shortlisted to next round",
       "not shortlisted to next round",
     ];
 
-    if (!allowedStages.includes(stage)) {
+    const adminAllowedStages = [
+      "submitted",
+      "allocated to a judge",
+      ...judgeAllowedStages,
+    ];
+
+    const isJudge = req.user?.role === "judge";
+    if (isJudge && !judgeAllowedStages.includes(stage)) {
+      return res.status(403).json({
+        message: "Judges can only change the state to under evaluation, shortlisted to next round, or not shortlisted to next round.",
+      });
+    }
+
+    if (!adminAllowedStages.includes(stage)) {
       return res.status(400).json({
-        message: `Invalid stage. Must be one of: ${allowedStages.join(", ")}`,
+        message: `Invalid stage. Must be one of: ${adminAllowedStages.join(", ")}`,
       });
     }
 

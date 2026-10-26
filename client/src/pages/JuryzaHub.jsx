@@ -608,22 +608,27 @@ export const JuryzaHub = () => {
                         </p>
                       </div>
 
-                      {/* Advance Stage Dropdown (Both Admin and Jury can change stage) */}
+                      {/* Judge Stage Selector: Strictly restricted to evaluation / shortlist stages */}
                       <div className="flex flex-col items-end gap-1.5">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">
-                          Submission Stage:
+                          Judge Decision / Stage:
                         </span>
                         <select
                           disabled={updatingStatus}
-                          value={selectedSubmission.stage || "submitted"}
+                          value={selectedSubmission.stage || "under evaluation"}
                           onChange={(e) => handleStatusChange(e.target.value)}
                           className="rounded-xl border border-[var(--primary)]/50 bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] focus:outline-none cursor-pointer"
                         >
-                          <option value="submitted">1. Submitted</option>
-                          <option value="allocated to a judge">2. Allocated to Judge</option>
-                          <option value="under evaluation">3. Under Evaluation</option>
-                          <option value="shortlisted to next round">4. Shortlisted to Next Round 🏆</option>
-                          <option value="not shortlisted to next round">4. Not Shortlisted ❌</option>
+                          {selectedSubmission.stage !== "under evaluation" &&
+                            selectedSubmission.stage !== "shortlisted to next round" &&
+                            selectedSubmission.stage !== "not shortlisted to next round" && (
+                              <option value={selectedSubmission.stage} disabled>
+                                Status: {selectedSubmission.stage}
+                              </option>
+                            )}
+                          <option value="under evaluation">Under Evaluation</option>
+                          <option value="shortlisted to next round">Shortlisted to Next Round 🏆</option>
+                          <option value="not shortlisted to next round">Not Shortlisted to Next Round ❌</option>
                         </select>
                       </div>
                     </div>
