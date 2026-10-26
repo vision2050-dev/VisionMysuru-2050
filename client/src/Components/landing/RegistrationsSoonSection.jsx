@@ -1,4 +1,6 @@
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { FiArrowRight } from "react-icons/fi";
 
 export const RegistrationsSoonSection = () => {
   return (
@@ -28,8 +30,18 @@ export const RegistrationsSoonSection = () => {
           <div className="relative z-10 flex flex-col items-center justify-center">
             {/* Main Required Announcement Text */}
             <h2 className="oswald text-3xl font-extrabold uppercase tracking-tight text-[var(--text)] sm:text-4xl md:text-5xl lg:text-6xl leading-tight">
-              <span className="text-[var(--accent)]">REGISTRATIONS</span> ARE STARTING SOON!!
+              <span className="text-[var(--accent)]">REGISTRATIONS</span> ARE NOW OPEN!
             </h2>
+            <p className="mt-3 text-sm text-[var(--muted)] max-w-md">
+              Submit your team's innovative ideas for Vision Mysuru 2050 and compete for exciting awards.
+            </p>
+            <Link
+              to="/register"
+              className="mt-6 inline-flex items-center gap-2.5 rounded-xl bg-[var(--primary)] px-8 py-3.5 text-base font-bold text-white shadow-xl hover:bg-[var(--primary-hover)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+            >
+              <span>APPLY NOW!</span>
+              <FiArrowRight className="h-5 w-5" />
+            </Link>
           </div>
         </motion.div>
       </div>

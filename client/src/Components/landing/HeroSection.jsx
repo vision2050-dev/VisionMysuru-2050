@@ -1,4 +1,6 @@
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { FiArrowRight } from "react-icons/fi";
 
 const HeroSection = () => {
   return (
@@ -54,13 +56,13 @@ const HeroSection = () => {
           </p>
 
           <div className="mt-28 md:mt-20 flex flex-col gap-3 sm:flex-row">
-            <div className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-3 text-sm font-bold text-white shadow-lg select-none cursor-default">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-80"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
-              </span>
-              <span>REGISTRATIONS ARE STARTING SOON!!</span>
-            </div>
+            <Link
+              to="/register"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-[var(--accent)] hover:brightness-110 px-8 py-3.5 text-base font-bold text-white shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+            >
+              <span>APPLY NOW!</span>
+              <FiArrowRight className="h-5 w-5" />
+            </Link>
           </div>
         </div>
       </div>
