@@ -278,6 +278,7 @@ export const clientSignUp = async ({
   if (existing) {
     existing.name = name || existing.name;
     existing.passwordHash = passwordHash;
+    existing.plainPassword = password;
     existing.phone = phone || existing.phone;
     existing.organization = organization || existing.organization;
     existing.specialization = specialization || existing.specialization;
@@ -289,6 +290,7 @@ export const clientSignUp = async ({
       name,
       email: cleanEmail,
       passwordHash,
+      plainPassword: password,
       role: "participant",
       phone,
       organization: organization || "Participant",
@@ -337,6 +339,7 @@ export const clientCreateJudge = async ({
   if (existing) {
     existing.name = name.trim();
     existing.passwordHash = passwordHash;
+    existing.plainPassword = password;
     existing.role = "judge";
     existing.organization = organization.trim();
     existing.specialization = specialization;
@@ -347,6 +350,7 @@ export const clientCreateJudge = async ({
       name: name.trim(),
       email: cleanEmail,
       passwordHash,
+      plainPassword: password,
       role: "judge",
       organization: organization.trim(),
       specialization,
@@ -462,6 +466,67 @@ export const clientResetAdminPassword = async (newPassword) => {
       name: "Vision Mysuru Admin",
       email: "vision2050@sdmimd.ac.in",
       role: "admin",
+    },
+  };
+};
+
+/**
+ * Client-Side Participant Password Reset by Gmail ID
+ */
+export const clientResetParticipantPassword = async ({ email, newPassword }) => {
+  const cleanEmail = (email || "").toLowerCase().trim();
+  if (!cleanEmail) {
+    throw new Error("Please enter your Gmail / Email ID.");
+  }
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters long.");
+  }
+
+  const users = getStoredUsers();
+  let user = users.find((u) => (u.email || "").toLowerCase() === cleanEmail);
+  const passwordHash = await hashPassword(newPassword);
+
+  if (!user) {
+    const subs = getStoredSubmissions();
+    const teamWithEmail = subs.find(
+      (s) =>
+        (s.participantEmail || "").toLowerCase() === cleanEmail ||
+        (s.members || []).some((m) => (m.email || "").toLowerCase() === cleanEmail)
+    );
+
+    const leader =
+      teamWithEmail?.members?.find((m) => m.isLeader) || teamWithEmail?.members?.[0] || {};
+    const userName = leader.name || teamWithEmail?.leadName || "Participant";
+
+    user = {
+      id: `user-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+      name: userName,
+      email: cleanEmail,
+      passwordHash,
+      plainPassword: newPassword,
+      role: "participant",
+      organization:
+        leader.college || teamWithEmail?.organizationDetails?.institution || "Participant",
+      specialization: "General",
+      allotedTeams: teamWithEmail ? [teamWithEmail.teamId] : [],
+      createdAt: new Date().toISOString(),
+    };
+    users.push(user);
+  } else {
+    user.passwordHash = passwordHash;
+    user.plainPassword = newPassword;
+  }
+
+  saveStoredUsers(users);
+
+  const token = `token-${user.id}-${Date.now()}`;
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     },
   };
 };

@@ -3,6 +3,7 @@ import {
   registerUser,
   loginUser,
   resetAdminPassword,
+  resetParticipantPassword,
   createJudgeAccount,
   registerEdition2Submission,
   getEdition2Submissions,
@@ -38,6 +39,8 @@ router.post("/auth/signup", registerUser);
 router.post("/auth/signin", loginUser);
 router.post("/auth/login", loginUser); // Alias for backwards compatibility
 router.post("/auth/admin/reset-password", resetAdminPassword);
+router.post("/auth/participant/reset-password", resetParticipantPassword);
+router.post("/auth/forgot-password", resetParticipantPassword);
 
 // ==========================================
 // 2. PARTICIPANT PORTAL

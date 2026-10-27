@@ -358,6 +358,80 @@ export const resetAdminPassword = async (req, res) => {
 };
 
 /**
+ * Participant Forgot / Reset Password
+ */
+export const resetParticipantPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    const cleanEmail = String(email || "").toLowerCase().trim();
+
+    if (!cleanEmail) {
+      return res.status(400).json({ message: "Gmail / Email ID is required." });
+    }
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters long." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    if (isDbConnected()) {
+      let user = await JuryzaUser.findOne({ email: cleanEmail });
+      if (!user) {
+        const sub = await Edition2Submission.findOne({ participantEmail: cleanEmail });
+        const lead = sub?.members?.find((m) => m.isLeader) || sub?.members?.[0] || {};
+        user = new JuryzaUser({
+          name: lead.name || sub?.leadName || "Participant",
+          email: cleanEmail,
+          password: newPassword,
+          role: "participant",
+          organization: lead.college || sub?.organizationDetails?.institution || "Participant",
+        });
+      } else {
+        user.password = newPassword;
+      }
+      await user.save();
+      const token = generateToken(user);
+      return res.status(200).json({
+        message: "Password reset successfully! Please sign in.",
+        token,
+        user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      });
+    }
+
+    // In-memory fallback
+    let user = localUsersStore.find((u) => u.email === cleanEmail);
+    if (!user) {
+      const sub = localSubmissionsStore.find((s) => s.participantEmail === cleanEmail);
+      const lead = sub?.members?.find((m) => m.isLeader) || sub?.members?.[0] || {};
+      user = {
+        _id: `user-${Date.now()}`,
+        name: lead.name || sub?.leadName || "Participant",
+        email: cleanEmail,
+        password: hashedPassword,
+        role: "participant",
+        organization: lead.college || sub?.organizationDetails?.institution || "Participant",
+        allotedTeams: sub ? [sub.teamId] : [],
+        createdAt: new Date(),
+      };
+      localUsersStore.push(user);
+    } else {
+      user.password = hashedPassword;
+    }
+
+    const token = generateToken(user);
+    return res.status(200).json({
+      message: "Password reset successfully! Please sign in.",
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (error) {
+    console.error("Participant reset error:", error);
+    return res.status(500).json({ message: "Failed to reset password." });
+  }
+};
+
+/**
  * Admin-Generated Judge Account Creation
  * (Only callable by authenticated Admin)
  */

@@ -13,18 +13,24 @@ import {
   FiAlertCircle,
   FiEye,
   FiEyeOff,
+  FiKey,
 } from "react-icons/fi";
 import api from "../utils/api";
-import { clientSignUp, clientSignIn } from "../services/juryzaStorage";
+import {
+  clientSignUp,
+  clientSignIn,
+  clientResetParticipantPassword,
+} from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
 export const JuryzaGateway = () => {
   const navigate = useNavigate();
-  const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup"
+  const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup" | "forgot"
 
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [organization, setOrganization] = useState("");
@@ -48,7 +54,7 @@ export const JuryzaGateway = () => {
       return;
     }
 
-    if (authMode === "signup") {
+    if (authMode === "signup" || authMode === "forgot") {
       if (!password || password.length < 8) {
         setError("Password must be at least 8 characters long.");
         return;
@@ -56,6 +62,13 @@ export const JuryzaGateway = () => {
     } else {
       if (!password) {
         setError("Please enter your password.");
+        return;
+      }
+    }
+
+    if (authMode === "forgot") {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match. Please verify.");
         return;
       }
     }
@@ -81,6 +94,13 @@ export const JuryzaGateway = () => {
           organization: organization.trim(),
         };
         const res = await api.post("/api/v2/auth/signup", payload);
+        authData = res.data;
+      } else if (authMode === "forgot") {
+        const payload = {
+          email: cleanEmail,
+          newPassword: password,
+        };
+        const res = await api.post("/api/v2/auth/participant/reset-password", payload);
         authData = res.data;
       } else {
         const payload = {
@@ -113,6 +133,11 @@ export const JuryzaGateway = () => {
             role: "participant",
             phone: phone.trim(),
             organization: organization.trim(),
+          });
+        } else if (authMode === "forgot") {
+          authData = await clientResetParticipantPassword({
+            email: cleanEmail,
+            newPassword: password,
           });
         } else {
           authData = await clientSignIn({
@@ -148,6 +173,8 @@ export const JuryzaGateway = () => {
       setSuccess(
         authMode === "signup"
           ? "Account registered successfully! Redirecting to submission portal..."
+          : authMode === "forgot"
+          ? "Password reset successfully! Redirecting to submission portal..."
           : "Signed in successfully! Redirecting to submission portal...",
       );
 
@@ -209,6 +236,8 @@ export const JuryzaGateway = () => {
             <p className="text-xs text-[var(--muted)] mt-1">
               {authMode === "signup"
                 ? "Register your team to submit your idea"
+                : authMode === "forgot"
+                ? "Reset your password associated with your Gmail ID"
                 : "Sign in to track submission or upload project files"}
             </p>
 
@@ -241,6 +270,14 @@ export const JuryzaGateway = () => {
               >
                 Sign Up (New Team)
               </button>
+              {authMode === "forgot" && (
+                <button
+                  type="button"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[var(--surface)] text-[var(--text)] shadow-xs"
+                >
+                  Reset Password
+                </button>
+              )}
             </div>
           </div>
 
@@ -388,9 +425,26 @@ export const JuryzaGateway = () => {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-semibold text-[var(--text)]">
-                  {authMode === "signup" ? "Create Password" : "Password"}
+                  {authMode === "signup"
+                    ? "Create Password"
+                    : authMode === "forgot"
+                    ? "New Password"
+                    : "Password"}
                 </label>
-                {authMode === "signup" && (
+                {authMode === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("forgot");
+                      setError("");
+                      setSuccess("");
+                    }}
+                    className="text-[11px] font-semibold text-[var(--accent)] hover:underline cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+                {(authMode === "signup" || authMode === "forgot") && (
                   <span className="text-[11px] text-[var(--muted)]">Min. 8 characters</span>
                 )}
               </div>
@@ -399,12 +453,14 @@ export const JuryzaGateway = () => {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={authMode === "signup" ? 8 : undefined}
+                  minLength={authMode === "signup" || authMode === "forgot" ? 8 : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={
                     authMode === "signup"
                       ? "Enter secure password (min. 8 characters)"
+                      : authMode === "forgot"
+                      ? "Enter new password (min. 8 characters)"
                       : "Enter your password"
                   }
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-10 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
@@ -421,6 +477,27 @@ export const JuryzaGateway = () => {
               </div>
             </div>
 
+            {/* Confirm New Password (for Forgot Password mode) */}
+            {authMode === "forgot" && (
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-10 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -436,12 +513,31 @@ export const JuryzaGateway = () => {
                   <span>
                     {authMode === "signup"
                       ? "Create Participant Account"
+                      : authMode === "forgot"
+                      ? "Reset Password & Sign In"
                       : "Sign In to Participant Portal"}
                   </span>
                   <FiArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
+
+            {/* Back link when in forgot password mode */}
+            {authMode === "forgot" && (
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className="text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline cursor-pointer"
+                >
+                  ← Remember your password? Sign In
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </main>

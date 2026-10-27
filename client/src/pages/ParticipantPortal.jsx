@@ -18,6 +18,9 @@ import {
   FiAlertCircle,
   FiEye,
   FiDownload,
+  FiKey,
+  FiLock,
+  FiX,
 } from "react-icons/fi";
 import { TOPIC_OPTIONS, CATEGORY } from "../constants/content";
 import api from "../utils/api";
@@ -28,6 +31,7 @@ import {
   getDriveFileId,
   storeMediaBlob,
   getMediaBlobUrl,
+  clientResetParticipantPassword,
 } from "../services/juryzaStorage";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -75,6 +79,46 @@ export const ParticipantPortal = () => {
   const [members, setMembers] = useState([
     { name: "", email: "", phone: "", isLeader: true, college: "", department: "" },
   ]);
+
+  // Reset Password Modal states
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetNewPassword || resetNewPassword.length < 8) {
+      toast.error("New password must be at least 8 characters long.");
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      try {
+        await api.post("/api/v2/auth/participant/reset-password", {
+          email: currentUserEmail,
+          newPassword: resetNewPassword,
+        });
+      } catch {
+        await clientResetParticipantPassword({
+          email: currentUserEmail,
+          newPassword: resetNewPassword,
+        });
+      }
+      toast.success("Password updated successfully!");
+      setShowResetModal(false);
+      setResetNewPassword("");
+      setResetConfirmPassword("");
+    } catch (err) {
+      toast.error(err.message || "Failed to update password.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   // Check auth and fetch submission on mount
   useEffect(() => {
@@ -480,6 +524,20 @@ export const ParticipantPortal = () => {
               <span className="text-xs font-bold text-[var(--text)]">{currentUserName}</span>
               <span className="text-[10px] text-[var(--muted)]">{currentUserEmail}</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setResetNewPassword("");
+                setResetConfirmPassword("");
+                setShowResetModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition cursor-pointer"
+              title="Reset / Change Password"
+            >
+              <FiKey className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <span className="hidden sm:inline">Reset Password</span>
+            </button>
 
             <button
               type="button"
@@ -1139,6 +1197,94 @@ export const ParticipantPortal = () => {
           </div>
         )}
       </main>
+
+      {/* Reset Password Modal */}
+      <AnimatePresence>
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-xl bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center">
+                    <FiKey className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-[var(--text)]">Reset Password</h3>
+                    <p className="text-[11px] text-[var(--muted)]">{currentUserEmail}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                >
+                  <FiX className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] h-3.5 w-3.5" />
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-9 pr-3.5 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] h-3.5 w-3.5" />
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-9 pr-3.5 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2 text-xs font-bold text-[var(--text)] hover:bg-[var(--surface)] transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="flex-1 rounded-xl bg-[var(--accent)] hover:brightness-110 py-2 text-xs font-bold text-white transition cursor-pointer disabled:opacity-60"
+                  >
+                    {resetLoading ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <FooterSection />
     </div>
