@@ -27,6 +27,8 @@ import {
   FiBriefcase,
   FiFolder,
   FiTrash2,
+  FiEdit2,
+  FiKey,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
@@ -43,6 +45,9 @@ import {
   clientCreateJudge,
   getMediaBlobUrl,
   deleteStoredSubmission,
+  deleteStoredJudge,
+  updateStoredSubmissionDetails,
+  updateStoredJudgeDetails,
   clearAllPortalData,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -78,6 +83,41 @@ export const AdminJuryzaPlatform = () => {
   const [judgeFormTrack, setJudgeFormTrack] = useState("All Tracks");
   const [creatingJudge, setCreatingJudge] = useState(false);
   const [judgeCreationSuccess, setJudgeCreationSuccess] = useState(null);
+
+  // Edit Submission Modal States
+  const [editingSubmission, setEditingSubmission] = useState(null);
+  const [submissionEditForm, setSubmissionEditForm] = useState({
+    teamId: "",
+    teamName: "",
+    category: "students",
+    theme: "",
+    solutionName: "",
+    shortDescription: "",
+    detailedProposal: "",
+    leadName: "",
+    leadEmail: "",
+    leadPhone: "",
+    institution: "",
+    stage: "submitted",
+    rubricAverage: 0,
+    password: "",
+  });
+
+  // Edit Judge Modal States
+  const [editingJudge, setEditingJudge] = useState(null);
+  const [judgeEditForm, setJudgeEditForm] = useState({
+    originalEmail: "",
+    name: "",
+    email: "",
+    organization: "SDMIMD Panel",
+    specialization: "All Tracks",
+    password: "",
+  });
+
+  // Password visibility maps
+  const [showTeamPasswords, setShowTeamPasswords] = useState({});
+  const [showJudgePasswords, setShowJudgePasswords] = useState({});
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     const token =
@@ -418,6 +458,145 @@ export const AdminJuryzaPlatform = () => {
     deleteStoredSubmission(teamId);
     setSubmissions((prev) => prev.filter((s) => s.teamId !== teamId));
     toast.success(`Team "${teamName}" deleted.`);
+  };
+
+  const getTeamPassword = (sub) => {
+    if (sub.plainPassword) return sub.plainPassword;
+    const clean = (sub.participantEmail || "").toLowerCase().trim();
+    const users = getStoredUsers();
+    const u = users.find((user) => (user.email || "").toLowerCase() === clean);
+    return u?.plainPassword || "";
+  };
+
+  const getJudgePassword = (judge) => {
+    if (judge.plainPassword) return judge.plainPassword;
+    const clean = (judge.email || "").toLowerCase().trim();
+    const users = getStoredUsers();
+    const u = users.find((user) => (user.email || "").toLowerCase() === clean);
+    return u?.plainPassword || "";
+  };
+
+  // Open Edit Submission Modal
+  const handleEditSubmissionOpen = (sub) => {
+    const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
+    setSubmissionEditForm({
+      teamId: sub.teamId,
+      teamName: sub.teamName || "",
+      category: sub.category || "students",
+      theme: sub.theme || sub.thematicArea || "",
+      solutionName: sub.solutionName || "",
+      shortDescription: sub.shortDescription || "",
+      detailedProposal: sub.detailedProposal || sub.shortDescription || "",
+      leadName: leader.name || sub.leadName || "",
+      leadEmail: leader.email || sub.participantEmail || "",
+      leadPhone: leader.phone || sub.leadPhone || "",
+      institution: leader.college || sub.organizationDetails?.institution || "",
+      stage: sub.stage || "submitted",
+      rubricAverage: sub.rubricAverage ?? 0,
+      password: getTeamPassword(sub),
+    });
+    setEditingSubmission(sub);
+  };
+
+  // Save Submission Edits
+  const handleSaveSubmissionEdit = async (e) => {
+    e.preventDefault();
+    if (!submissionEditForm.teamName.trim()) {
+      toast.error("Team name is required.");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      try {
+        await api.put(`/api/v2/admin/submissions/${submissionEditForm.teamId}`, submissionEditForm);
+      } catch {
+        console.warn("Backend unavailable, saving locally...");
+      }
+      const updated = await updateStoredSubmissionDetails(submissionEditForm.teamId, submissionEditForm);
+      setSubmissions((prev) =>
+        prev.map((s) => (s.teamId === submissionEditForm.teamId ? { ...s, ...updated } : s))
+      );
+      toast.success(`Team "${submissionEditForm.teamName}" updated successfully!`);
+      setEditingSubmission(null);
+    } catch (err) {
+      toast.error(err.message || "Failed to update submission.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Open Edit Judge Modal
+  const handleEditJudgeOpen = (judge) => {
+    setJudgeEditForm({
+      originalEmail: judge.email,
+      name: judge.name || "",
+      email: judge.email || "",
+      organization: judge.organization || "SDMIMD Panel",
+      specialization: judge.specialization || "All Tracks",
+      password: getJudgePassword(judge),
+    });
+    setEditingJudge(judge);
+  };
+
+  // Save Judge Edits
+  const handleSaveJudgeEdit = async (e) => {
+    e.preventDefault();
+    if (!judgeEditForm.name.trim() || !judgeEditForm.email.trim()) {
+      toast.error("Judge name and email are required.");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      try {
+        await api.put(
+          `/api/v2/admin/judges/${encodeURIComponent(judgeEditForm.originalEmail)}`,
+          judgeEditForm
+        );
+      } catch {
+        console.warn("Backend unavailable, saving locally...");
+      }
+      const updated = await updateStoredJudgeDetails(judgeEditForm.originalEmail, judgeEditForm);
+      setJudges((prev) =>
+        prev.map((j) => (j.email === judgeEditForm.originalEmail ? { ...j, ...updated } : j))
+      );
+      toast.success(`Judge "${judgeEditForm.name}" updated successfully!`);
+      setEditingJudge(null);
+    } catch (err) {
+      toast.error(err.message || "Failed to update judge.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Delete Judge
+  const handleDeleteJudge = async (judgeEmail, judgeName) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete judge "${judgeName}" (${judgeEmail})? This will revoke their account and free their alloted teams.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.delete(`/api/v2/admin/judges/${encodeURIComponent(judgeEmail)}`);
+    } catch {
+      console.warn("Backend unavailable, deleting locally...");
+    }
+    deleteStoredJudge(judgeEmail);
+    setJudges((prev) => prev.filter((j) => (j.email || "").toLowerCase() !== judgeEmail.toLowerCase()));
+    setSubmissions((prev) =>
+      prev.map((s) => {
+        if (Array.isArray(s.allotedJudges) && s.allotedJudges.includes(judgeEmail)) {
+          return {
+            ...s,
+            allotedJudges: s.allotedJudges.filter((e) => e !== judgeEmail),
+            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
+          };
+        }
+        return s;
+      })
+    );
+    toast.success(`Judge "${judgeName}" deleted.`);
   };
 
   // Purge all portal data (teams & judges)
@@ -806,7 +985,7 @@ export const AdminJuryzaPlatform = () => {
                             </div>
                           </td>
 
-                          {/* Focus Area & Team Leader */}
+                          {/* Focus Area & Team Leader & Password */}
                           <td className="px-4 py-3.5">
                             <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-[var(--accent)] border border-amber-500/30">
                               {focusArea}
@@ -816,6 +995,32 @@ export const AdminJuryzaPlatform = () => {
                             </div>
                             <div className="text-[10px] text-[var(--muted)] font-mono">
                               {leaderEmail}
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+                              <FiKey className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span className="font-mono text-[var(--muted)]">PW:</span>
+                              <span className="font-mono font-bold text-[var(--text)]">
+                                {showTeamPasswords[sub.teamId]
+                                  ? getTeamPassword(sub) || "None set"
+                                  : "••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowTeamPasswords((prev) => ({
+                                    ...prev,
+                                    [sub.teamId]: !prev[sub.teamId],
+                                  }))
+                                }
+                                className="text-[var(--muted)] hover:text-[var(--text)] ml-0.5 cursor-pointer"
+                                title={showTeamPasswords[sub.teamId] ? "Hide password" : "Show password"}
+                              >
+                                {showTeamPasswords[sub.teamId] ? (
+                                  <FiEyeOff className="h-3 w-3" />
+                                ) : (
+                                  <FiEye className="h-3 w-3" />
+                                )}
+                              </button>
                             </div>
                           </td>
 
@@ -888,16 +1093,26 @@ export const AdminJuryzaPlatform = () => {
                               : "Pending"}
                           </td>
 
-                          {/* Delete Submission */}
-                          <td className="px-4 py-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSubmission(sub.teamId, sub.teamName)}
-                              title="Delete Submission"
-                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
-                            >
-                              <FiTrash2 className="h-3.5 w-3.5" />
-                            </button>
+                          {/* Action (Edit & Delete Submission) */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleEditSubmissionOpen(sub)}
+                                title="Edit Team Submission"
+                                className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-500/10 transition cursor-pointer"
+                              >
+                                <FiEdit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSubmission(sub.teamId, sub.teamName)}
+                                title="Delete Submission"
+                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                              >
+                                <FiTrash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -955,16 +1170,18 @@ export const AdminJuryzaPlatform = () => {
                     <tr>
                       <th className="px-4 py-3">Judge Name</th>
                       <th className="px-4 py-3">Gmail / Email ID</th>
+                      <th className="px-4 py-3">Password</th>
                       <th className="px-4 py-3">Organization</th>
                       <th className="px-4 py-3">Specialization Track</th>
-                      <th className="px-4 py-3">Alloted Teams Count</th>
+                      <th className="px-4 py-3">Alloted Teams</th>
                       <th className="px-4 py-3">Registered Date</th>
+                      <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {judges.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="text-center py-12 text-[var(--muted)]">
+                        <td colSpan={8} className="text-center py-12 text-[var(--muted)]">
                           No judges registered yet. Click &apos;Generate Judge Account&apos; above.
                         </td>
                       </tr>
@@ -986,6 +1203,33 @@ export const AdminJuryzaPlatform = () => {
                           <td className="px-4 py-3.5 font-mono text-[var(--muted)]">
                             {judge.email}
                           </td>
+                          {/* Account Password */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="font-mono font-bold text-[var(--text)]">
+                                {showJudgePasswords[judge.email]
+                                  ? getJudgePassword(judge) || "None set"
+                                  : "••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowJudgePasswords((prev) => ({
+                                    ...prev,
+                                    [judge.email]: !prev[judge.email],
+                                  }))
+                                }
+                                className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                                title={showJudgePasswords[judge.email] ? "Hide password" : "Show password"}
+                              >
+                                {showJudgePasswords[judge.email] ? (
+                                  <FiEyeOff className="h-3 w-3" />
+                                ) : (
+                                  <FiEye className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
                           <td className="px-4 py-3.5 text-[var(--text)]">
                             {judge.organization || "SDMIMD Panel"}
                           </td>
@@ -1001,6 +1245,27 @@ export const AdminJuryzaPlatform = () => {
                             {judge.createdAt
                               ? new Date(judge.createdAt).toLocaleDateString("en-IN")
                               : "Active"}
+                          </td>
+                          {/* Action (Edit & Delete Judge) */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleEditJudgeOpen(judge)}
+                                title="Edit Judge Details"
+                                className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-500/10 transition cursor-pointer"
+                              >
+                                <FiEdit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteJudge(judge.email, judge.name)}
+                                title="Delete Judge Account"
+                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                              >
+                                <FiTrash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1133,6 +1398,393 @@ export const AdminJuryzaPlatform = () => {
                     className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
                   >
                     {creatingJudge ? "Generating..." : "Save Judge Credentials"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Edit Team Submission Modal */}
+        {editingSubmission && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8 shadow-2xl relative space-y-5"
+            >
+              <button
+                type="button"
+                onClick={() => setEditingSubmission(null)}
+                className="absolute top-5 right-5 text-[var(--muted)] hover:text-[var(--text)] p-1 rounded-lg transition cursor-pointer"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 pb-3 border-b border-[var(--border)]">
+                <div className="h-10 w-10 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <FiEdit2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[var(--text)]">Edit Team Submission</h3>
+                  <p className="text-xs text-[var(--muted)] font-mono">ID: {submissionEditForm.teamId}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSubmissionEdit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Team Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={submissionEditForm.teamName}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, teamName: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Category Track
+                    </label>
+                    <select
+                      value={submissionEditForm.category}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, category: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
+                    >
+                      <option value="students">Students</option>
+                      <option value="citizens">Citizens</option>
+                      <option value="corporates">Corporates</option>
+                      <option value="ngos">NGOs</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Theme / Focus Area
+                    </label>
+                    <input
+                      type="text"
+                      value={submissionEditForm.theme}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, theme: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Solution Name
+                    </label>
+                    <input
+                      type="text"
+                      value={submissionEditForm.solutionName}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, solutionName: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Team Leader Name
+                    </label>
+                    <input
+                      type="text"
+                      value={submissionEditForm.leadName}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, leadName: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Leader Gmail / Email
+                    </label>
+                    <input
+                      type="email"
+                      value={submissionEditForm.leadEmail}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, leadEmail: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Leader Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={submissionEditForm.leadPhone}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, leadPhone: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      College / Organization
+                    </label>
+                    <input
+                      type="text"
+                      value={submissionEditForm.institution}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, institution: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Account Password */}
+                  <div>
+                    <label className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                      <FiKey className="h-3 w-3" />
+                      <span>Account Password</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={submissionEditForm.password}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, password: e.target.value }))
+                      }
+                      placeholder="e.g. Pass@1234"
+                      className="w-full rounded-xl border border-emerald-500/40 bg-[var(--surface-2)] px-3 py-2 text-xs font-mono font-bold text-[var(--text)] focus:border-emerald-500 focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Stage / Round
+                    </label>
+                    <select
+                      value={submissionEditForm.stage}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, stage: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
+                    >
+                      <option value="submitted">1. Submitted</option>
+                      <option value="allocated to a judge">2. Allocated to Judge</option>
+                      <option value="under evaluation">3. Under Evaluation</option>
+                      <option value="shortlisted to next round">4. Shortlisted 🏆</option>
+                      <option value="not shortlisted to next round">4. Not Shortlisted ❌</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Rubric Average (/50)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      step="0.5"
+                      value={submissionEditForm.rubricAverage}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({
+                          ...prev,
+                          rubricAverage: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-mono font-bold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    Short Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={submissionEditForm.shortDescription}
+                    onChange={(e) =>
+                      setSubmissionEditForm((prev) => ({ ...prev, shortDescription: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    Detailed Proposal Summary
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={submissionEditForm.detailedProposal}
+                    onChange={(e) =>
+                      setSubmissionEditForm((prev) => ({ ...prev, detailedProposal: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSubmission(null)}
+                    className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading}
+                    className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:brightness-110 text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
+                  >
+                    {editLoading ? "Saving..." : "Save Submission Changes"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Edit Judge Account Modal */}
+        {editingJudge && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8 shadow-2xl relative space-y-5"
+            >
+              <button
+                type="button"
+                onClick={() => setEditingJudge(null)}
+                className="absolute top-5 right-5 text-[var(--muted)] hover:text-[var(--text)] p-1 rounded-lg transition cursor-pointer"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 pb-3 border-b border-[var(--border)]">
+                <div className="h-10 w-10 rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] flex items-center justify-center">
+                  <FiAward className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[var(--text)]">Edit Judge Account</h3>
+                  <p className="text-xs text-[var(--muted)] font-mono">{judgeEditForm.originalEmail}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveJudgeEdit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    Judge Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={judgeEditForm.name}
+                    onChange={(e) => setJudgeEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                    Gmail / Email ID *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={judgeEditForm.email}
+                    onChange={(e) => setJudgeEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none transition"
+                  />
+                </div>
+
+                {/* Judge Account Password */}
+                <div>
+                  <label className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                    <FiKey className="h-3 w-3" />
+                    <span>Account Password</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={judgeEditForm.password}
+                    onChange={(e) => setJudgeEditForm((prev) => ({ ...prev, password: e.target.value }))}
+                    placeholder="e.g. Judge@2050"
+                    className="w-full rounded-xl border border-emerald-500/40 bg-[var(--surface-2)] px-3 py-2 text-xs font-mono font-bold text-[var(--text)] focus:border-emerald-500 focus:outline-none transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Organization
+                    </label>
+                    <input
+                      type="text"
+                      value={judgeEditForm.organization}
+                      onChange={(e) =>
+                        setJudgeEditForm((prev) => ({ ...prev, organization: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Specialization Track
+                    </label>
+                    <select
+                      value={judgeEditForm.specialization}
+                      onChange={(e) =>
+                        setJudgeEditForm((prev) => ({ ...prev, specialization: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none transition cursor-pointer"
+                    >
+                      <option value="All Tracks">All Tracks</option>
+                      <option value="Environmental Sustainability">Environmental Sustainability</option>
+                      <option value="Urban Infrastructure & Mobility">Urban Infrastructure & Mobility</option>
+                      <option value="Heritage & Tourism">Heritage & Tourism</option>
+                      <option value="Smart Governance & Digital Tech">Smart Governance & Digital Tech</option>
+                      <option value="Healthcare & Wellbeing">Healthcare & Wellbeing</option>
+                      <option value="Education & Skill Development">Education & Skill Development</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingJudge(null)}
+                    className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading}
+                    className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
+                  >
+                    {editLoading ? "Saving..." : "Save Judge Changes"}
                   </button>
                 </div>
               </form>

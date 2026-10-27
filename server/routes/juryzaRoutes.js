@@ -21,6 +21,8 @@ import {
   getDriveSyncStatus,
   deleteSubmission,
   deleteJudge,
+  updateSubmissionDetails,
+  updateJudgeDetails,
   purgeAllPortalData,
 } from "../controllers/juryzaController.js";
 import { submissionUpload } from "../middleware/upload.js";
@@ -101,6 +103,10 @@ router.get("/judges", getJudges); // Alias for allocation panels
 // Delete & Purge Actions
 router.delete("/admin/submissions/:id", verifyAuthToken, requireAdmin, deleteSubmission);
 router.delete("/admin/judges/:id", verifyAuthToken, requireAdmin, deleteJudge);
+router.put("/admin/submissions/:id", verifyAuthToken, requireAdmin, updateSubmissionDetails);
+router.patch("/admin/submissions/:id", verifyAuthToken, requireAdmin, updateSubmissionDetails);
+router.put("/admin/judges/:id", verifyAuthToken, requireAdmin, updateJudgeDetails);
+router.patch("/admin/judges/:id", verifyAuthToken, requireAdmin, updateJudgeDetails);
 router.post("/admin/purge-all", verifyAuthToken, requireAdmin, purgeAllPortalData);
 
 // Live Master Spreadsheet

@@ -1315,6 +1315,99 @@ export const deleteSubmission = async (req, res) => {
 };
 
 /**
+ * Admin Action: Edit / Update Submission details
+ */
+export const updateSubmissionDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const patchData = req.body;
+
+    if (isDbConnected()) {
+      const sub = await Edition2Submission.findOne({ teamId: id });
+      if (sub) {
+        Object.assign(sub, patchData);
+        await sub.save();
+      }
+      if (patchData.password && patchData.participantEmail) {
+        let user = await JuryzaUser.findOne({
+          email: patchData.participantEmail.toLowerCase().trim(),
+        });
+        if (user) {
+          user.password = patchData.password;
+          await user.save();
+        }
+      }
+    }
+
+    const idx = localSubmissionsStore.findIndex((s) => s.teamId === id);
+    if (idx !== -1) {
+      localSubmissionsStore[idx] = { ...localSubmissionsStore[idx], ...patchData };
+      if (patchData.password && patchData.participantEmail) {
+        const cleanEmail = patchData.participantEmail.toLowerCase().trim();
+        let user = localUsersStore.find((u) => u.email === cleanEmail);
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(patchData.password, salt);
+        if (user) {
+          user.password = hashedPassword;
+        }
+      }
+    }
+
+    await triggerSpreadsheetUpdate();
+    return res.status(200).json({ success: true, message: "Submission updated successfully." });
+  } catch (error) {
+    console.error("Update submission error:", error);
+    return res.status(500).json({ message: "Failed to update submission.", error: error.message });
+  }
+};
+
+/**
+ * Admin Action: Edit / Update Judge details
+ */
+export const updateJudgeDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, organization, specialization, password } = req.body;
+    const cleanId = String(id).toLowerCase().trim();
+
+    if (isDbConnected()) {
+      const judge = await JuryzaUser.findOne({
+        $or: [{ _id: mongoose.isValidObjectId(id) ? id : null }, { email: cleanId }],
+        role: "judge",
+      });
+      if (judge) {
+        if (name) judge.name = name.trim();
+        if (email) judge.email = email.toLowerCase().trim();
+        if (organization) judge.organization = organization.trim();
+        if (specialization) judge.specialization = specialization;
+        if (password) judge.password = password;
+        await judge.save();
+      }
+    }
+
+    const targetJudge = localUsersStore.find(
+      (u) => (u._id === id || u.email?.toLowerCase() === cleanId) && u.role === "judge"
+    );
+    if (targetJudge) {
+      if (name) targetJudge.name = name.trim();
+      if (email) targetJudge.email = email.toLowerCase().trim();
+      if (organization) targetJudge.organization = organization.trim();
+      if (specialization) targetJudge.specialization = specialization;
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        targetJudge.password = await bcrypt.hash(password, salt);
+      }
+    }
+
+    await triggerSpreadsheetUpdate();
+    return res.status(200).json({ success: true, message: "Judge updated successfully." });
+  } catch (error) {
+    console.error("Update judge error:", error);
+    return res.status(500).json({ message: "Failed to update judge.", error: error.message });
+  }
+};
+
+/**
  * Admin Action: Delete a single judge
  */
 export const deleteJudge = async (req, res) => {
