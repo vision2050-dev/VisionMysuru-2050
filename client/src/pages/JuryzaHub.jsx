@@ -807,7 +807,7 @@ export const JuryzaHub = () => {
                     <div className="flex items-center justify-between pb-4 border-b border-[var(--border)] mb-4">
                       <div>
                         <h3 className="font-bold text-sm text-[var(--text)]">Evaluation Rubric</h3>
-                        <p className="text-[11px] text-[var(--muted)]">Score each parameter from 1 to 10</p>
+                        <p className="text-[11px] text-[var(--muted)]">Score each parameter from 0 to 10</p>
                       </div>
                       <div className="text-right">
                         <span className="text-xs text-[var(--muted)] block">Total Score</span>
@@ -826,7 +826,7 @@ export const JuryzaHub = () => {
                         </div>
                         <input
                           type="range"
-                          min="1"
+                          min="0"
                           max="10"
                           value={scores.problemClarity}
                           onChange={(e) => handleScoreChange("problemClarity", e.target.value)}
@@ -842,7 +842,7 @@ export const JuryzaHub = () => {
                         </div>
                         <input
                           type="range"
-                          min="1"
+                          min="0"
                           max="10"
                           value={scores.innovationImpact}
                           onChange={(e) => handleScoreChange("innovationImpact", e.target.value)}
@@ -858,7 +858,7 @@ export const JuryzaHub = () => {
                         </div>
                         <input
                           type="range"
-                          min="1"
+                          min="0"
                           max="10"
                           value={scores.feasibilityScalability}
                           onChange={(e) => handleScoreChange("feasibilityScalability", e.target.value)}
@@ -874,7 +874,7 @@ export const JuryzaHub = () => {
                         </div>
                         <input
                           type="range"
-                          min="1"
+                          min="0"
                           max="10"
                           value={scores.technicalDepth}
                           onChange={(e) => handleScoreChange("technicalDepth", e.target.value)}
@@ -890,7 +890,7 @@ export const JuryzaHub = () => {
                         </div>
                         <input
                           type="range"
-                          min="1"
+                          min="0"
                           max="10"
                           value={scores.videoPitchDelivery}
                           onChange={(e) => handleScoreChange("videoPitchDelivery", e.target.value)}
