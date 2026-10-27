@@ -1367,7 +1367,7 @@ export const updateSubmissionDetails = async (req, res) => {
 export const updateJudgeDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, organization, specialization, password } = req.body;
+    const { name, email, organization, specialization, password, allotedTeams, createdAt } = req.body;
     const cleanId = String(id).toLowerCase().trim();
 
     if (isDbConnected()) {
@@ -1381,6 +1381,8 @@ export const updateJudgeDetails = async (req, res) => {
         if (organization) judge.organization = organization.trim();
         if (specialization) judge.specialization = specialization;
         if (password) judge.password = password;
+        if (Array.isArray(allotedTeams)) judge.allotedTeams = allotedTeams;
+        if (createdAt) judge.createdAt = createdAt;
         await judge.save();
       }
     }
@@ -1393,6 +1395,8 @@ export const updateJudgeDetails = async (req, res) => {
       if (email) targetJudge.email = email.toLowerCase().trim();
       if (organization) targetJudge.organization = organization.trim();
       if (specialization) targetJudge.specialization = specialization;
+      if (Array.isArray(allotedTeams)) targetJudge.allotedTeams = allotedTeams;
+      if (createdAt) targetJudge.createdAt = createdAt;
       if (password) {
         const salt = await bcrypt.genSalt(10);
         targetJudge.password = await bcrypt.hash(password, salt);

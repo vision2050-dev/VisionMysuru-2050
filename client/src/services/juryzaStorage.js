@@ -851,7 +851,62 @@ export const updateStoredSubmissionDetails = async (teamId, patchData) => {
   const current = subs[index];
   const updated = { ...current, ...patchData, updatedAt: new Date().toISOString() };
 
-  // Sync leader fields with members array
+  // 1. Compulsory Files: Video and PDF Document names/URLs
+  if (patchData.videoFileName || patchData.videoUrl) {
+    if (!updated.video) updated.video = {};
+    if (patchData.videoFileName) updated.video.originalName = patchData.videoFileName;
+    if (patchData.videoUrl) {
+      updated.video.url = patchData.videoUrl;
+      updated.video.webViewLink = patchData.videoUrl;
+    }
+  }
+
+  if (patchData.documentFileName || patchData.documentUrl) {
+    if (!updated.document) updated.document = {};
+    if (patchData.documentFileName) {
+      updated.document.name = patchData.documentFileName;
+      updated.document.originalName = patchData.documentFileName;
+    }
+    if (patchData.documentUrl) {
+      updated.document.url = patchData.documentUrl;
+      updated.document.webViewLink = patchData.documentUrl;
+    }
+  }
+
+  // 2. Alloted Judge synchronization
+  if (patchData.allotedJudge !== undefined) {
+    const cleanJudge = (patchData.allotedJudge || "").toLowerCase().trim();
+    const users = getStoredUsers();
+    if (!cleanJudge) {
+      updated.allotedJudges = [];
+      updated.allotedJudgeNames = [];
+      if (updated.stage === "allocated to a judge") updated.stage = "submitted";
+      users.forEach((u) => {
+        if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
+          u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+        }
+      });
+    } else {
+      const targetJudge = users.find((u) => u.email === cleanJudge && u.role === "judge");
+      const jName = targetJudge ? targetJudge.name : cleanJudge;
+      updated.allotedJudges = [cleanJudge];
+      updated.allotedJudgeNames = [jName];
+      if (updated.stage === "submitted") updated.stage = "allocated to a judge";
+      users.forEach((u) => {
+        if (u.role === "judge") {
+          if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
+          if (u.email === cleanJudge) {
+            if (!u.allotedTeams.includes(teamId)) u.allotedTeams.push(teamId);
+          } else {
+            u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+          }
+        }
+      });
+    }
+    saveStoredUsers(users);
+  }
+
+  // 3. Sync leader fields with members array
   if (patchData.leadName || patchData.leadEmail || patchData.leadPhone || patchData.institution) {
     if (!Array.isArray(updated.members) || updated.members.length === 0) {
       updated.members = [{ isLeader: true }];
@@ -871,7 +926,7 @@ export const updateStoredSubmissionDetails = async (teamId, patchData) => {
     }
   }
 
-  // If password was edited
+  // 4. Team Password update
   if (patchData.password) {
     updated.plainPassword = patchData.password;
     const users = getStoredUsers();
@@ -927,18 +982,53 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
   if (patchData.organization) judge.organization = patchData.organization.trim();
   if (patchData.specialization) judge.specialization = patchData.specialization;
   if (patchData.email) judge.email = patchData.email.toLowerCase().trim();
+  if (patchData.createdAt) judge.createdAt = patchData.createdAt;
 
   if (patchData.password) {
     judge.plainPassword = patchData.password;
     judge.passwordHash = await hashPassword(patchData.password);
   }
 
+  // Handle Alloted Teams synchronization
+  if (Array.isArray(patchData.allotedTeams)) {
+    judge.allotedTeams = patchData.allotedTeams;
+    const subs = getStoredSubmissions();
+    const jEmail = (patchData.email || judge.email).toLowerCase().trim();
+    const jName = patchData.name || judge.name;
+
+    subs.forEach((s) => {
+      if (!Array.isArray(s.allotedJudges)) s.allotedJudges = [];
+      if (!Array.isArray(s.allotedJudgeNames)) s.allotedJudgeNames = [];
+
+      const shouldBeAssigned = patchData.allotedTeams.includes(s.teamId);
+      if (shouldBeAssigned) {
+        if (!s.allotedJudges.some((e) => e.toLowerCase() === jEmail)) {
+          s.allotedJudges.push(jEmail);
+          s.allotedJudgeNames.push(jName);
+        }
+        if (s.stage === "submitted") {
+          s.stage = "allocated to a judge";
+        }
+      } else {
+        s.allotedJudges = s.allotedJudges.filter(
+          (e) => e.toLowerCase() !== jEmail && e.toLowerCase() !== oldEmail
+        );
+        s.allotedJudgeNames = s.allotedJudgeNames.filter(
+          (n) => n !== jName && n !== judge.name
+        );
+        if (s.allotedJudges.length === 0 && s.stage === "allocated to a judge") {
+          s.stage = "submitted";
+        }
+      }
+    });
+    saveStoredSubmissions(subs);
+  }
+
   users[index] = judge;
   saveStoredUsers(users);
-  pushCloudState({ submissions: getStoredSubmissions(), users }).catch(() => {});
 
-  // If judge email or name changed, update in submissions allocations
-  if (patchData.email && patchData.email.toLowerCase().trim() !== oldEmail) {
+  // If judge email or name changed without allotedTeams patch, update in submissions allocations
+  if (patchData.email && patchData.email.toLowerCase().trim() !== oldEmail && !Array.isArray(patchData.allotedTeams)) {
     const newEmail = patchData.email.toLowerCase().trim();
     const subs = getStoredSubmissions();
     subs.forEach((s) => {
@@ -956,6 +1046,7 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
     saveStoredSubmissions(subs);
   }
 
+  pushCloudState({ submissions: getStoredSubmissions(), users }).catch(() => {});
   return judge;
 };
 
