@@ -24,7 +24,6 @@ import {
   FiEyeOff,
   FiArrowRight,
   FiAlertCircle,
-  FiBriefcase,
   FiFolder,
   FiTrash2,
   FiEdit2,
@@ -121,42 +120,6 @@ export const AdminJuryzaPlatform = () => {
     specialization: "All Tracks",
     password: "",
     allotedTeams: [],
-    createdAt: "",
-  });
-
-  // Inline Editing States for Tables
-  const [inlineEditingJudgeEmail, setInlineEditingJudgeEmail] = useState(null);
-  const [showJudgeTeamsDropdown, setShowJudgeTeamsDropdown] = useState(false);
-  const [inlineJudgeForm, setInlineJudgeForm] = useState({
-    originalEmail: "",
-    name: "",
-    email: "",
-    password: "",
-    organization: "SDMIMD Panel",
-    specialization: "All Tracks",
-    allotedTeams: [],
-    createdAt: "",
-  });
-
-  const [inlineEditingTeamId, setInlineEditingTeamId] = useState(null);
-  const [inlineSubmissionForm, setInlineSubmissionForm] = useState({
-    teamId: "",
-    teamName: "",
-    category: "students",
-    solutionName: "",
-    theme: "",
-    leadName: "",
-    leadEmail: "",
-    leadPhone: "",
-    institution: "",
-    password: "",
-    videoFileName: "",
-    videoUrl: "",
-    documentFileName: "",
-    documentUrl: "",
-    allotedJudge: "",
-    stage: "submitted",
-    rubricAverage: 0,
     createdAt: "",
   });
 
@@ -598,63 +561,6 @@ export const AdminJuryzaPlatform = () => {
     }
   };
 
-  // --- Inline Submission Editing Handlers ---
-  const handleStartInlineSubmissionEdit = (sub) => {
-    const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
-    setInlineSubmissionForm({
-      teamId: sub.teamId,
-      teamName: sub.teamName || "",
-      category: sub.category || "students",
-      solutionName: sub.solutionName || "",
-      theme: sub.theme || sub.thematicArea || "",
-      leadName: leader.name || sub.leadName || "",
-      leadEmail: leader.email || sub.participantEmail || "",
-      leadPhone: leader.phone || sub.leadPhone || "",
-      institution: leader.college || sub.organizationDetails?.institution || "",
-      password: getTeamPassword(sub),
-      videoFileName: sub.video?.originalName || "",
-      videoUrl: sub.video?.url || sub.video?.webViewLink || "",
-      documentFileName: sub.document?.name || sub.document?.originalName || "",
-      documentUrl: sub.document?.url || sub.document?.webViewLink || "",
-      allotedJudge: (sub.allotedJudges || [])[0] || "",
-      stage: sub.stage || "submitted",
-      rubricAverage: sub.rubricAverage ?? 0,
-      createdAt: sub.createdAt ? new Date(sub.createdAt).toISOString().split("T")[0] : "",
-    });
-    setInlineEditingTeamId(sub.teamId);
-  };
-
-  const handleCancelInlineSubmissionEdit = () => {
-    setInlineEditingTeamId(null);
-  };
-
-  const handleSaveInlineSubmissionEdit = async (teamId) => {
-    if (!inlineSubmissionForm.teamName.trim()) {
-      toast.error("Team name is required.");
-      return;
-    }
-    setEditLoading(true);
-    try {
-      try {
-        await api.put(`/api/v2/admin/submissions/${teamId}`, inlineSubmissionForm);
-      } catch {
-        console.warn("Backend unavailable, saving locally...");
-      }
-
-      const updated = await updateStoredSubmissionDetails(teamId, inlineSubmissionForm);
-      setSubmissions((prev) =>
-        prev.map((s) => (s.teamId === teamId ? { ...s, ...updated } : s))
-      );
-      setJudges(getStoredUsers().filter((u) => u.role === "judge"));
-      toast.success(`Team "${inlineSubmissionForm.teamName}" updated successfully!`);
-      setInlineEditingTeamId(null);
-    } catch (err) {
-      toast.error(err.message || "Failed to update submission.");
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
   // Open Edit Judge Modal
   const handleEditJudgeOpen = (judge) => {
     const jEmail = (judge.email || "").toLowerCase().trim();
@@ -701,67 +607,6 @@ export const AdminJuryzaPlatform = () => {
       setSubmissions(getStoredSubmissions());
       toast.success(`Judge "${judgeEditForm.name}" updated successfully!`);
       setEditingJudge(null);
-    } catch (err) {
-      toast.error(err.message || "Failed to update judge.");
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // --- Inline Judge Editing Handlers ---
-  const handleStartInlineJudgeEdit = (judge) => {
-    const jEmail = (judge.email || "").toLowerCase().trim();
-    const currentAlloted = (judge.allotedTeams && judge.allotedTeams.length > 0)
-      ? judge.allotedTeams
-      : submissions
-          .filter((s) => Array.isArray(s.allotedJudges) && s.allotedJudges.map(e => e.toLowerCase()).includes(jEmail))
-          .map((s) => s.teamId);
-
-    setInlineJudgeForm({
-      originalEmail: judge.email,
-      name: judge.name || "",
-      email: judge.email || "",
-      password: getJudgePassword(judge),
-      organization: judge.organization || "SDMIMD Panel",
-      specialization: judge.specialization || "All Tracks",
-      allotedTeams: currentAlloted,
-      createdAt: judge.createdAt ? new Date(judge.createdAt).toISOString().split("T")[0] : "",
-    });
-    setInlineEditingJudgeEmail(judge.email);
-    setShowJudgeTeamsDropdown(false);
-  };
-
-  const handleCancelInlineJudgeEdit = () => {
-    setInlineEditingJudgeEmail(null);
-    setShowJudgeTeamsDropdown(false);
-  };
-
-  const handleSaveInlineJudgeEdit = async (judgeEmail) => {
-    if (!inlineJudgeForm.name.trim() || !inlineJudgeForm.email.trim()) {
-      toast.error("Judge name and email are required.");
-      return;
-    }
-    setEditLoading(true);
-    try {
-      try {
-        await api.put(
-          `/api/v2/admin/judges/${encodeURIComponent(inlineJudgeForm.originalEmail || judgeEmail)}`,
-          inlineJudgeForm
-        );
-      } catch {
-        console.warn("Backend unavailable, saving locally...");
-      }
-
-      const updated = await updateStoredJudgeDetails(inlineJudgeForm.originalEmail || judgeEmail, inlineJudgeForm);
-      setJudges((prev) =>
-        prev.map((j) =>
-          j.email === (inlineJudgeForm.originalEmail || judgeEmail) ? { ...j, ...updated } : j
-        )
-      );
-      setSubmissions(getStoredSubmissions());
-      toast.success(`Judge "${inlineJudgeForm.name}" updated successfully!`);
-      setInlineEditingJudgeEmail(null);
-      setShowJudgeTeamsDropdown(false);
     } catch (err) {
       toast.error(err.message || "Failed to update judge.");
     } finally {
@@ -1183,225 +1028,6 @@ export const AdminJuryzaPlatform = () => {
                       const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
                       const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
 
-                      if (inlineEditingTeamId === sub.teamId) {
-                        return (
-                          <tr key={sub.teamId} className="bg-blue-500/5 dark:bg-blue-500/10 border-2 border-blue-500/40">
-                            {/* 1. Team Details */}
-                            <td className="px-4 py-3 space-y-1.5 min-w-[170px]">
-                              <input
-                                type="text"
-                                required
-                                value={inlineSubmissionForm.teamName}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, teamName: e.target.value }))
-                                }
-                                placeholder="Team Name"
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-xl border border-blue-500 bg-[var(--surface)] text-[var(--text)] focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
-                              />
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[10px] text-[var(--muted)]">ID: {sub.teamId}</span>
-                                <select
-                                  value={inlineSubmissionForm.category}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, category: e.target.value }))
-                                  }
-                                  className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none cursor-pointer"
-                                >
-                                  <option value="students">Students</option>
-                                  <option value="citizens">Citizens</option>
-                                  <option value="corporates">Corporates</option>
-                                  <option value="ngos">NGOs</option>
-                                </select>
-                              </div>
-                              <input
-                                type="text"
-                                value={inlineSubmissionForm.solutionName}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, solutionName: e.target.value }))
-                                }
-                                placeholder="Solution / Innovation Name"
-                                className="w-full px-2 py-1 text-[11px] rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:outline-none"
-                              />
-                            </td>
-
-                            {/* 2. Focus Area & Leader & Password */}
-                            <td className="px-4 py-3 space-y-1.5 min-w-[180px]">
-                              <input
-                                type="text"
-                                value={inlineSubmissionForm.theme}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, theme: e.target.value }))
-                                }
-                                placeholder="Focus Area / Theme"
-                                className="w-full px-2.5 py-1 text-[11px] font-bold rounded-xl border border-amber-500 bg-[var(--surface)] text-[var(--accent)] focus:outline-none"
-                              />
-                              <input
-                                type="text"
-                                value={inlineSubmissionForm.leadName}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, leadName: e.target.value }))
-                                }
-                                placeholder="Leader Name"
-                                className="w-full px-2 py-1 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:outline-none"
-                              />
-                              <input
-                                type="email"
-                                value={inlineSubmissionForm.leadEmail}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, leadEmail: e.target.value }))
-                                }
-                                placeholder="Leader Gmail / Email"
-                                className="w-full px-2 py-1 text-[10px] font-mono rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] focus:outline-none"
-                              />
-                              <div className="flex items-center gap-1">
-                                <FiKey className="h-3 w-3 text-emerald-500 shrink-0" />
-                                <input
-                                  type="text"
-                                  value={inlineSubmissionForm.password}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, password: e.target.value }))
-                                  }
-                                  placeholder="Password"
-                                  className="w-full px-2 py-0.5 text-[10px] font-mono font-bold rounded-lg border border-emerald-500 bg-[var(--surface)] text-emerald-600 dark:text-emerald-400 focus:outline-none"
-                                />
-                              </div>
-                            </td>
-
-                            {/* 3. Compulsory Files */}
-                            <td className="px-4 py-3 space-y-1.5 min-w-[190px]">
-                              <div>
-                                <label className="text-[10px] font-semibold text-[var(--muted)] flex items-center gap-1 mb-0.5">
-                                  <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
-                                  <span>Pitch Video Name / URL:</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={inlineSubmissionForm.videoFileName}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, videoFileName: e.target.value }))
-                                  }
-                                  placeholder="Video File Name"
-                                  className="w-full px-2 py-1 text-[10px] rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:outline-none mb-1"
-                                />
-                                <input
-                                  type="text"
-                                  value={inlineSubmissionForm.videoUrl}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, videoUrl: e.target.value }))
-                                  }
-                                  placeholder="Video URL"
-                                  className="w-full px-2 py-0.5 text-[9px] font-mono rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--primary)] focus:outline-none"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-semibold text-[var(--muted)] flex items-center gap-1 mb-0.5">
-                                  <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
-                                  <span>Proposal PDF / URL:</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={inlineSubmissionForm.documentFileName}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, documentFileName: e.target.value }))
-                                  }
-                                  placeholder="Proposal PDF Name"
-                                  className="w-full px-2 py-1 text-[10px] rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:outline-none mb-1"
-                                />
-                                <input
-                                  type="text"
-                                  value={inlineSubmissionForm.documentUrl}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({ ...prev, documentUrl: e.target.value }))
-                                  }
-                                  placeholder="PDF URL"
-                                  className="w-full px-2 py-0.5 text-[9px] font-mono rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)] focus:outline-none"
-                                />
-                              </div>
-                            </td>
-
-                            {/* 4. Alloted Judge */}
-                            <td className="px-4 py-3">
-                              <select
-                                value={inlineSubmissionForm.allotedJudge}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, allotedJudge: e.target.value }))
-                                }
-                                className="w-full rounded-xl border border-blue-500 bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:ring-2 focus:ring-blue-500/30 focus:outline-none cursor-pointer max-w-[150px]"
-                              >
-                                <option value="">Unallocated</option>
-                                {judges.map((j) => (
-                                  <option key={j.email} value={j.email}>
-                                    {j.name} ({j.email})
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-
-                            {/* 5. Submission Stage */}
-                            <td className="px-4 py-3">
-                              <select
-                                value={inlineSubmissionForm.stage}
-                                onChange={(e) =>
-                                  setInlineSubmissionForm((prev) => ({ ...prev, stage: e.target.value }))
-                                }
-                                className="w-full rounded-xl border border-blue-500 bg-[var(--surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] focus:ring-2 focus:ring-blue-500/30 focus:outline-none cursor-pointer"
-                              >
-                                <option value="submitted">1. Submitted</option>
-                                <option value="allocated to a judge">2. Allocated to Judge</option>
-                                <option value="under evaluation">3. Under Evaluation</option>
-                                <option value="shortlisted to next round">4. Shortlisted 🏆</option>
-                                <option value="not shortlisted to next round">4. Not Shortlisted ❌</option>
-                              </select>
-                            </td>
-
-                            {/* 6. Score */}
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="50"
-                                  step="0.5"
-                                  value={inlineSubmissionForm.rubricAverage}
-                                  onChange={(e) =>
-                                    setInlineSubmissionForm((prev) => ({
-                                      ...prev,
-                                      rubricAverage: parseFloat(e.target.value) || 0,
-                                    }))
-                                  }
-                                  className="w-16 px-2 py-1 text-xs font-mono font-bold rounded-xl border border-blue-500 bg-[var(--surface)] text-[var(--text)] focus:outline-none"
-                                />
-                                <span className="font-mono text-xs text-[var(--muted)]">/50</span>
-                              </div>
-                            </td>
-
-                            {/* 7. Action (Save & Cancel) */}
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveInlineSubmissionEdit(sub.teamId)}
-                                  disabled={editLoading}
-                                  title="Save Team Changes"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-60"
-                                >
-                                  <FiCheck className="h-3.5 w-3.5" />
-                                  <span>Save</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelInlineSubmissionEdit}
-                                  title="Cancel Edit"
-                                  className="p-1.5 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition cursor-pointer"
-                                >
-                                  <FiX className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
-
                       return (
                         <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
                           {/* Team Info */}
@@ -1525,24 +1151,16 @@ export const AdminJuryzaPlatform = () => {
                               : "Pending"}
                           </td>
 
-                          {/* Action (Inline Edit, Modal Edit & Delete Submission) */}
+                          {/* Action (Edit & Delete Submission) */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
-                                onClick={() => handleStartInlineSubmissionEdit(sub)}
-                                title="Quick Edit (Inline in Table)"
+                                onClick={() => handleEditSubmissionOpen(sub)}
+                                title="Edit Submission Details"
                                 className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-500/10 transition cursor-pointer"
                               >
                                 <FiEdit2 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEditSubmissionOpen(sub)}
-                                title="Edit Full Details Modal"
-                                className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-500/10 transition cursor-pointer"
-                              >
-                                <FiBriefcase className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
@@ -1635,181 +1253,6 @@ export const AdminJuryzaPlatform = () => {
                           .includes(jEmail)
                       ).length;
 
-                      if (inlineEditingJudgeEmail === judge.email) {
-                        return (
-                          <tr key={judge.email} className="bg-blue-500/5 dark:bg-blue-500/10 border-2 border-blue-500/40">
-                            {/* 1. Judge Name */}
-                            <td className="px-4 py-3 min-w-[150px]">
-                              <input
-                                type="text"
-                                required
-                                value={inlineJudgeForm.name}
-                                onChange={(e) =>
-                                  setInlineJudgeForm((prev) => ({ ...prev, name: e.target.value }))
-                                }
-                                placeholder="Judge Name"
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-xl border border-blue-500 bg-[var(--surface)] text-[var(--text)] focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
-                              />
-                            </td>
-
-                            {/* 2. Gmail / Email ID */}
-                            <td className="px-4 py-3 min-w-[170px]">
-                              <input
-                                type="email"
-                                required
-                                value={inlineJudgeForm.email}
-                                onChange={(e) =>
-                                  setInlineJudgeForm((prev) => ({ ...prev, email: e.target.value }))
-                                }
-                                placeholder="judge@gmail.com"
-                                className="w-full px-2.5 py-1.5 text-xs font-mono rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:border-blue-500 focus:outline-none"
-                              />
-                            </td>
-
-                            {/* 3. Password */}
-                            <td className="px-4 py-3 min-w-[140px]">
-                              <div className="flex items-center gap-1">
-                                <FiKey className="h-3 w-3 text-emerald-500 shrink-0" />
-                                <input
-                                  type="text"
-                                  value={inlineJudgeForm.password}
-                                  onChange={(e) =>
-                                    setInlineJudgeForm((prev) => ({ ...prev, password: e.target.value }))
-                                  }
-                                  placeholder="Password"
-                                  className="w-full px-2 py-1 text-xs font-mono font-bold rounded-lg border border-emerald-500 bg-[var(--surface)] text-emerald-600 dark:text-emerald-400 focus:outline-none"
-                                />
-                              </div>
-                            </td>
-
-                            {/* 4. Organization */}
-                            <td className="px-4 py-3 min-w-[140px]">
-                              <input
-                                type="text"
-                                value={inlineJudgeForm.organization}
-                                onChange={(e) =>
-                                  setInlineJudgeForm((prev) => ({ ...prev, organization: e.target.value }))
-                                }
-                                placeholder="Organization"
-                                className="w-full px-2 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:border-blue-500 focus:outline-none"
-                              />
-                            </td>
-
-                            {/* 5. Specialization Track */}
-                            <td className="px-4 py-3 min-w-[160px]">
-                              <select
-                                value={inlineJudgeForm.specialization}
-                                onChange={(e) =>
-                                  setInlineJudgeForm((prev) => ({ ...prev, specialization: e.target.value }))
-                                }
-                                className="w-full rounded-xl border border-blue-500 bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--primary)] font-semibold focus:outline-none cursor-pointer"
-                              >
-                                <option value="All Tracks">All Tracks</option>
-                                <option value="Environmental Sustainability">Environmental Sustainability</option>
-                                <option value="Urban Infrastructure & Mobility">Urban Infrastructure & Mobility</option>
-                                <option value="Heritage & Tourism">Heritage & Tourism</option>
-                                <option value="Smart Governance & Digital Tech">Smart Governance & Digital Tech</option>
-                                <option value="Healthcare & Wellbeing">Healthcare & Wellbeing</option>
-                                <option value="Education & Skill Development">Education & Skill Development</option>
-                              </select>
-                            </td>
-
-                            {/* 6. Alloted Teams */}
-                            <td className="px-4 py-3 min-w-[150px]">
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setShowJudgeTeamsDropdown(!showJudgeTeamsDropdown)}
-                                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl border border-blue-500 bg-[var(--surface)] text-xs font-mono font-bold text-[var(--text)] hover:bg-[var(--surface-2)] transition cursor-pointer"
-                                >
-                                  <span>
-                                    {inlineJudgeForm.allotedTeams?.length || 0}{" "}
-                                    {inlineJudgeForm.allotedTeams?.length === 1 ? "team" : "teams"}
-                                  </span>
-                                  <span className="text-[10px]">▼</span>
-                                </button>
-
-                                {showJudgeTeamsDropdown && (
-                                  <div className="absolute left-0 mt-1 w-64 max-h-48 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl z-40 space-y-1">
-                                    <div className="text-[11px] font-bold text-[var(--muted)] px-1 pb-1 border-b border-[var(--border)]">
-                                      Select Assigned Teams:
-                                    </div>
-                                    {submissions.length === 0 ? (
-                                      <div className="text-[11px] text-[var(--muted)] p-1">No submissions registered</div>
-                                    ) : (
-                                      submissions.map((sub) => {
-                                        const isAssigned = (inlineJudgeForm.allotedTeams || []).includes(sub.teamId);
-                                        return (
-                                          <label
-                                            key={sub.teamId}
-                                            className="flex items-center gap-2 p-1.5 hover:bg-[var(--surface-2)] rounded cursor-pointer text-xs text-[var(--text)]"
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isAssigned}
-                                              onChange={(e) => {
-                                                const checked = e.target.checked;
-                                                setInlineJudgeForm((prev) => ({
-                                                  ...prev,
-                                                  allotedTeams: checked
-                                                    ? [...(prev.allotedTeams || []), sub.teamId]
-                                                    : (prev.allotedTeams || []).filter((id) => id !== sub.teamId),
-                                                }));
-                                              }}
-                                              className="rounded text-[var(--primary)] focus:ring-0"
-                                            />
-                                            <div className="truncate">
-                                              <div className="font-semibold truncate">{sub.teamName}</div>
-                                              <div className="font-mono text-[9px] text-[var(--muted)] truncate">ID: {sub.teamId}</div>
-                                            </div>
-                                          </label>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* 7. Registered Date */}
-                            <td className="px-4 py-3 min-w-[130px]">
-                              <input
-                                type="date"
-                                value={inlineJudgeForm.createdAt}
-                                onChange={(e) =>
-                                  setInlineJudgeForm((prev) => ({ ...prev, createdAt: e.target.value }))
-                                }
-                                className="w-full px-2 py-1 text-xs rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:border-blue-500 focus:outline-none"
-                              />
-                            </td>
-
-                            {/* 8. Action (Save & Cancel) */}
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveInlineJudgeEdit(judge.email)}
-                                  disabled={editLoading}
-                                  title="Save Judge Changes"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-60"
-                                >
-                                  <FiCheck className="h-3.5 w-3.5" />
-                                  <span>Save</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelInlineJudgeEdit}
-                                  title="Cancel Edit"
-                                  className="p-1.5 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition cursor-pointer"
-                                >
-                                  <FiX className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
-
                       return (
                         <tr key={judge.email} className="hover:bg-[var(--surface-2)]/50 transition">
                           <td className="px-4 py-3.5 font-bold text-[var(--text)]">
@@ -1861,24 +1304,16 @@ export const AdminJuryzaPlatform = () => {
                               ? new Date(judge.createdAt).toLocaleDateString("en-IN")
                               : "Active"}
                           </td>
-                          {/* Action (Inline Edit, Modal Edit & Delete Judge) */}
+                          {/* Action (Edit & Delete Judge) */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
-                                onClick={() => handleStartInlineJudgeEdit(judge)}
-                                title="Quick Edit (Inline in Table)"
+                                onClick={() => handleEditJudgeOpen(judge)}
+                                title="Edit Judge Details"
                                 className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-500/10 transition cursor-pointer"
                               >
                                 <FiEdit2 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEditJudgeOpen(judge)}
-                                title="Edit Full Details Modal"
-                                className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-500/10 transition cursor-pointer"
-                              >
-                                <FiBriefcase className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
