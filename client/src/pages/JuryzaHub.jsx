@@ -711,17 +711,6 @@ export const JuryzaHub = () => {
                             <span>Pitch Video (.mp4)</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            {driveVidId && (
-                              <a
-                                href={`https://drive.google.com/file/d/${driveVidId}/view`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--primary)] hover:border-[var(--primary)] transition cursor-pointer"
-                              >
-                                <span>Drive Video</span>
-                                <FiExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
                             <span className="text-[11px] text-[var(--muted)] font-mono truncate max-w-[150px]">
                               {selectedSubmission.video?.originalName || "Team Pitch Video"}
                             </span>

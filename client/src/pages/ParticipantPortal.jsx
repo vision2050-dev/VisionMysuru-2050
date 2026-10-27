@@ -723,17 +723,6 @@ export const ParticipantPortal = () => {
                     <FiVideo className="h-4 w-4 text-[var(--accent)]" />
                     <span>Compulsory Pitch Video (.mp4)</span>
                   </div>
-                  {(mySubmission.video?.url || mySubmission.video?.webViewLink) && (
-                    <a
-                      href={mySubmission.video.url || mySubmission.video.webViewLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] hover:underline"
-                    >
-                      <span>Drive Link</span>
-                      <FiExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
                 </div>
 
                 {(() => {
@@ -794,17 +783,6 @@ export const ParticipantPortal = () => {
                   <p className="text-xs text-[var(--muted)]">
                     File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || "Uploaded Pitch Video"}</strong>
                   </p>
-                  {(mySubmission.video?.url || mySubmission.video?.webViewLink) && (
-                    <a
-                      href={mySubmission.video.url || mySubmission.video.webViewLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--accent)] hover:underline"
-                    >
-                      <span>Open in Google Drive</span>
-                      <FiExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
                 </div>
               </div>
 
@@ -816,18 +794,6 @@ export const ParticipantPortal = () => {
                       <FiFileText className="h-4 w-4 text-[var(--primary)]" />
                       <span>Compulsory Proposal Deck (.pdf)</span>
                     </div>
-                    {(mySubmission.document?.url || mySubmission.document?.webViewLink) &&
-                      !mySubmission.document.url?.includes("sample_proposal.pdf") && (
-                        <a
-                          href={mySubmission.document.url || mySubmission.document.webViewLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] hover:underline"
-                        >
-                          <span>Drive Link</span>
-                          <FiExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
                   </div>
 
                   {/* Embedded PDF Viewer Preview */}
