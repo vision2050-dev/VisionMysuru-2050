@@ -745,6 +745,106 @@ export const clientResetParticipantPassword = async ({ email, newPassword }) => 
 };
 
 /**
+ * Send 6-digit Password Reset OTP via Google Apps Script Webhook
+ */
+export const sendPasswordResetOtp = async (email) => {
+  const cleanEmail = (email || "").toLowerCase().trim();
+  if (!cleanEmail) {
+    throw new Error("Please enter your Gmail / Email ID.");
+  }
+
+  const users = getStoredUsers();
+  const subs = getStoredSubmissions();
+
+  const foundUser = users.find((u) => (u.email || "").toLowerCase() === cleanEmail);
+  const foundSub = subs.find(
+    (s) =>
+      (s.participantEmail || "").toLowerCase() === cleanEmail ||
+      (s.members || []).some((m) => (m.email || "").toLowerCase() === cleanEmail)
+  );
+
+  if (!foundUser && !foundSub) {
+    throw new Error(
+      "No registered team or participant found with this email. Please verify your email or click Sign Up."
+    );
+  }
+
+  const leader =
+    foundSub?.members?.find((m) => m.isLeader) || foundSub?.members?.[0] || {};
+  const participantName =
+    foundUser?.name || leader?.name || foundSub?.leadName || "Participant";
+
+  // Generate 6-digit random numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  // Store in sessionStorage for verification
+  sessionStorage.setItem(
+    "juryza_reset_otp",
+    JSON.stringify({
+      email: cleanEmail,
+      otp,
+      expiresAt,
+    })
+  );
+
+  // Dispatch to Google Apps Script Webhook
+  try {
+    const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "send_otp",
+        email: cleanEmail,
+        otp,
+        name: participantName,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (data && data.success === false && data.error) {
+      if (data.error.includes("permission") || data.error.includes("MailApp")) {
+        throw new Error(
+          "Google Apps Script requires email authorization. Please click 'Run' on authorizeEmail() in Apps Script."
+        );
+      }
+      throw new Error(data.error);
+    }
+  } catch (err) {
+    console.warn("Apps Script OTP dispatch warning:", err.message);
+    if (err.message.includes("Google Apps Script requires email authorization")) {
+      throw err;
+    }
+  }
+
+  return { success: true, email: cleanEmail, expiresAt };
+};
+
+/**
+ * Verify 6-digit Password Reset OTP
+ */
+export const verifyPasswordResetOtp = ({ email, otp }) => {
+  const cleanEmail = (email || "").toLowerCase().trim();
+  const raw = sessionStorage.getItem("juryza_reset_otp");
+  if (!raw) {
+    throw new Error("No verification code found. Please click 'Send OTP' first.");
+  }
+
+  const record = JSON.parse(raw);
+  if (record.email !== cleanEmail) {
+    throw new Error("The entered email does not match the OTP recipient.");
+  }
+  if (Date.now() > record.expiresAt) {
+    throw new Error("The verification code has expired. Please request a new OTP.");
+  }
+  if (String(record.otp).trim() !== String(otp).trim()) {
+    throw new Error("Incorrect verification code. Please check your email.");
+  }
+
+  return true;
+};
+
+/**
  * Client-Side Submission Registration
  */
 export const clientRegisterSubmission = ({

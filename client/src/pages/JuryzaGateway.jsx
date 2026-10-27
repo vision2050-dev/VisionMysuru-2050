@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +20,8 @@ import {
   clientSignUp,
   clientSignIn,
   clientResetParticipantPassword,
+  sendPasswordResetOtp,
+  verifyPasswordResetOtp,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -43,6 +45,41 @@ export const JuryzaGateway = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // OTP Verification states for Forgot Password
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+
+  useEffect(() => {
+    let timer;
+    if (otpCooldown > 0) {
+      timer = setTimeout(() => setOtpCooldown((prev) => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [otpCooldown]);
+
+  const handleSendOtp = async () => {
+    setError("");
+    setSuccess("");
+    const cleanEmail = (email || "").toLowerCase().trim();
+    if (!cleanEmail) {
+      setError("Please enter your registered Gmail / Email ID first.");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      await sendPasswordResetOtp(cleanEmail);
+      setOtpSent(true);
+      setOtpCooldown(60);
+      setSuccess("6-digit verification code sent to your email! Please check your inbox (and spam folder).");
+    } catch (err) {
+      setError(err.message || "Failed to send verification code.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -52,6 +89,19 @@ export const JuryzaGateway = () => {
     if (!cleanEmail) {
       setError("Please enter a valid Gmail / Email ID.");
       return;
+    }
+
+    if (authMode === "forgot") {
+      if (!otpCode || otpCode.trim().length !== 6) {
+        setError("Please enter the 6-digit verification code sent to your email.");
+        return;
+      }
+      try {
+        verifyPasswordResetOtp({ email: cleanEmail, otp: otpCode });
+      } catch (verifyErr) {
+        setError(verifyErr.message || "Invalid or expired verification code.");
+        return;
+      }
     }
 
     if (authMode === "signup" || authMode === "forgot") {
@@ -247,6 +297,10 @@ export const JuryzaGateway = () => {
                 onClick={() => {
                   setAuthMode("signin");
                   setError("");
+                  setSuccess("");
+                  setOtpCode("");
+                  setOtpSent(false);
+                  setOtpCooldown(0);
                 }}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   authMode === "signin"
@@ -261,6 +315,10 @@ export const JuryzaGateway = () => {
                 onClick={() => {
                   setAuthMode("signup");
                   setError("");
+                  setSuccess("");
+                  setOtpCode("");
+                  setOtpSent(false);
+                  setOtpCooldown(0);
                 }}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   authMode === "signup"
@@ -367,9 +425,26 @@ export const JuryzaGateway = () => {
                 <label className="block text-xs font-semibold text-[var(--text)]">
                   Gmail / Email ID
                 </label>
-                <span className="text-[11px] text-[var(--muted)] font-normal">
-                  Must be accessible
-                </span>
+                {authMode === "forgot" ? (
+                  <button
+                    type="button"
+                    disabled={otpLoading || otpCooldown > 0}
+                    onClick={handleSendOtp}
+                    className="text-[11px] font-bold text-[var(--accent)] hover:underline disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {otpLoading
+                      ? "Sending Code..."
+                      : otpCooldown > 0
+                      ? `Resend Code (${otpCooldown}s)`
+                      : otpSent
+                      ? "Resend Code"
+                      : "Send Verification Code"}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-[var(--muted)] font-normal">
+                    Must be accessible
+                  </span>
+                )}
               </div>
               <div className="relative">
                 <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] h-4 w-4" />
@@ -383,6 +458,37 @@ export const JuryzaGateway = () => {
                 />
               </div>
             </div>
+
+            {/* 6-Digit OTP field for Forgot Password mode */}
+            {authMode === "forgot" && (
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-semibold text-[var(--text)] flex items-center gap-1">
+                    <FiKey className="h-3.5 w-3.5 text-[var(--accent)]" />
+                    <span>6-Digit Verification Code (OTP) *</span>
+                  </label>
+                  {!otpSent && (
+                    <span className="text-[10px] text-amber-500 font-semibold">
+                      Click &apos;Send Verification Code&apos;
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter 6-digit OTP (e.g. 482910)"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-base font-mono font-bold tracking-widest text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                  />
+                </div>
+                <p className="text-[11px] text-[var(--muted)] mt-1">
+                  Sent to your registered Gmail address. Valid for 10 minutes.
+                </p>
+              </div>
+            )}
 
             {/* Sign Up Additional Fields */}
             {authMode === "signup" && (
@@ -514,7 +620,7 @@ export const JuryzaGateway = () => {
                     {authMode === "signup"
                       ? "Create Participant Account"
                       : authMode === "forgot"
-                      ? "Reset Password & Sign In"
+                      ? "Verify Code & Reset Password"
                       : "Sign In to Participant Portal"}
                   </span>
                   <FiArrowRight className="h-4 w-4" />
@@ -531,6 +637,9 @@ export const JuryzaGateway = () => {
                     setAuthMode("signin");
                     setError("");
                     setSuccess("");
+                    setOtpCode("");
+                    setOtpSent(false);
+                    setOtpCooldown(0);
                   }}
                   className="text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline cursor-pointer"
                 >
