@@ -49,6 +49,8 @@ import {
   updateStoredSubmissionDetails,
   updateStoredJudgeDetails,
   clearAllPortalData,
+  syncCloudPortalState,
+  pushCloudState,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -221,6 +223,26 @@ export const AdminJuryzaPlatform = () => {
     toast.success("Signed out from Admin Console.");
   };
 
+  const [syncingCloud, setSyncingCloud] = useState(false);
+
+  const handleSyncCloud = async () => {
+    setSyncingCloud(true);
+    try {
+      const synced = await syncCloudPortalState();
+      setSubmissions(synced.submissions || []);
+      setJudges(synced.judges || []);
+      toast.success(
+        `Cloud synchronized! Active: ${synced.submissions?.length || 0} teams, ${
+          synced.judges?.length || 0
+        } judges.`
+      );
+    } catch (err) {
+      toast.error("Cloud sync note: " + (err.message || "Failed to sync."));
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -239,15 +261,15 @@ export const AdminJuryzaPlatform = () => {
       const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
       saveStoredUsers([...otherUsers, ...judgeList]);
     } catch (err) {
-      console.warn("Backend API unreachable, using resilient client storage:", err.message);
-      const localSubs = getStoredSubmissions();
-      const localUsers = getStoredUsers();
-      const localJudges = localUsers.filter((u) => u.role === "judge");
-      setSubmissions(localSubs);
-      setJudges(localJudges);
+      console.warn("Backend API unreachable, synchronizing with cloud state:", err.message);
+      const synced = await syncCloudPortalState();
+      const activeSubs = synced.submissions || [];
+      const activeJudges = synced.judges || [];
+      setSubmissions(activeSubs);
+      setJudges(activeJudges);
 
       // Enrich with local IndexedDB media if available
-      for (const s of localSubs) {
+      for (const s of activeSubs) {
         if (!s.docBlobUrl) {
           getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
             if (url) {
@@ -803,6 +825,18 @@ export const AdminJuryzaPlatform = () => {
             >
               <FiDownload className="h-3.5 w-3.5 text-[var(--muted)]" />
               <span>Export CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSyncCloud}
+              disabled={syncingCloud}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition cursor-pointer disabled:opacity-60"
+              title="Synchronize all teams, judges, and passwords across multiple devices"
+            >
+              <FiRefreshCw className={`h-3.5 w-3.5 ${syncingCloud ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{syncingCloud ? "Syncing..." : "Sync Multi-Device"}</span>
+              <span className="sm:hidden">{syncingCloud ? "..." : "Sync"}</span>
             </button>
 
             <button

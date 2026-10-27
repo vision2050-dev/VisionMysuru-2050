@@ -32,6 +32,7 @@ import {
   storeMediaBlob,
   getMediaBlobUrl,
   clientResetParticipantPassword,
+  syncCloudPortalState,
 } from "../services/juryzaStorage";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
@@ -185,12 +186,27 @@ export const ParticipantPortal = () => {
     }
 
     // Local fallback
-    const subs = getStoredSubmissions();
-    const mySub = subs.find(
+    let subs = getStoredSubmissions();
+    let mySub = subs.find(
       (s) =>
         (s.participantEmail || "").toLowerCase() === clean ||
         (s.members || []).some((m) => (m.email || "").toLowerCase() === clean),
     );
+
+    // If not found locally, try syncing with cloud state (multi-device sync)
+    if (!mySub) {
+      try {
+        const synced = await syncCloudPortalState();
+        subs = synced.submissions || [];
+        mySub = subs.find(
+          (s) =>
+            (s.participantEmail || "").toLowerCase() === clean ||
+            (s.members || []).some((m) => (m.email || "").toLowerCase() === clean),
+        );
+      } catch (syncErr) {
+        console.warn("Cloud sync on participant load:", syncErr.message);
+      }
+    }
 
     if (mySub) {
       setHasRegistered(true);

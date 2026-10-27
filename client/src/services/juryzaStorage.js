@@ -195,6 +195,202 @@ export const saveStoredSubmissions = (subs) => {
   }
 };
 
+/**
+ * Cloud State Engine: Multi-Device Synchronization
+ * Keeps teams and judges perfectly synced across any phone, laptop, or desktop.
+ */
+export const CLOUD_SYNC_OBJECT_ID = "ff808181a09d98f701a17c2200a22144";
+export const CLOUD_SYNC_ENDPOINT = `https://api.restful-api.dev/objects/${CLOUD_SYNC_OBJECT_ID}`;
+
+let isSyncing = false;
+
+/**
+ * Merge two lists of submissions, deduplicating by teamId and keeping newer or richer versions
+ */
+export const mergeSubmissions = (localSubs = [], remoteSubs = []) => {
+  const map = new Map();
+  for (const s of localSubs) {
+    if (s && s.teamId) map.set(s.teamId, s);
+  }
+  for (const r of remoteSubs) {
+    if (!r || !r.teamId) continue;
+    if (!map.has(r.teamId)) {
+      map.set(r.teamId, r);
+    } else {
+      const existing = map.get(r.teamId);
+      const rTime = new Date(r.updatedAt || r.createdAt || 0).getTime();
+      const eTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      if (rTime >= eTime) {
+        map.set(r.teamId, {
+          ...r,
+          videoBlobUrl: existing.videoBlobUrl || r.videoBlobUrl,
+          docBlobUrl: existing.docBlobUrl || r.docBlobUrl,
+          plainPassword: r.plainPassword || existing.plainPassword,
+        });
+      } else {
+        map.set(r.teamId, {
+          ...existing,
+          plainPassword: existing.plainPassword || r.plainPassword,
+        });
+      }
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+};
+
+/**
+ * Merge two lists of users, deduplicating by email or id
+ */
+export const mergeUsers = (localUsers = [], remoteUsers = []) => {
+  const map = new Map();
+  for (const u of localUsers) {
+    const key = (u.email || u.id || "").toLowerCase().trim();
+    if (key) map.set(key, u);
+  }
+  for (const r of remoteUsers) {
+    const key = (r.email || r.id || "").toLowerCase().trim();
+    if (!key) continue;
+    if (!map.has(key)) {
+      map.set(key, r);
+    } else {
+      const existing = map.get(key);
+      map.set(key, {
+        ...existing,
+        ...r,
+        plainPassword: r.plainPassword || existing.plainPassword,
+        passwordHash: r.passwordHash || existing.passwordHash,
+      });
+    }
+  }
+  return Array.from(map.values());
+};
+
+/**
+ * Push current master state (submissions + users) to cloud storage and Google Drive backup
+ */
+export const pushCloudState = async ({ submissions, users } = {}) => {
+  try {
+    const currentSubs = submissions !== undefined ? submissions : getStoredSubmissions();
+    const currentUsers = users !== undefined ? users : getStoredUsers();
+
+    const payload = {
+      name: "VisionMysuru_2050_MasterState",
+      data: {
+        lastUpdated: new Date().toISOString(),
+        submissions: currentSubs,
+        users: currentUsers,
+      },
+    };
+
+    // 1. Primary Cloud State (REST KV)
+    await fetch(CLOUD_SYNC_ENDPOINT, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    // 2. Backup to Google Drive Webhook
+    if (APPS_SCRIPT_DRIVE_URL) {
+      try {
+        const stateBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload.data))));
+        fetch(APPS_SCRIPT_DRIVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            fileName: "VisionMysuru_2050_MasterState.json",
+            mimeType: "application/json",
+            base64Data: stateBase64,
+            folderType: "Spreadsheets",
+          }),
+        }).catch(() => {});
+      } catch (err) {
+        console.warn("Drive state backup warning:", err);
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("Cloud state push note:", err.message);
+    return false;
+  }
+};
+
+/**
+ * Synchronize state between current browser localStorage and Cloud Master State
+ */
+export const syncCloudPortalState = async () => {
+  if (isSyncing) {
+    const subs = getStoredSubmissions();
+    const users = getStoredUsers();
+    return { submissions: subs, users, judges: users.filter((u) => u.role === "judge") };
+  }
+
+  isSyncing = true;
+  try {
+    let remoteSubs = [];
+    let remoteUsers = [];
+    let hasRemote = false;
+
+    try {
+      const res = await fetch(CLOUD_SYNC_ENDPOINT);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json?.data;
+        if (data && typeof data === "object") {
+          hasRemote = true;
+          remoteSubs = Array.isArray(data.submissions) ? data.submissions : [];
+          remoteUsers = Array.isArray(data.users) ? data.users : [];
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch remote cloud state:", e.message);
+    }
+
+    const localSubs = getStoredSubmissions();
+    const localUsers = getStoredUsers();
+
+    const localHasData =
+      localSubs.length > 0 || localUsers.filter((u) => u.role === "judge").length > 0;
+    const remoteHasData =
+      remoteSubs.length > 0 || remoteUsers.filter((u) => u.role === "judge").length > 0;
+
+    let mergedSubs = localSubs;
+    let mergedUsers = localUsers;
+
+    if (remoteHasData && !localHasData) {
+      // Device 2 scenario: local is empty, remote has real data -> Hydrate local!
+      mergedSubs = remoteSubs;
+      mergedUsers = mergeUsers(localUsers, remoteUsers);
+      saveStoredSubmissions(mergedSubs);
+      saveStoredUsers(mergedUsers);
+    } else if (localHasData && !remoteHasData) {
+      // Device 1 scenario: local has real data, remote is empty -> Push to cloud!
+      mergedSubs = localSubs;
+      mergedUsers = localUsers;
+      await pushCloudState({ submissions: mergedSubs, users: mergedUsers });
+    } else if (hasRemote && (localHasData || remoteHasData)) {
+      // Both have data: merge both cleanly
+      mergedSubs = mergeSubmissions(localSubs, remoteSubs);
+      mergedUsers = mergeUsers(localUsers, remoteUsers);
+      saveStoredSubmissions(mergedSubs);
+      saveStoredUsers(mergedUsers);
+      await pushCloudState({ submissions: mergedSubs, users: mergedUsers });
+    }
+
+    const judges = mergedUsers.filter((u) => u.role === "judge");
+    return { submissions: mergedSubs, users: mergedUsers, judges };
+  } catch (err) {
+    console.warn("syncCloudPortalState error:", err);
+    const subs = getStoredSubmissions();
+    const users = getStoredUsers();
+    return { submissions: subs, users, judges: users.filter((u) => u.role === "judge") };
+  } finally {
+    isSyncing = false;
+  }
+};
+
 export const deleteStoredSubmission = (teamId) => {
   const subs = getStoredSubmissions().filter((s) => s.teamId !== teamId);
   saveStoredSubmissions(subs);
@@ -205,6 +401,7 @@ export const deleteStoredSubmission = (teamId) => {
     }
   });
   saveStoredUsers(users);
+  pushCloudState({ submissions: subs, users }).catch(() => {});
   return subs;
 };
 
@@ -225,6 +422,7 @@ export const deleteStoredJudge = (judgeEmailOrId) => {
     }
   });
   saveStoredSubmissions(subs);
+  pushCloudState({ submissions: subs, users }).catch(() => {});
   return users.filter((u) => u.role === "judge");
 };
 
@@ -237,6 +435,7 @@ export const clearAllPortalData = async () => {
       users.push(DEFAULT_USERS[0]);
     }
     saveStoredUsers(users);
+    await pushCloudState({ submissions: [], users });
     return true;
   } catch (e) {
     console.warn("Failed to clear portal data:", e);
@@ -302,6 +501,7 @@ export const clientSignUp = async ({
   }
 
   saveStoredUsers(users);
+  pushCloudState({ users }).catch(() => {});
 
   const token = `token-${newUser.id}-${Date.now()}`;
   return {
@@ -361,6 +561,7 @@ export const clientCreateJudge = async ({
   }
 
   saveStoredUsers(users);
+  pushCloudState({ users }).catch(() => {});
 
   return {
     message: "Judge account generated successfully!",
@@ -383,9 +584,20 @@ export const OFFICIAL_ADMIN_PASSWORD = "Vision2050@edition2";
  */
 export const clientSignIn = async ({ email, password, requestedRole }) => {
   const cleanEmail = email.toLowerCase().trim();
-  const users = getStoredUsers();
+  let users = getStoredUsers();
 
-  const user = users.find((u) => u.email === cleanEmail);
+  let user = users.find((u) => u.email === cleanEmail);
+  if (!user && cleanEmail !== "vision2050@sdmimd.ac.in") {
+    // Attempt cloud synchronization before failing
+    try {
+      const synced = await syncCloudPortalState();
+      users = synced.users || getStoredUsers();
+      user = users.find((u) => u.email === cleanEmail);
+    } catch {
+      // ignore
+    }
+  }
+
   if (!user) {
     throw new Error("No account found with this email. Please verify your credentials.");
   }
@@ -518,6 +730,7 @@ export const clientResetParticipantPassword = async ({ email, newPassword }) => 
   }
 
   saveStoredUsers(users);
+  pushCloudState({ users }).catch(() => {});
 
   const token = `token-${user.id}-${Date.now()}`;
   return {
@@ -607,6 +820,7 @@ export const clientRegisterSubmission = ({
 
   subs.unshift(newSub);
   saveStoredSubmissions(subs);
+  pushCloudState({ submissions: subs }).catch(() => {});
   return newSub;
 };
 
@@ -620,6 +834,7 @@ export const updateStoredSubmissionStage = (teamId, newStage) => {
     subs[index].stage = newStage;
     subs[index].updatedAt = new Date().toISOString();
     saveStoredSubmissions(subs);
+    pushCloudState({ submissions: subs }).catch(() => {});
     return subs[index];
   }
   return null;
@@ -687,6 +902,7 @@ export const updateStoredSubmissionDetails = async (teamId, patchData) => {
 
   subs[index] = updated;
   saveStoredSubmissions(subs);
+  pushCloudState({ submissions: subs, users: getStoredUsers() }).catch(() => {});
 
   // Sync master spreadsheet in background
   syncSubmissionFilesToCloudDrive({ submission: updated }).catch(() => {});
@@ -719,6 +935,7 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
 
   users[index] = judge;
   saveStoredUsers(users);
+  pushCloudState({ submissions: getStoredSubmissions(), users }).catch(() => {});
 
   // If judge email or name changed, update in submissions allocations
   if (patchData.email && patchData.email.toLowerCase().trim() !== oldEmail) {
@@ -770,6 +987,7 @@ export const allocateStoredSubmission = (teamId, judgeEmail) => {
       }
     });
     saveStoredUsers(users);
+    pushCloudState({ submissions: subs, users }).catch(() => {});
 
     return { success: true, teamId, unallocated: true, subs, users };
   }
@@ -801,6 +1019,7 @@ export const allocateStoredSubmission = (teamId, judgeEmail) => {
     }
   });
   saveStoredUsers(users);
+  pushCloudState({ submissions: subs, users }).catch(() => {});
 
   return { success: true, teamId, judgeEmail: cleanEmail, subs, users };
 };
@@ -835,6 +1054,7 @@ export const autoAllocateStoredSubmissions = () => {
 
   saveStoredSubmissions(subs);
   saveStoredUsers(users);
+  pushCloudState({ submissions: subs, users }).catch(() => {});
   return { success: true, count: subs.length, subs, users };
 };
 
@@ -849,6 +1069,7 @@ export const submitStoredRubricScore = ({ teamId, judgeEmail, totalScore, feedba
     subs[index].stage = "under evaluation";
     subs[index].judgeFeedback = feedback;
     saveStoredSubmissions(subs);
+    pushCloudState({ submissions: subs }).catch(() => {});
     return subs[index];
   }
   return null;

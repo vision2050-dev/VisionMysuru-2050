@@ -31,6 +31,7 @@ import {
   clientSignIn,
   getDriveFileId,
   getMediaBlobUrl,
+  syncCloudPortalState,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -200,8 +201,16 @@ export const JuryzaHub = () => {
         setSelectedSubmission(list[0]);
       }
     } catch {
-      // Local fallback
-      const stored = getStoredSubmissions();
+      // Local fallback with Cloud State sync
+      let stored = getStoredSubmissions();
+      if (!stored || stored.length === 0) {
+        try {
+          const synced = await syncCloudPortalState();
+          stored = synced.submissions || [];
+        } catch (e) {
+          console.warn("Cloud sync on judge load note:", e);
+        }
+      }
       const myEmail = (
         judgeEmail ||
         localStorage.getItem("juryzaJudgeEmail") ||
