@@ -16,7 +16,7 @@ import GlimpseEditionOne from "../Components/landing/GlimpseEditionOne.jsx";
 // import PrizesSection from "../Components/landing/PrizesSection.jsx";
 import RegistrationsSoonSection from "../Components/landing/RegistrationsSoonSection.jsx";
 import { Updates } from "../Components/landing/Updates.jsx";
-import InstagramFeedSection from "../Components/landing/InstagramFeedSection.jsx";
+// import InstagramFeedSection from "../Components/landing/InstagramFeedSection.jsx";
 
 const LandingPage = () => {
   const [showCertificatesPopup, setShowCertificatesPopup] = useState(false);
@@ -86,7 +86,7 @@ const LandingPage = () => {
         <TopNav />
         <HeroSection />
         <Updates />
-        <InstagramFeedSection />
+        {/* <InstagramFeedSection /> - Temporarily hidden */}
         <BrandAmbassador />
         <GlimpseEditionOne />
         <About />
