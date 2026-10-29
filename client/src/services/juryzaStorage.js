@@ -380,6 +380,10 @@ export const fetchDriveMasterState = async () => {
     let driveSubs = [];
     let driveUsers = [];
 
+    if (data?.spreadsheetUrl) {
+      localStorage.setItem("vm2_drive_spreadsheet_url", data.spreadsheetUrl);
+    }
+
     if (data && Array.isArray(data.submissions) && data.submissions.length > 0) {
       driveSubs = data.submissions;
       driveUsers = Array.isArray(data.users) ? data.users : [];
@@ -388,6 +392,8 @@ export const fetchDriveMasterState = async () => {
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       driveSubs = parseSubmissionsFromRows(rows);
+    } else if (data && Array.isArray(data.sheetRows) && data.sheetRows.length > 0) {
+      driveSubs = parseSubmissionsFromRows(data.sheetRows);
     }
 
     if (driveSubs.length > 0) {
@@ -419,6 +425,16 @@ export const fetchDriveMasterState = async () => {
       error: err.message,
     };
   }
+};
+
+/**
+ * Get direct URL to the live Master Google Sheet in Google Drive
+ */
+export const getMasterSpreadsheetUrl = () => {
+  return (
+    localStorage.getItem("vm2_drive_spreadsheet_url") ||
+    "https://drive.google.com/drive/folders/1UKXUmqcMewEhw_KG7L1Fe740yCd6fX2e"
+  );
 };
 
 /**
@@ -524,7 +540,7 @@ export const pushCloudState = async ({ submissions, users } = {}) => {
       body: JSON.stringify(payload),
     });
 
-    // 2. Backup to Google Drive Webhook
+    // 2. Backup to Google Drive Webhook (updates master sheet & JSON in place)
     if (APPS_SCRIPT_DRIVE_URL) {
       try {
         const stateBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload.data))));
@@ -532,6 +548,8 @@ export const pushCloudState = async ({ submissions, users } = {}) => {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
+            action: "sync_master_state",
+            stateData: payload.data,
             fileName: "VisionMysuru_2050_MasterState.json",
             mimeType: "application/json",
             base64Data: stateBase64,
@@ -1647,86 +1665,26 @@ export const syncSubmissionFilesToCloudDrive = async ({
     saveStoredSubmissions(allSubs);
   }
 
-  // 3. Upload updated Master Spreadsheet (both CSV and XLSX) to Google Drive
+  // 3. Update the Master Spreadsheet in Google Drive (Same sheet updated in-place)
   try {
-    const currentSubs = getStoredSubmissions();
-    const csvContent = generateSubmissionsCsvContent(currentSubs);
-    const csvBase64 = btoa(unescape(encodeURIComponent(csvContent)));
+    const allUsers = getStoredUsers();
+    const currentUser = allUsers.find(
+      (u) => u.email?.toLowerCase() === submission.participantEmail?.toLowerCase()
+    );
 
-    // Upload CSV
-    await fetch(APPS_SCRIPT_DRIVE_URL, {
+    const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
-        fileName: "VisionMysuru_2050_Edition2_MasterData.csv",
-        mimeType: "text/csv",
-        base64Data: csvBase64,
-        folderType: "Spreadsheets",
+        action: "register_submission",
+        submission,
+        user: currentUser || null,
       }),
     });
 
-    // Upload XLSX
-    try {
-      const rows = currentSubs.map((s, i) => {
-        const leader = s.members?.find((m) => m.isLeader) || s.members?.[0] || {};
-        return {
-          "Sl No": i + 1,
-          "Team ID": s.teamId,
-          "Team Name": s.teamName,
-          "Category": s.category,
-          "Focus Area / Theme": s.theme,
-          "Solution Name": s.solutionName,
-          "Leader Name": leader.name || s.leadName || "",
-          "Leader Email": leader.email || s.participantEmail || "",
-          "Leader Phone": leader.phone || s.leadPhone || "",
-          "Institution": leader.college || s.organizationDetails?.institution || "",
-          "Current Stage": s.stage || "submitted",
-          "Alloted Judge(s)": (s.allotedJudges || []).join(", "),
-          "Rubric Average": s.rubricAverage || 0,
-          "Pitch Video Drive URL": s.video?.url || s.video?.webViewLink || "",
-          "Proposal PDF Drive URL": s.document?.url || s.document?.webViewLink || "",
-          "Registered At": new Date(s.createdAt).toLocaleString("en-IN"),
-        };
-      });
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Master Data");
-      const xlsxBase64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
-
-      await fetch(APPS_SCRIPT_DRIVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          fileName: "VisionMysuru_2050_Edition2_MasterData.xlsx",
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          base64Data: xlsxBase64,
-          folderType: "Spreadsheets",
-        }),
-      });
-    } catch (xlsxErr) {
-      console.warn("Cloud XLSX sync warning:", xlsxErr);
-    }
-
-    // Upload JSON Master State directly to Drive as well
-    try {
-      const statePayload = {
-        lastUpdated: new Date().toISOString(),
-        submissions: currentSubs,
-        users: getStoredUsers(),
-      };
-      const stateBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(statePayload))));
-      await fetch(APPS_SCRIPT_DRIVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          fileName: "VisionMysuru_2050_MasterState.json",
-          mimeType: "application/json",
-          base64Data: stateBase64,
-          folderType: "Spreadsheets",
-        }),
-      });
-    } catch (stateErr) {
-      console.warn("Cloud Master State sync warning:", stateErr);
+    const data = await res.json();
+    if (data?.spreadsheetUrl) {
+      localStorage.setItem("vm2_drive_spreadsheet_url", data.spreadsheetUrl);
     }
   } catch (e) {
     console.warn("Cloud Spreadsheet sync warning:", e);

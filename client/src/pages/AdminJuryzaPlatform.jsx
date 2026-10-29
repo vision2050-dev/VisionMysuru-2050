@@ -53,6 +53,7 @@ import {
   pushCloudState,
   fetchDriveMasterState,
   importSubmissionsFromFile,
+  getMasterSpreadsheetUrl,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -153,6 +154,24 @@ export const AdminJuryzaPlatform = () => {
       setLoading(false);
     }
   }, []);
+
+  // Background live synchronization with Master Google Sheet & Cloud every 25 seconds
+  useEffect(() => {
+    if (!isAdminAuth) return;
+    const interval = setInterval(() => {
+      syncCloudPortalState()
+        .then((synced) => {
+          if (synced?.submissions && synced.submissions.length > 0) {
+            setSubmissions(synced.submissions);
+            if (synced.judges && synced.judges.length > 0) {
+              setJudges(synced.judges);
+            }
+          }
+        })
+        .catch(() => {});
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [isAdminAuth]);
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -857,7 +876,19 @@ export const AdminJuryzaPlatform = () => {
               className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--primary)] hover:border-[var(--primary)] transition cursor-pointer"
             >
               <FiFolder className="h-3.5 w-3.5" />
-              <span>Event Drive Folder</span>
+              <span>Drive Folder</span>
+              <FiExternalLink className="h-3 w-3" />
+            </a>
+
+            <a
+              href={getMasterSpreadsheetUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer"
+              title="Open the permanent Master Google Sheet in Google Drive"
+            >
+              <FiFileText className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Live Master Sheet</span>
               <FiExternalLink className="h-3 w-3" />
             </a>
 
