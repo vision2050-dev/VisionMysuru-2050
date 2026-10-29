@@ -268,12 +268,245 @@ export const mergeUsers = (localUsers = [], remoteUsers = []) => {
 };
 
 /**
+ * Parse raw rows from Google Drive Master Spreadsheet (CSV or JSON) into submission objects
+ */
+export const parseSubmissionsFromRows = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  return rows.map((row, idx) => {
+    const teamId = row["Team ID"] || row["teamId"] || `VM2-TEAM-${idx + 1}`;
+    const teamName = row["Team Name"] || row["teamName"] || "Unnamed Team";
+    const category = row["Category"] || row["category"] || "General / Citizen";
+    const theme =
+      row["Focus Area / Theme"] ||
+      row["Theme / Focus Area"] ||
+      row["theme"] ||
+      "General";
+    const solutionName = row["Solution Name"] || row["solutionName"] || "Solution";
+    const leaderName = row["Leader Name"] || row["leadName"] || "Team Lead";
+    const leaderEmail = (row["Leader Email"] || row["participantEmail"] || "").toLowerCase().trim();
+    const leaderPhone = row["Leader Phone"] || row["leadPhone"] || "";
+    const institution = row["Institution"] || row["college"] || "";
+    const stage = row["Current Stage"] || row["stage"] || "submitted";
+    const allotedJudgesStr = row["Alloted Judge(s)"] || row["allotedJudges"] || "";
+    const allotedJudges =
+      typeof allotedJudgesStr === "string" && allotedJudgesStr.trim()
+        ? allotedJudgesStr
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        : Array.isArray(allotedJudgesStr)
+        ? allotedJudgesStr
+        : [];
+    const rubricAverage = parseFloat(
+      row["Rubric Average"] || row["Rubric Score"] || row["rubricAverage"] || 0
+    );
+    const videoUrl =
+      row["Pitch Video Drive URL"] ||
+      row["Pitch Video Link"] ||
+      row["Pitch Video URL"] ||
+      row["videoUrl"] ||
+      "";
+    const docUrl =
+      row["Proposal PDF Drive URL"] ||
+      row["Proposal PDF Link"] ||
+      row["Proposal PDF URL"] ||
+      row["docUrl"] ||
+      "";
+    const registeredAt =
+      row["Registered At"] ||
+      row["Registration Timestamp"] ||
+      row["createdAt"] ||
+      new Date().toISOString();
+
+    return {
+      _id: `sub-imported-${teamId}`,
+      teamId,
+      teamName,
+      participantEmail: leaderEmail,
+      category,
+      city: "Mysuru",
+      theme,
+      solutionName,
+      shortDescription: solutionName,
+      detailedProposal: solutionName,
+      video: {
+        originalName: `${teamName}_Video.mp4`,
+        size: 15000000,
+        url: videoUrl,
+        webViewLink: videoUrl,
+      },
+      document: {
+        name: `${teamName}_Proposal.pdf`,
+        originalName: `${teamName}_Proposal.pdf`,
+        size: 2000000,
+        url: docUrl,
+        webViewLink: docUrl,
+      },
+      members: [
+        {
+          name: leaderName,
+          email: leaderEmail,
+          phone: leaderPhone,
+          college: institution,
+          isLeader: true,
+        },
+      ],
+      organizationDetails: { institution },
+      stage,
+      allotedJudges,
+      allotedJudgeNames: [],
+      rubricAverage,
+      eloRating: 1200,
+      createdAt: registeredAt,
+    };
+  });
+};
+
+/**
+ * Fetch Master State & Submissions directly from Google Drive Webhook
+ */
+export const fetchDriveMasterState = async () => {
+  try {
+    const res = await fetch(`${APPS_SCRIPT_DRIVE_URL}?action=get_state`, {
+      redirect: "follow",
+    });
+
+    if (!res.ok) {
+      throw new Error(`Google Drive webhook responded with status ${res.status}`);
+    }
+
+    const data = await res.json();
+    let driveSubs = [];
+    let driveUsers = [];
+
+    if (data && Array.isArray(data.submissions) && data.submissions.length > 0) {
+      driveSubs = data.submissions;
+      driveUsers = Array.isArray(data.users) ? data.users : [];
+    } else if (data && typeof data.csv === "string" && data.csv.trim().length > 0) {
+      const workbook = XLSX.read(data.csv, { type: "string" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+      driveSubs = parseSubmissionsFromRows(rows);
+    }
+
+    if (driveSubs.length > 0) {
+      const localSubs = getStoredSubmissions();
+      const localUsers = getStoredUsers();
+      const mergedSubs = mergeSubmissions(localSubs, driveSubs);
+      const mergedUsers = mergeUsers(localUsers, driveUsers);
+
+      saveStoredSubmissions(mergedSubs);
+      if (driveUsers.length > 0) {
+        saveStoredUsers(mergedUsers);
+      }
+
+      return {
+        success: true,
+        submissions: mergedSubs,
+        users: mergedUsers,
+        count: driveSubs.length,
+      };
+    }
+
+    return { success: false, submissions: getStoredSubmissions(), count: 0 };
+  } catch (err) {
+    console.warn("Could not fetch master state from Google Drive webhook:", err.message);
+    return {
+      success: false,
+      submissions: getStoredSubmissions(),
+      count: 0,
+      error: err.message,
+    };
+  }
+};
+
+/**
+ * Import Submissions from an Excel (.xlsx) or .csv file downloaded from Google Drive
+ */
+export const importSubmissionsFromFile = async (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        const imported = parseSubmissionsFromRows(rows);
+        if (imported.length === 0) {
+          throw new Error("No valid team submission rows found in this file.");
+        }
+
+        const localSubs = getStoredSubmissions();
+        const merged = mergeSubmissions(localSubs, imported);
+        saveStoredSubmissions(merged);
+        await pushCloudState({ submissions: merged });
+
+        resolve({ count: imported.length, submissions: merged });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/**
  * Push current master state (submissions + users) to cloud storage and Google Drive backup
  */
 export const pushCloudState = async ({ submissions, users } = {}) => {
   try {
-    const currentSubs = submissions !== undefined ? submissions : getStoredSubmissions();
-    const currentUsers = users !== undefined ? users : getStoredUsers();
+    let currentSubs = submissions;
+    let currentUsers = users;
+
+    // Safety: If submissions not passed, use stored submissions ONLY IF stored submissions has data
+    if (currentSubs === undefined) {
+      const stored = getStoredSubmissions();
+      if (stored && stored.length > 0) {
+        currentSubs = stored;
+      }
+    }
+
+    if (currentUsers === undefined) {
+      currentUsers = getStoredUsers();
+    }
+
+    // Protect existing submissions: merge with remote state before pushing so nothing is accidentally overwritten
+    try {
+      const checkRes = await fetch(CLOUD_SYNC_ENDPOINT);
+      if (checkRes.ok) {
+        const checkJson = await checkRes.json();
+        const remoteData = checkJson?.data;
+        if (
+          remoteData &&
+          Array.isArray(remoteData.submissions) &&
+          remoteData.submissions.length > 0
+        ) {
+          if (!currentSubs || currentSubs.length === 0) {
+            currentSubs = remoteData.submissions;
+            saveStoredSubmissions(currentSubs);
+          } else {
+            currentSubs = mergeSubmissions(currentSubs, remoteData.submissions);
+          }
+        }
+        if (
+          remoteData &&
+          Array.isArray(remoteData.users) &&
+          remoteData.users.length > 0
+        ) {
+          currentUsers = mergeUsers(currentUsers || getStoredUsers(), remoteData.users);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    currentSubs = currentSubs || getStoredSubmissions();
+    currentUsers = currentUsers || getStoredUsers();
 
     const payload = {
       name: "VisionMysuru_2050_MasterState",
@@ -318,7 +551,7 @@ export const pushCloudState = async ({ submissions, users } = {}) => {
 };
 
 /**
- * Synchronize state between current browser localStorage and Cloud Master State
+ * Synchronize state between current browser localStorage, Google Drive, and Cloud Master State
  */
 export const syncCloudPortalState = async () => {
   if (isSyncing) {
@@ -329,19 +562,31 @@ export const syncCloudPortalState = async () => {
 
   isSyncing = true;
   try {
+    // 1. First priority: Check Google Drive Master State via Google Apps Script
     let remoteSubs = [];
     let remoteUsers = [];
-    let hasRemote = false;
 
+    try {
+      const driveRes = await fetchDriveMasterState();
+      if (driveRes.success && driveRes.submissions?.length > 0) {
+        remoteSubs = driveRes.submissions;
+        remoteUsers = driveRes.users || [];
+      }
+    } catch (driveErr) {
+      console.warn("Drive sync check note:", driveErr.message);
+    }
+
+    // 2. Second priority: Check Cloud REST KV
     try {
       const res = await fetch(CLOUD_SYNC_ENDPOINT);
       if (res.ok) {
         const json = await res.json();
         const data = json?.data;
         if (data && typeof data === "object") {
-          hasRemote = true;
-          remoteSubs = Array.isArray(data.submissions) ? data.submissions : [];
-          remoteUsers = Array.isArray(data.users) ? data.users : [];
+          const kvSubs = Array.isArray(data.submissions) ? data.submissions : [];
+          const kvUsers = Array.isArray(data.users) ? data.users : [];
+          remoteSubs = mergeSubmissions(remoteSubs, kvSubs);
+          remoteUsers = mergeUsers(remoteUsers, kvUsers);
         }
       }
     } catch (e) {
@@ -351,32 +596,15 @@ export const syncCloudPortalState = async () => {
     const localSubs = getStoredSubmissions();
     const localUsers = getStoredUsers();
 
-    const localHasData =
-      localSubs.length > 0 || localUsers.filter((u) => u.role === "judge").length > 0;
-    const remoteHasData =
-      remoteSubs.length > 0 || remoteUsers.filter((u) => u.role === "judge").length > 0;
+    const mergedSubs = mergeSubmissions(localSubs, remoteSubs);
+    const mergedUsers = mergeUsers(localUsers, remoteUsers);
 
-    let mergedSubs = localSubs;
-    let mergedUsers = localUsers;
+    saveStoredSubmissions(mergedSubs);
+    saveStoredUsers(mergedUsers);
 
-    if (remoteHasData && !localHasData) {
-      // Device 2 scenario: local is empty, remote has real data -> Hydrate local!
-      mergedSubs = remoteSubs;
-      mergedUsers = mergeUsers(localUsers, remoteUsers);
-      saveStoredSubmissions(mergedSubs);
-      saveStoredUsers(mergedUsers);
-    } else if (localHasData && !remoteHasData) {
-      // Device 1 scenario: local has real data, remote is empty -> Push to cloud!
-      mergedSubs = localSubs;
-      mergedUsers = localUsers;
-      await pushCloudState({ submissions: mergedSubs, users: mergedUsers });
-    } else if (hasRemote && (localHasData || remoteHasData)) {
-      // Both have data: merge both cleanly
-      mergedSubs = mergeSubmissions(localSubs, remoteSubs);
-      mergedUsers = mergeUsers(localUsers, remoteUsers);
-      saveStoredSubmissions(mergedSubs);
-      saveStoredUsers(mergedUsers);
-      await pushCloudState({ submissions: mergedSubs, users: mergedUsers });
+    // If we recovered teams from Drive or local, persist back to cloud KV so all clients stay fast
+    if (mergedSubs.length > 0) {
+      pushCloudState({ submissions: mergedSubs, users: mergedUsers }).catch(() => {});
     }
 
     const judges = mergedUsers.filter((u) => u.role === "judge");
@@ -1477,6 +1705,28 @@ export const syncSubmissionFilesToCloudDrive = async ({
       });
     } catch (xlsxErr) {
       console.warn("Cloud XLSX sync warning:", xlsxErr);
+    }
+
+    // Upload JSON Master State directly to Drive as well
+    try {
+      const statePayload = {
+        lastUpdated: new Date().toISOString(),
+        submissions: currentSubs,
+        users: getStoredUsers(),
+      };
+      const stateBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(statePayload))));
+      await fetch(APPS_SCRIPT_DRIVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          fileName: "VisionMysuru_2050_MasterState.json",
+          mimeType: "application/json",
+          base64Data: stateBase64,
+          folderType: "Spreadsheets",
+        }),
+      });
+    } catch (stateErr) {
+      console.warn("Cloud Master State sync warning:", stateErr);
     }
   } catch (e) {
     console.warn("Cloud Spreadsheet sync warning:", e);

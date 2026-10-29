@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import submissionRoutes from "./routes/submissionRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import juryzaRoutes from "./routes/juryzaRoutes.js";
+import instagramRoutes from "./routes/instagramRoutes.js";
 import mongoose from "mongoose";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,6 +58,9 @@ app.use("/api/v1", adminRoutes);
 app.use("/api/v1/winners", submissionRoutes);
 app.use("/api/v1/admin", adminRoutes);
 
+// Official Social Feed (Instagram live / cache)
+app.use("/api/v1/instagram", instagramRoutes);
+
 // Edition 2 Juryza Platform Routes
 app.use("/api/v2", juryzaRoutes);
 
@@ -65,7 +69,7 @@ const clientDistPath = path.join(__dirname, "../client/dist");
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   // Catch-all route for SPA navigation (redirects non-API requests to index.html)
-  app.get("*", (req, res, next) => {
+  app.use((req, res, next) => {
     if (req.path.startsWith("/api/")) return next();
     res.sendFile(path.join(clientDistPath, "index.html"));
   });

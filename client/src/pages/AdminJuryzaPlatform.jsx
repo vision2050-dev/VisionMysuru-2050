@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
@@ -28,6 +28,7 @@ import {
   FiTrash2,
   FiEdit2,
   FiKey,
+  FiUpload,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
@@ -50,6 +51,8 @@ import {
   clearAllPortalData,
   syncCloudPortalState,
   pushCloudState,
+  fetchDriveMasterState,
+  importSubmissionsFromFile,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -231,6 +234,8 @@ export const AdminJuryzaPlatform = () => {
   };
 
   const [syncingCloud, setSyncingCloud] = useState(false);
+  const [importingFile, setImportingFile] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleSyncCloud = async () => {
     setSyncingCloud(true);
@@ -239,7 +244,7 @@ export const AdminJuryzaPlatform = () => {
       setSubmissions(synced.submissions || []);
       setJudges(synced.judges || []);
       toast.success(
-        `Cloud synchronized! Active: ${synced.submissions?.length || 0} teams, ${
+        `Synchronized with Google Drive & Cloud! Active: ${synced.submissions?.length || 0} teams, ${
           synced.judges?.length || 0
         } judges.`
       );
@@ -247,6 +252,22 @@ export const AdminJuryzaPlatform = () => {
       toast.error("Cloud sync note: " + (err.message || "Failed to sync."));
     } finally {
       setSyncingCloud(false);
+    }
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setImportingFile(true);
+      const res = await importSubmissionsFromFile(file);
+      setSubmissions(res.submissions);
+      toast.success(`Successfully imported ${res.count} teams from spreadsheet!`);
+    } catch (err) {
+      toast.error("Import error: " + (err.message || "Failed to parse file."));
+    } finally {
+      setImportingFile(false);
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -260,6 +281,15 @@ export const AdminJuryzaPlatform = () => {
 
       const subList = Array.isArray(subRes.data) ? subRes.data : [];
       const judgeList = Array.isArray(judgeRes.data) ? judgeRes.data : [];
+
+      if (subList.length === 0) {
+        const synced = await syncCloudPortalState();
+        if (synced.submissions && synced.submissions.length > 0) {
+          setSubmissions(synced.submissions);
+          setJudges(synced.judges || judgeList);
+          return;
+        }
+      }
 
       setSubmissions(subList);
       setJudges(judgeList);
@@ -849,6 +879,26 @@ export const AdminJuryzaPlatform = () => {
             >
               <FiDownload className="h-3.5 w-3.5 text-[var(--muted)]" />
               <span>Export CSV</span>
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".xlsx,.csv"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importingFile}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold hover:bg-sky-500/20 transition cursor-pointer disabled:opacity-60"
+              title="Upload VisionMysuru_2050_Edition2_MasterData.xlsx or .csv from Google Drive"
+            >
+              <FiUpload className={`h-3.5 w-3.5 ${importingFile ? "animate-bounce" : ""}`} />
+              <span className="hidden sm:inline">{importingFile ? "Importing..." : "Import Sheet from Drive"}</span>
+              <span className="sm:hidden">{importingFile ? "..." : "Import"}</span>
             </button>
 
             <button
