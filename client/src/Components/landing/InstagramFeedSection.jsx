@@ -326,7 +326,7 @@ export const InstagramFeedSection = () => {
               >
                 @visionmysuru2050
               </a>
-              . Hover over any reel to preview the energy.
+              .
             </p>
           </div>
 
