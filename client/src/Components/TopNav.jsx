@@ -11,7 +11,6 @@ export const TopNav = () => {
     { label: "Participation", href: "/#participation" },
     { label: "Topics", href: "/#topics" },
     { label: "Objectives", href: "/#objectives" },
-    { label: "Social", href: "/#social" },
     { label: "In the News", href: "/news", isRoute: true },
   ];
 

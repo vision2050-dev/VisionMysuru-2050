@@ -33,33 +33,7 @@ const formatRelativeTime = (isoString) => {
 };
 
 const InstagramCard = ({ post, index }) => {
-  const videoRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-
   const isVideo = post.media_type === "VIDEO" || post.is_reel;
-
-  const handleMouseEnter = () => {
-    if (isVideo && videoRef.current) {
-      const playPromise = videoRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => setIsPlaying(true))
-          .catch(() => {
-            // Autoplay blocked by browser policy without user gesture
-            setIsPlaying(false);
-          });
-      }
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (isVideo && videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-      setIsPlaying(false);
-    }
-  };
 
   const handleClick = () => {
     const targetUrl = post.permalink || "https://www.instagram.com/visionmysuru2050";
@@ -79,37 +53,17 @@ const InstagramCard = ({ post, index }) => {
           handleClick();
         }
       }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       className="group relative flex h-[28rem] w-[18.5rem] sm:w-[20rem] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
     >
       {/* Media Canvas */}
       <div className="relative h-[68%] w-full overflow-hidden bg-black/90">
-        {/* Background Poster Image */}
+        {/* Poster Image */}
         <img
           src={post.thumbnail_url || post.media_url}
           alt="Vision Mysuru 2050 Instagram media"
           loading="lazy"
-          className={`h-full w-full object-cover transition-all duration-500 ${
-            isPlaying ? "scale-105 opacity-0" : "scale-100 opacity-100 group-hover:scale-105"
-          }`}
+          className="h-full w-full object-cover transition-all duration-500 scale-100 group-hover:scale-105"
         />
-
-        {/* Video Player for Reels (Plays on Hover) */}
-        {isVideo && post.media_url && (
-          <video
-            ref={videoRef}
-            src={post.media_url}
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            onLoadedData={() => setVideoLoaded(true)}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-              isPlaying ? "opacity-100" : "opacity-0"
-            }`}
-          />
-        )}
 
         {/* Dark Top and Bottom Vignettes for High Contrast Readability */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/75 to-transparent" />
@@ -146,28 +100,6 @@ const InstagramCard = ({ post, index }) => {
             )}
           </div>
         </div>
-
-        {/* Hover Center Indicator for Reels */}
-        {isVideo && (
-          <div
-            className={`pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
-              isPlaying ? "opacity-0" : "opacity-90 group-hover:opacity-100"
-            }`}
-          >
-            <div className="flex items-center gap-2 rounded-full bg-black/60 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-lg group-hover:scale-105 transition-transform">
-              <FiPlay className="h-3.5 w-3.5 fill-white text-white" />
-              <span>Hover to play</span>
-            </div>
-          </div>
-        )}
-
-        {/* Playing Status Pill (Shows when hovered and playing) */}
-        {isVideo && isPlaying && (
-          <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-pink-600/90 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md backdrop-blur-md">
-            <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-white" />
-            <span>PREVIEWING</span>
-          </div>
-        )}
 
         {/* Instagram Watermark Icon */}
         <div className="pointer-events-none absolute bottom-3 left-3 text-white/80">
