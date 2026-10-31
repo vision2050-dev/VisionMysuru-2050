@@ -306,13 +306,10 @@ export const InstagramFeedSection = () => {
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-2xl">
-            {/* Suitable Eyebrow for Edition 2 */}
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">
-                Social Sphere &bull; Instagram Live
-              </p>
-            </div>
+            {/* Eyebrow for Edition 2 */}
+            <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
+              Social Sphere
+            </p>
 
             {/* Section Name tailored to Edition 2 ("Ideas to Impact") */}
             <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--text)] sm:text-4xl oswald uppercase">
