@@ -18,7 +18,7 @@ const TopicsSection = () => {
     <Section
       id="topics"
       eyebrow="Focus areas"
-      title="Thematic priorities for proposal submission"
+      title="Citizen-centric thematic priorities for proposal submission"
     >
       <div className="grid gap-5 md:grid-cols-2 px-2 lg:grid-cols-3">
         {TOPICS.map((t, idx) => (
