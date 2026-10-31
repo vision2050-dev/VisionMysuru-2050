@@ -81,11 +81,8 @@ const InstagramCard = ({ post, index }) => {
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="group relative flex h-[28rem] w-[18.5rem] sm:w-[20rem] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-transparent hover:shadow-2xl hover:shadow-pink-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+      className="group relative flex h-[28rem] w-[18.5rem] sm:w-[20rem] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
     >
-      {/* Outer Subtle Instagram Gradient Border on Hover */}
-      <div className="pointer-events-none absolute inset-0 -z-10 rounded-2xl bg-gradient-to-tr from-[#833ab4]/30 via-[#fd1d1d]/30 to-[#fcb045]/30 opacity-0 blur-[2px] transition-opacity duration-300 group-hover:opacity-100" />
-
       {/* Media Canvas */}
       <div className="relative h-[68%] w-full overflow-hidden bg-black/90">
         {/* Background Poster Image */}
@@ -300,19 +297,19 @@ export const InstagramFeedSection = () => {
   return (
     <section
       id="social"
-      className="scroll-mt-24 py-16 sm:py-20 border-t border-[var(--border)] bg-gradient-to-b from-transparent via-[var(--surface)]/30 to-transparent"
+      className="scroll-mt-24 py-14 sm:py-16"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div className="max-w-2xl">
+          <div className="max-w-3xl">
             {/* Eyebrow for Edition 2 */}
             <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
               Social Sphere
             </p>
 
-            {/* Section Name tailored to Edition 2 ("Ideas to Impact") */}
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--text)] sm:text-4xl oswald uppercase">
+            {/* Section Name matching Edition 2 typography */}
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">
               The Movement in Motion: Live on Instagram
             </h2>
 
