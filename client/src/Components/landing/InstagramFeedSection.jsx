@@ -373,9 +373,38 @@ export const InstagramFeedSection = () => {
             onScroll={handleScrollUpdate}
             className="flex snap-x snap-mandatory gap-5 overflow-x-auto px-2 py-4 scroll-smooth scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none]"
           >
-            {posts.map((post, idx) => (
+            {posts.slice(0, 10).map((post, idx) => (
               <InstagramCard key={post.id || idx} post={post} index={idx} />
             ))}
+
+            {/* "View More" card leading to the official Instagram page */}
+            <article
+              tabIndex={0}
+              role="link"
+              aria-label="View more posts and reels on official Instagram @visionmysuru2050"
+              onClick={() => window.open("https://www.instagram.com/visionmysuru2050", "_blank", "noopener,noreferrer")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  window.open("https://www.instagram.com/visionmysuru2050", "_blank", "noopener,noreferrer");
+                }
+              }}
+              className="group relative flex h-[28rem] w-[18.5rem] sm:w-[20rem] shrink-0 snap-start flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white shadow-lg group-hover:scale-110 transition-transform">
+                <FiInstagram className="h-8 w-8" />
+              </div>
+              <h3 className="mt-5 text-lg font-bold text-[var(--text)]">
+                View More on Instagram
+              </h3>
+              <p className="mt-2 text-xs text-[var(--muted)] leading-relaxed max-w-[15rem]">
+                Explore all 25+ updates, student reels, stories & highlights on our official page.
+              </p>
+              <div className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white shadow-sm group-hover:bg-[var(--primary-hover)] transition-colors">
+                <span>@visionmysuru2050</span>
+                <FiExternalLink className="h-3.5 w-3.5" />
+              </div>
+            </article>
           </div>
         </div>
       </div>
