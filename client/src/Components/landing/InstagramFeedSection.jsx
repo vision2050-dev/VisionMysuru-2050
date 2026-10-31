@@ -330,23 +330,8 @@ export const InstagramFeedSection = () => {
             </p>
           </div>
 
-          {/* Social Stats & Direct Instagram Action Button */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Auto-Sync Live Status Pill */}
-            <button
-              type="button"
-              onClick={() => fetchFeed(true)}
-              title="Click to force refresh latest Instagram posts"
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-all shadow-sm"
-            >
-              <FiRefreshCw
-                className={`h-3 w-3 ${isRefreshing ? "animate-spin text-[var(--accent)]" : "text-emerald-500"}`}
-              />
-              <span>{isRefreshing ? "Syncing..." : syncStatus}</span>
-            </button>
-
-            {/* Official Follow Button with Instagram Gradient */}
+          {/* Official Follow Button with Instagram Gradient */}
+          <div className="flex items-center gap-3">
             <a
               href="https://www.instagram.com/visionmysuru2050"
               target="_blank"
