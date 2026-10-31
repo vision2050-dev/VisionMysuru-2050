@@ -86,8 +86,8 @@ const LandingPage = () => {
         <TopNav />
         <HeroSection />
         <Updates />
-        <InstagramFeedSection />
         <BrandAmbassador />
+        <InstagramFeedSection />
         <GlimpseEditionOne />
         <About />
         {/* <Sponsors /> - Temporarily hidden; will be updated with Edition 2 sponsors list */}
