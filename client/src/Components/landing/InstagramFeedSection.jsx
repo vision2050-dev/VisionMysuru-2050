@@ -377,22 +377,6 @@ export const InstagramFeedSection = () => {
               <InstagramCard key={post.id || idx} post={post} index={idx} />
             ))}
           </div>
-
-          {/* Circular Track Helper Note & Swipe Cue */}
-          <div className="mt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-[var(--muted)] px-2 gap-2">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-              <span>
-                Sorted <strong>newest first</strong> (latest post on the left) &bull; Circular scroll enabled
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span>Showing {posts.length} posts & reels</span>
-              <span>&bull;</span>
-              <span>Auto-refreshes every 4 minutes</span>
-            </div>
-          </div>
         </div>
       </div>
     </section>
