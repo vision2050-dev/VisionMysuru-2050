@@ -60,9 +60,10 @@ const useInView = () => {
 const AnimatedStatValue = ({ value }) => {
   const [ref, inView] = useInView();
   const [count, setCount] = useState(0);
-  const numericMatch = value.match(/(\d+)/);
-  const targetNumber = numericMatch ? parseInt(numericMatch[0], 10) : null;
-  const suffix = value.replace(/[\d]/g, "");
+  const match = String(value).match(/^([^\d]*)(\d+)([^\d]*)$/);
+  const prefix = match ? match[1] : "";
+  const targetNumber = match ? parseInt(match[2], 10) : null;
+  const suffix = match ? match[3] : "";
 
   useEffect(() => {
     if (!inView || targetNumber === null) return;
@@ -84,7 +85,8 @@ const AnimatedStatValue = ({ value }) => {
   if (targetNumber === null) return <span>{value}</span>;
   return (
     <span ref={ref}>
-      {count}
+      {prefix}
+      {inView ? count : 0}
       {suffix}
     </span>
   );
