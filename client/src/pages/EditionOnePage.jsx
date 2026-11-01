@@ -13,6 +13,7 @@ import {
 } from "react-icons/fi";
 import FooterSection from "../Components/FooterSection";
 import ThemeToggle from "../Components/ThemeToggle";
+import { Updates } from "../Components/landing/Updates.jsx";
 
 const AnimatedStatValue = ({ value }) => {
   const [displayValue, setDisplayValue] = React.useState(0);
@@ -303,6 +304,16 @@ const EditionOnePage = () => {
             </div>
           </div>
         </section>
+
+        {/* What happened around Vision Mysuru 2050 Edition 1 */}
+        <div className="border-t border-[var(--border)] bg-[var(--bg)]">
+          <Updates
+            id="edition1-updates"
+            eyebrow="Edition 1 Highlights"
+            title="What happened around Vision Mysuru 2050 Edition 1"
+            description="Key announcements, event moments, and milestones from the inaugural edition of Vision Mysuru 2050."
+          />
+        </div>
 
         {/* Edition 1 Event Journey Timeline */}
         <section className="border-t border-[var(--border)] bg-[var(--surface)] py-14 sm:py-16">

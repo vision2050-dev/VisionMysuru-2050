@@ -27,7 +27,13 @@ const UpdateDescription = ({ description, isExpanded, onToggle }) => {
   );
 };
 
-export const Updates = () => {
+export const Updates = ({
+  id = "updates",
+  eyebrow = "Latest updates",
+  title = "What is happening around Vision Mysuru 2050",
+  description = "Follow announcements, event moments, and important milestones as the initiative moves forward.",
+  items = updates,
+}) => {
   const [expandedCards, setExpandedCards] = useState({});
 
   const toggleDescription = (id) => {
@@ -39,21 +45,20 @@ export const Updates = () => {
 
   return (
     <Section
-      id="updates"
-      eyebrow="Latest updates"
-      title="What is happening around Vision Mysuru 2050"
+      id={id}
+      eyebrow={eyebrow}
+      title={title}
     >
       <div className="max-w-2xl">
-        <p className="text-sm  text-[var(--muted)]">
-          Follow announcements, event moments, and important milestones as the
-          initiative moves forward.
+        <p className="text-sm text-[var(--muted)]">
+          {description}
         </p>
       </div>
       <div className="flex flex-row overflow-auto">
-        {updates.length ? (
+        {items.length ? (
           <div className="relative mt-4">
             <div className="-mx-2 flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 scroll-smooth">
-              {updates.map((item) => (
+              {items.map((item) => (
                 <article
                   key={item.id}
                   data-update-card

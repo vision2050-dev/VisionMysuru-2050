@@ -85,7 +85,7 @@ const LandingPage = () => {
 
         <TopNav />
         <HeroSection />
-        <Updates />
+        {/* <Updates /> - Template ready for Edition 2 updates (temporarily hidden for now) */}
         <BrandAmbassador />
         <InstagramFeedSection />
         <GlimpseEditionOne />
