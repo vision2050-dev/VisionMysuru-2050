@@ -89,7 +89,7 @@ const EDITION_ONE_TIMELINE = [
   {
     phase: "Round 0 & 1",
     date: "March 14, 2026",
-    title: "Expert Screening (317 Entries)",
+    title: "Expert Screening (517+ Entries)",
     desc: "An esteemed 32-member jury panel evaluated submissions across all 4 categories to shortlist the top 40 teams.",
   },
   {
