@@ -1007,25 +1007,37 @@ export const AdminJuryzaPlatform = () => {
 
           <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Alloted Teams
+              Rounds in Progress
             </span>
             <div className="oswald text-2xl sm:text-3xl font-extrabold text-[var(--accent)] mt-1">
-              {submissions.filter((s) => s.allotedJudges?.filter((j) => Boolean(j && j.trim())).length > 0).length}
+              {submissions.filter((s) => {
+                const st = (s.stage || "").toLowerCase();
+                return st.includes("round") || st === "submitted" || st.includes("allocated") || st.includes("evaluation");
+              }).length}
             </div>
             <span className="text-[10px] text-[var(--muted)] mt-1 block">
-              Assigned to a judge
+              Round 1 • Round 2 • Round 3
             </span>
           </div>
 
           <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Shortlisted
+              Selected / Not Selected
             </span>
             <div className="oswald text-2xl sm:text-3xl font-extrabold text-amber-500 mt-1">
-              {submissions.filter((s) => (s.stage || "").includes("shortlisted")).length}
+              {submissions.filter((s) => {
+                const st = (s.stage || "").toLowerCase();
+                return (st.includes("selected") && !st.includes("not")) || (st.includes("shortlisted") && !st.includes("not"));
+              }).length}
+              <span className="text-sm font-normal text-[var(--muted)]">
+                {" "}/ {submissions.filter((s) => {
+                  const st = (s.stage || "").toLowerCase();
+                  return st.includes("not selected") || st.includes("not shortlisted");
+                }).length}
+              </span>
             </div>
             <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block font-medium">
-              Advanced to next round
+              Selected 🏆 / Not Selected ❌
             </span>
           </div>
         </div>
@@ -1213,15 +1225,23 @@ export const AdminJuryzaPlatform = () => {
                           {/* Stage Dropdown */}
                           <td className="px-4 py-3.5">
                             <select
-                              value={sub.stage || "submitted"}
+                              value={(() => {
+                                const st = sub.stage || "Round 1";
+                                const s = st.toLowerCase();
+                                if (s.includes("not selected") || s.includes("not shortlisted")) return "Not Selected";
+                                if (s.includes("selected") || s.includes("shortlisted") || s.includes("winner")) return "Selected";
+                                if (s.includes("round 3")) return "Round 3";
+                                if (s.includes("round 2")) return "Round 2";
+                                return "Round 1";
+                              })()}
                               onChange={(e) => handleStageChange(sub.teamId, e.target.value)}
                               className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
                             >
-                              <option value="submitted">1. Submitted</option>
-                              <option value="allocated to a judge">2. Allocated to Judge</option>
-                              <option value="under evaluation">3. Under Evaluation</option>
-                              <option value="shortlisted to next round">4. Shortlisted 🏆</option>
-                              <option value="not shortlisted to next round">4. Not Shortlisted ❌</option>
+                              <option value="Round 1">Round 1</option>
+                              <option value="Round 2">Round 2</option>
+                              <option value="Round 3">Round 3</option>
+                              <option value="Selected">Selected 🏆</option>
+                              <option value="Not Selected">Not Selected ❌</option>
                             </select>
                           </td>
 
@@ -1720,17 +1740,25 @@ export const AdminJuryzaPlatform = () => {
                       Stage / Round
                     </label>
                     <select
-                      value={submissionEditForm.stage}
+                      value={(() => {
+                        const st = submissionEditForm.stage || "Round 1";
+                        const s = st.toLowerCase();
+                        if (s.includes("not selected") || s.includes("not shortlisted")) return "Not Selected";
+                        if (s.includes("selected") || s.includes("shortlisted") || s.includes("winner")) return "Selected";
+                        if (s.includes("round 3")) return "Round 3";
+                        if (s.includes("round 2")) return "Round 2";
+                        return "Round 1";
+                      })()}
                       onChange={(e) =>
                         setSubmissionEditForm((prev) => ({ ...prev, stage: e.target.value }))
                       }
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
                     >
-                      <option value="submitted">1. Submitted</option>
-                      <option value="allocated to a judge">2. Allocated to Judge</option>
-                      <option value="under evaluation">3. Under Evaluation</option>
-                      <option value="shortlisted to next round">4. Shortlisted 🏆</option>
-                      <option value="not shortlisted to next round">4. Not Shortlisted ❌</option>
+                      <option value="Round 1">Round 1</option>
+                      <option value="Round 2">Round 2</option>
+                      <option value="Round 3">Round 3</option>
+                      <option value="Selected">Selected 🏆</option>
+                      <option value="Not Selected">Not Selected ❌</option>
                     </select>
                   </div>
 

@@ -474,18 +474,29 @@ export const ParticipantPortal = () => {
     }
   };
 
-  // Helper for Stepper State Mapping
+  // Helper for Stepper State Mapping (Round 1, Round 2, Round 3, Selected / Not Selected)
   const getStepStatus = (stage, stepIndex) => {
-    // 0: submitted
-    // 1: allocated to a judge
-    // 2: under evaluation
-    // 3: shortlisted / not shortlisted
-    const normalized = (stage || "submitted").toLowerCase();
+    // 0: Round 1
+    // 1: Round 2
+    // 2: Round 3
+    // 3: Selected / Not Selected
+    const normalized = (stage || "round 1").toLowerCase();
 
     let currentIndex = 0;
-    if (normalized.includes("allocated")) currentIndex = 1;
-    else if (normalized.includes("evaluation")) currentIndex = 2;
-    else if (normalized.includes("shortlisted") || normalized.includes("winner")) currentIndex = 3;
+    if (normalized.includes("round 2") || normalized.includes("round_2")) {
+      currentIndex = 1;
+    } else if (normalized.includes("round 3") || normalized.includes("round_3")) {
+      currentIndex = 2;
+    } else if (
+      normalized.includes("selected") ||
+      normalized.includes("shortlisted") ||
+      normalized.includes("winner")
+    ) {
+      currentIndex = 3;
+    } else {
+      // "round 1", "submitted", "allocated", "evaluation" -> Round 1
+      currentIndex = 0;
+    }
 
     if (stepIndex < currentIndex) return "completed";
     if (stepIndex === currentIndex) return "active";
@@ -606,28 +617,34 @@ export const ParticipantPortal = () => {
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  {/* Step 1: Submitted */}
+                  {/* Step 1: Round 1 */}
                   {(() => {
                     const status = getStepStatus(mySubmission.stage, 0);
                     return (
                       <div
                         className={`p-4 rounded-2xl border transition-all ${
-                          status === "completed" || status === "active"
+                          status === "completed"
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : status === "active"
+                            ? "border-emerald-500 bg-emerald-500/10 shadow-sm ring-2 ring-emerald-500/20"
                             : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider">Step 1</span>
-                          <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                          {status === "completed" ? (
+                            <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                          )}
                         </div>
-                        <h4 className="font-bold text-sm text-[var(--text)]">Submitted</h4>
-                        <p className="text-[11px] mt-1 text-[var(--muted)]">Files securely uploaded to Google Drive</p>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Round 1</h4>
+                        <p className="text-[11px] mt-1 text-[var(--muted)]">Expert screening & submission evaluation</p>
                       </div>
                     );
                   })()}
 
-                  {/* Step 2: Allocated to a judge */}
+                  {/* Step 2: Round 2 */}
                   {(() => {
                     const status = getStepStatus(mySubmission.stage, 1);
                     return (
@@ -636,7 +653,7 @@ export const ParticipantPortal = () => {
                           status === "completed"
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                             : status === "active"
-                            ? "border-amber-500 bg-amber-500/10 shadow-sm ring-2 ring-amber-500/20"
+                            ? "border-indigo-500 bg-indigo-500/10 shadow-sm ring-2 ring-indigo-500/20"
                             : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
                         }`}
                       >
@@ -645,22 +662,20 @@ export const ParticipantPortal = () => {
                           {status === "completed" ? (
                             <FiCheckCircle className="h-4 w-4 text-emerald-500" />
                           ) : status === "active" ? (
-                            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                            <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-ping" />
                           ) : (
                             <FiClock className="h-4 w-4" />
                           )}
                         </div>
-                        <h4 className="font-bold text-sm text-[var(--text)]">Allocated to Judge</h4>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Round 2</h4>
                         <p className="text-[11px] mt-1 text-[var(--muted)]">
-                          {mySubmission.allotedJudgeNames?.length > 0
-                            ? `Alloted to ${mySubmission.allotedJudgeNames.join(", ")}`
-                            : "Awaiting admin judge allocation"}
+                          Category showdowns & domain evaluation
                         </p>
                       </div>
                     );
                   })()}
 
-                  {/* Step 3: Under evaluation */}
+                  {/* Step 3: Round 3 */}
                   {(() => {
                     const status = getStepStatus(mySubmission.stage, 2);
                     return (
@@ -669,7 +684,7 @@ export const ParticipantPortal = () => {
                           status === "completed"
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                             : status === "active"
-                            ? "border-blue-500 bg-blue-500/10 shadow-sm ring-2 ring-blue-500/20"
+                            ? "border-purple-500 bg-purple-500/10 shadow-sm ring-2 ring-purple-500/20"
                             : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]"
                         }`}
                       >
@@ -678,27 +693,31 @@ export const ParticipantPortal = () => {
                           {status === "completed" ? (
                             <FiCheckCircle className="h-4 w-4 text-emerald-500" />
                           ) : status === "active" ? (
-                            <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+                            <span className="flex h-2 w-2 rounded-full bg-purple-500 animate-ping" />
                           ) : (
                             <FiClock className="h-4 w-4" />
                           )}
                         </div>
-                        <h4 className="font-bold text-sm text-[var(--text)]">Under Evaluation</h4>
+                        <h4 className="font-bold text-sm text-[var(--text)]">Round 3</h4>
                         <p className="text-[11px] mt-1 text-[var(--muted)]">
-                          Rubric scoring & duel comparisons underway
+                          Senior jury panel presentation
                         </p>
                       </div>
                     );
                   })()}
 
-                  {/* Step 4: Shortlisted / Final Status */}
+                  {/* Step 4: Selected / Not Selected */}
                   {(() => {
                     const status = getStepStatus(mySubmission.stage, 3);
-                    const isRejected = (mySubmission.stage || "").includes("not shortlisted");
+                    const normalized = (mySubmission.stage || "").toLowerCase();
+                    const isRejected = normalized.includes("not selected") || normalized.includes("not shortlisted");
+                    const isSelected = !isRejected && (normalized.includes("selected") || normalized.includes("winner") || normalized.includes("shortlisted"));
+                    const isDecided = isRejected || isSelected;
+
                     return (
                       <div
                         className={`p-4 rounded-2xl border transition-all ${
-                          status === "active" || status === "completed"
+                          isDecided
                             ? isRejected
                               ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
                               : "border-amber-500 bg-gradient-to-br from-amber-500/20 to-amber-600/10 shadow-md ring-2 ring-amber-500/30"
@@ -706,22 +725,22 @@ export const ParticipantPortal = () => {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 4</span>
-                          {status === "active" || status === "completed" ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Outcome</span>
+                          {isDecided ? (
                             <span>{isRejected ? "❌" : "🏆"}</span>
                           ) : (
                             <FiClock className="h-4 w-4" />
                           )}
                         </div>
                         <h4 className="font-bold text-sm text-[var(--text)]">
-                          {isRejected ? "Not Shortlisted" : "Shortlisted"}
+                          {isRejected ? "Not Selected" : isSelected ? "Selected" : "Selected / Not Selected"}
                         </h4>
                         <p className="text-[11px] mt-1 text-[var(--muted)]">
                           {isRejected
                             ? "Evaluation concluded for this round."
-                            : status === "active" || status === "completed"
-                            ? "Congratulations! Selected for next round."
-                            : "Pending jury finalization"}
+                            : isSelected
+                            ? "Congratulations! Selected for next stage."
+                            : "Awaiting final jury decision"}
                         </p>
                       </div>
                     );

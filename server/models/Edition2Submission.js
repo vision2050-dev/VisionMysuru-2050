@@ -77,21 +77,28 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       organizationName: { type: String, trim: true },
     },
 
-    // Participant Progress Tracking States (Exactly as required)
-    // 1. submitted
-    // 2. allocated to a judge
-    // 3. under evaluation
-    // 4. shortlisted to next round / not shortlisted to next round
+    // Participant Progress Tracking States
+    // Round 1 -> Round 2 -> Round 3 -> Selected / Not Selected
     stage: {
       type: String,
       enum: [
+        "Round 1",
+        "Round 2",
+        "Round 3",
+        "Selected",
+        "Not Selected",
+        "round 1",
+        "round 2",
+        "round 3",
+        "selected",
+        "not selected",
         "submitted",
         "allocated to a judge",
         "under evaluation",
         "shortlisted to next round",
         "not shortlisted to next round",
       ],
-      default: "submitted",
+      default: "Round 1",
       index: true,
     },
 

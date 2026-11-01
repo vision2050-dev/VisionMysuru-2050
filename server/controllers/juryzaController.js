@@ -967,6 +967,16 @@ export const updateSubmissionStatus = async (req, res) => {
     const { stage, notes } = req.body;
 
     const judgeAllowedStages = [
+      "Round 1",
+      "Round 2",
+      "Round 3",
+      "Selected",
+      "Not Selected",
+      "round 1",
+      "round 2",
+      "round 3",
+      "selected",
+      "not selected",
       "under evaluation",
       "shortlisted to next round",
       "not shortlisted to next round",
@@ -981,7 +991,7 @@ export const updateSubmissionStatus = async (req, res) => {
     const isJudge = req.user?.role === "judge";
     if (isJudge && !judgeAllowedStages.includes(stage)) {
       return res.status(403).json({
-        message: "Judges can only change the state to under evaluation, shortlisted to next round, or not shortlisted to next round.",
+        message: "Judges can change the stage to Round 1, Round 2, Round 3, Selected, or Not Selected.",
       });
     }
 
