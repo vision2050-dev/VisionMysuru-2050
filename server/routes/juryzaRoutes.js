@@ -71,10 +71,12 @@ router.get("/participant/my-submission", getParticipantSubmission);
 router.get(
   "/submissions",
   (req, res, next) => {
-    // If token is provided, extract user to filter for judge; otherwise allow public
-    const authHeader = req.headers.authorization || req.headers["x-auth-token"];
-    if (authHeader) {
-      return verifyAuthToken(req, res, next);
+    // If token or user email is provided, extract user to filter for judge; otherwise allow public
+    const hasAuth = req.headers.authorization || req.headers["x-auth-token"] || req.headers["x-user-email"];
+    if (hasAuth) {
+      return verifyAuthToken(req, res, (err) => {
+        next();
+      });
     }
     next();
   },

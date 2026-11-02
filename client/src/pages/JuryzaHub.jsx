@@ -26,6 +26,7 @@ import {
 import api from "../utils/api";
 import {
   getStoredSubmissions,
+  getStoredUsers,
   submitStoredRubricScore,
   updateStoredSubmissionStage,
   clientSignIn,
@@ -87,8 +88,8 @@ export const JuryzaHub = () => {
       setIsAuthenticated(true);
       setJudgeEmail(email);
       setJudgeName(name || "Jury Member");
-      fetchSubmissions();
-      fetchDuelPair();
+      fetchSubmissions(email);
+      fetchDuelPair(email);
     } else {
       setIsAuthenticated(false);
       setLoading(false);
@@ -160,12 +161,13 @@ export const JuryzaHub = () => {
           localStorage.setItem("juryzaName", user.name || "Jury Member");
         }
 
-        setJudgeEmail(user.email || cleanEmail);
+        const targetEmail = user.email || cleanEmail;
+        setJudgeEmail(targetEmail);
         setJudgeName(user.name || "Jury Member");
         setIsAuthenticated(true);
         toast.success("Welcome to the Jury Evaluation Hub!");
-        fetchSubmissions();
-        fetchDuelPair();
+        fetchSubmissions(targetEmail);
+        fetchDuelPair(targetEmail);
       }
     } catch (err) {
       setLoginError(err.message || "Failed to authenticate judge. Please check your credentials.");
@@ -191,14 +193,47 @@ export const JuryzaHub = () => {
     toast.success("Signed out from Jury Hub.");
   };
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = async (overrideEmail) => {
     try {
       setLoading(true);
-      const res = await api.get("/api/v2/submissions");
+      const myEmail = (
+        overrideEmail ||
+        judgeEmail ||
+        localStorage.getItem("juryzaJudgeEmail") ||
+        localStorage.getItem("juryzaEmail") ||
+        ""
+      ).toLowerCase().trim();
+
+      const res = await api.get("/api/v2/submissions", {
+        params: { judgeEmail: myEmail },
+      });
       const list = Array.isArray(res.data) ? res.data : [];
-      setSubmissions(list);
-      if (list.length > 0 && !selectedSubmission) {
-        setSelectedSubmission(list[0]);
+
+      // Check stored users to see which teams are alloted to this judge
+      const storedUsers = getStoredUsers();
+      const currentJudge = storedUsers.find(
+        (u) => (u.email || "").toLowerCase().trim() === myEmail && u.role === "judge"
+      );
+      const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
+
+      // STRICT JUDGE FILTER:
+      // Only include submissions strictly alloted to this judge!
+      const judgeOnlyList = list.filter((sub) => {
+        const inJudges =
+          Array.isArray(sub.allotedJudges) &&
+          sub.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
+        const inJudgeTeams = sub.teamId && allotedTeamIds.includes(sub.teamId);
+        return inJudges || inJudgeTeams;
+      });
+
+      setSubmissions(judgeOnlyList);
+      if (judgeOnlyList.length > 0) {
+        setSelectedSubmission((prev) => {
+          if (prev && judgeOnlyList.some((s) => s.teamId === prev.teamId)) return prev;
+          return judgeOnlyList[0];
+        });
+      } else {
+        setSelectedSubmission(null);
       }
     } catch {
       // Local fallback with Cloud State sync
@@ -212,29 +247,55 @@ export const JuryzaHub = () => {
         }
       }
       const myEmail = (
+        overrideEmail ||
         judgeEmail ||
         localStorage.getItem("juryzaJudgeEmail") ||
         localStorage.getItem("juryzaEmail") ||
         ""
       ).toLowerCase().trim();
-      const myTeams = stored.filter(
-        (s) =>
-          (s.allotedJudges || []).map((j) => j.toLowerCase()).includes(myEmail) ||
-          (s.allotedJudges || []).length === 0,
+
+      const storedUsers = getStoredUsers();
+      const currentJudge = storedUsers.find(
+        (u) => (u.email || "").toLowerCase().trim() === myEmail && u.role === "judge"
       );
-      const displayList = myTeams.length > 0 ? myTeams : stored;
-      setSubmissions(displayList);
-      if (displayList.length > 0 && !selectedSubmission) {
-        setSelectedSubmission(displayList[0]);
+      const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
+
+      // STRICT JUDGE FILTER:
+      // ONLY teams specifically alloted to this judge! NEVER fallback to all stored teams or unalloted teams!
+      const myTeams = stored.filter((s) => {
+        const inJudges =
+          Array.isArray(s.allotedJudges) &&
+          s.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
+        const inJudgeTeams = s.teamId && allotedTeamIds.includes(s.teamId);
+        return inJudges || inJudgeTeams;
+      });
+
+      setSubmissions(myTeams);
+      if (myTeams.length > 0) {
+        setSelectedSubmission((prev) => {
+          if (prev && myTeams.some((s) => s.teamId === prev.teamId)) return prev;
+          return myTeams[0];
+        });
+      } else {
+        setSelectedSubmission(null);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchDuelPair = async () => {
+  const fetchDuelPair = async (overrideEmail) => {
     try {
-      const res = await api.get("/api/v2/jury/duel/pair");
+      const myEmail = (
+        overrideEmail ||
+        judgeEmail ||
+        localStorage.getItem("juryzaJudgeEmail") ||
+        localStorage.getItem("juryzaEmail") ||
+        ""
+      ).toLowerCase().trim();
+      const res = await api.get("/api/v2/jury/duel/pair", {
+        params: { judgeEmail: myEmail },
+      });
       const pair = res.data?.pair || [];
       if (pair.length >= 2) {
         setDuelPair(pair);

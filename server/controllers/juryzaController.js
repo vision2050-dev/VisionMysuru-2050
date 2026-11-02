@@ -701,11 +701,16 @@ export const registerEdition2Submission = async (req, res) => {
  */
 export const getEdition2Submissions = async (req, res) => {
   try {
-    const userEmail = req.user?.email?.toLowerCase()?.trim();
-    const userRole = req.user?.role;
+    const userEmail = (
+      req.user?.email ||
+      req.headers["x-user-email"] ||
+      req.query.judgeEmail ||
+      req.query.judge ||
+      ""
+    ).toLowerCase().trim();
 
+    const userRole = req.user?.role;
     const isAdmin = userEmail === ADMIN_EMAIL || userRole === "admin";
-    const isJudge = userRole === "judge";
 
     let allSubs = [];
     if (isDbConnected()) {
@@ -718,13 +723,35 @@ export const getEdition2Submissions = async (req, res) => {
       return res.status(200).json(allSubs);
     }
 
+    // Identify if requester is a judge
+    let isJudge = userRole === "judge";
+    let judgeUser = null;
+
+    if (userEmail) {
+      if (isDbConnected()) {
+        judgeUser = await JuryzaUser.findOne({ email: userEmail, role: "judge" });
+      } else {
+        judgeUser = localUsersStore.find(
+          (u) => (u.email || "").toLowerCase().trim() === userEmail && u.role === "judge"
+        );
+      }
+      if (judgeUser) {
+        isJudge = true;
+      }
+    }
+
+    // Judges MUST ONLY see submissions alloted to their account
     if (isJudge && userEmail) {
-      // Return ONLY teams alloted to this judge
-      const filtered = allSubs.filter(
-        (sub) =>
+      const judgeAllotedTeams = Array.isArray(judgeUser?.allotedTeams) ? judgeUser.allotedTeams : [];
+
+      const filtered = allSubs.filter((sub) => {
+        const inSubJudges =
           Array.isArray(sub.allotedJudges) &&
-          sub.allotedJudges.map((e) => e.toLowerCase()).includes(userEmail),
-      );
+          sub.allotedJudges.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
+        const inJudgeTeams = sub.teamId && judgeAllotedTeams.includes(sub.teamId);
+        return inSubJudges || inJudgeTeams;
+      });
+
       return res.status(200).json(filtered);
     }
 
@@ -736,7 +763,7 @@ export const getEdition2Submissions = async (req, res) => {
       category: s.category,
       theme: s.theme,
       solutionName: s.solutionName,
-      stage: s.stage || "submitted",
+      stage: s.stage || "Round 1",
       createdAt: s.createdAt,
     }));
 
@@ -1143,13 +1170,31 @@ export const getDuelPair = async (req, res) => {
       ? await Edition2Submission.find()
       : localSubmissionsStore;
 
-    const userEmail = req.user?.email?.toLowerCase();
+    const userEmail = (
+      req.user?.email ||
+      req.headers["x-user-email"] ||
+      req.query.judgeEmail ||
+      ""
+    ).toLowerCase().trim();
+
     if (userEmail && userEmail !== ADMIN_EMAIL) {
-      subs = subs.filter(
-        (s) =>
+      let judgeUser = null;
+      if (isDbConnected()) {
+        judgeUser = await JuryzaUser.findOne({ email: userEmail, role: "judge" });
+      } else {
+        judgeUser = localUsersStore.find(
+          (u) => (u.email || "").toLowerCase().trim() === userEmail && u.role === "judge"
+        );
+      }
+      const judgeTeams = Array.isArray(judgeUser?.allotedTeams) ? judgeUser.allotedTeams : [];
+
+      subs = subs.filter((s) => {
+        const inSubJudges =
           Array.isArray(s.allotedJudges) &&
-          s.allotedJudges.map((e) => e.toLowerCase()).includes(userEmail),
-      );
+          s.allotedJudges.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
+        const inJudgeTeams = s.teamId && judgeTeams.includes(s.teamId);
+        return inSubJudges || inJudgeTeams;
+      });
     }
 
     if (subs.length < 2) {
@@ -1391,7 +1436,19 @@ export const updateJudgeDetails = async (req, res) => {
         if (organization) judge.organization = organization.trim();
         if (specialization) judge.specialization = specialization;
         if (password) judge.password = password;
-        if (Array.isArray(allotedTeams)) judge.allotedTeams = allotedTeams;
+        if (Array.isArray(allotedTeams)) {
+          judge.allotedTeams = allotedTeams;
+          const judgeEmail = judge.email.toLowerCase().trim();
+          const judgeName = judge.name;
+          await Edition2Submission.updateMany(
+            { teamId: { $in: allotedTeams }, allotedJudges: { $ne: judgeEmail } },
+            { $addToSet: { allotedJudges: judgeEmail, allotedJudgeNames: judgeName } }
+          );
+          await Edition2Submission.updateMany(
+            { teamId: { $nin: allotedTeams }, allotedJudges: judgeEmail },
+            { $pull: { allotedJudges: judgeEmail, allotedJudgeNames: judgeName } }
+          );
+        }
         if (createdAt) judge.createdAt = createdAt;
         await judge.save();
       }
@@ -1405,7 +1462,22 @@ export const updateJudgeDetails = async (req, res) => {
       if (email) targetJudge.email = email.toLowerCase().trim();
       if (organization) targetJudge.organization = organization.trim();
       if (specialization) targetJudge.specialization = specialization;
-      if (Array.isArray(allotedTeams)) targetJudge.allotedTeams = allotedTeams;
+      if (Array.isArray(allotedTeams)) {
+        targetJudge.allotedTeams = allotedTeams;
+        const judgeEmail = targetJudge.email.toLowerCase().trim();
+        const judgeName = targetJudge.name;
+        localSubmissionsStore.forEach((sub) => {
+          if (allotedTeams.includes(sub.teamId)) {
+            if (!Array.isArray(sub.allotedJudges)) sub.allotedJudges = [];
+            if (!sub.allotedJudges.includes(judgeEmail)) sub.allotedJudges.push(judgeEmail);
+            if (!Array.isArray(sub.allotedJudgeNames)) sub.allotedJudgeNames = [];
+            if (!sub.allotedJudgeNames.includes(judgeName)) sub.allotedJudgeNames.push(judgeName);
+          } else if (Array.isArray(sub.allotedJudges) && sub.allotedJudges.includes(judgeEmail)) {
+            sub.allotedJudges = sub.allotedJudges.filter((e) => e !== judgeEmail);
+            sub.allotedJudgeNames = (sub.allotedJudgeNames || []).filter((n) => n !== judgeName);
+          }
+        });
+      }
       if (createdAt) targetJudge.createdAt = createdAt;
       if (password) {
         const salt = await bcrypt.genSalt(10);
