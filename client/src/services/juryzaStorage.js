@@ -474,7 +474,7 @@ export const importSubmissionsFromFile = async (file) => {
 /**
  * Push current master state (submissions + users) to cloud storage and Google Drive backup
  */
-export const pushCloudState = async ({ submissions, users } = {}) => {
+export const pushCloudState = async ({ submissions, users, isReset = false } = {}) => {
   try {
     let currentSubs = submissions;
     let currentUsers = users;
@@ -491,37 +491,39 @@ export const pushCloudState = async ({ submissions, users } = {}) => {
       currentUsers = getStoredUsers();
     }
 
-    // Protect existing submissions: merge with remote state before pushing so nothing is accidentally overwritten
-    try {
-      const checkRes = await fetch(CLOUD_SYNC_ENDPOINT);
-      if (checkRes.ok) {
-        const checkJson = await checkRes.json();
-        const remoteData = checkJson?.data;
-        if (
-          remoteData &&
-          Array.isArray(remoteData.submissions) &&
-          remoteData.submissions.length > 0
-        ) {
-          if (!currentSubs || currentSubs.length === 0) {
-            currentSubs = remoteData.submissions;
-            saveStoredSubmissions(currentSubs);
-          } else {
-            currentSubs = mergeSubmissions(currentSubs, remoteData.submissions);
+    // Protect existing submissions: merge with remote state before pushing ONLY WHEN NOT RESETTING
+    if (!isReset) {
+      try {
+        const checkRes = await fetch(CLOUD_SYNC_ENDPOINT);
+        if (checkRes.ok) {
+          const checkJson = await checkRes.json();
+          const remoteData = checkJson?.data;
+          if (
+            remoteData &&
+            Array.isArray(remoteData.submissions) &&
+            remoteData.submissions.length > 0
+          ) {
+            if (!currentSubs || currentSubs.length === 0) {
+              currentSubs = remoteData.submissions;
+              saveStoredSubmissions(currentSubs);
+            } else {
+              currentSubs = mergeSubmissions(currentSubs, remoteData.submissions);
+            }
+          }
+          if (
+            remoteData &&
+            Array.isArray(remoteData.users) &&
+            remoteData.users.length > 0
+          ) {
+            currentUsers = mergeUsers(currentUsers || getStoredUsers(), remoteData.users);
           }
         }
-        if (
-          remoteData &&
-          Array.isArray(remoteData.users) &&
-          remoteData.users.length > 0
-        ) {
-          currentUsers = mergeUsers(currentUsers || getStoredUsers(), remoteData.users);
-        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
-    currentSubs = currentSubs || getStoredSubmissions();
+    currentSubs = isReset ? [] : (currentSubs || getStoredSubmissions());
     currentUsers = currentUsers || getStoredUsers();
 
     const payload = {
@@ -548,7 +550,7 @@ export const pushCloudState = async ({ submissions, users } = {}) => {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
-            action: "sync_master_state",
+            action: isReset ? "purge_all" : "sync_master_state",
             stateData: payload.data,
             fileName: "VisionMysuru_2050_MasterState.json",
             mimeType: "application/json",
@@ -681,7 +683,25 @@ export const clearAllPortalData = async () => {
       users.push(DEFAULT_USERS[0]);
     }
     saveStoredUsers(users);
-    await pushCloudState({ submissions: [], users });
+
+    // 1. Explicitly purge Google Drive via Apps Script Webhook
+    // This purges Videos, Documents, and clears the Google Sheet rows in Google Drive!
+    if (APPS_SCRIPT_DRIVE_URL) {
+      try {
+        await fetch(APPS_SCRIPT_DRIVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "purge_all",
+          }),
+        });
+      } catch (driveErr) {
+        console.warn("Drive purge webhook error:", driveErr);
+      }
+    }
+
+    // 2. Overwrite Cloud REST KV with isReset: true to prevent remote merge
+    await pushCloudState({ submissions: [], users, isReset: true });
     return true;
   } catch (e) {
     console.warn("Failed to clear portal data:", e);

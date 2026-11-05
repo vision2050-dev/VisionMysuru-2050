@@ -694,10 +694,10 @@ export const AdminJuryzaPlatform = () => {
     toast.success(`Judge "${judgeName}" deleted.`);
   };
 
-  // Purge all portal data (teams & judges)
+  // Purge all portal data (teams & judges) and Google Drive files/sheets
   const handlePurgeAll = async () => {
     const confirmation = window.prompt(
-      '⚠️ DANGER: You are about to DELETE ALL teams, judges, and uploaded files from the portal.\n\nType "RESET" to confirm and proceed:'
+      '⚠️ DANGER: You are about to DELETE ALL teams, judges, Google Sheet entries, and uploaded files from the portal AND Google Drive.\n\nType "RESET" to confirm and proceed:'
     );
     if (confirmation !== "RESET") {
       if (confirmation !== null) {
@@ -706,16 +706,19 @@ export const AdminJuryzaPlatform = () => {
       return;
     }
 
+    const resetToast = toast.loading("Purging portal data and cleaning Google Drive...");
+
     try {
       await api.post("/api/v2/admin/purge-all");
     } catch {
-      console.warn("Backend unavailable, purging resilient client data...");
+      console.warn("Backend unavailable, purging resilient client data and Drive...");
     }
 
     await clearAllPortalData();
     setSubmissions([]);
     setJudges([]);
-    toast.success("All teams, judges, and uploaded files have been deleted from the portal.");
+    toast.dismiss(resetToast);
+    toast.success("All teams, judges, Google Sheet rows, and Google Drive files have been deleted.");
   };
 
   const getDocHref = (sub) => {

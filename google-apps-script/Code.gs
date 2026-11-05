@@ -78,7 +78,16 @@ function doPost(e) {
     var folder = DriveApp.getFolderById(MASTER_FOLDER_ID);
 
     // ============================================================
-    // 2. ACTION: Register / Update Submission in Single Master Sheet
+    // 2. ACTION: Purge All Submissions, Files, and Sheet Data (RESET)
+    // ============================================================
+    if (data.action === "purge_all" || data.action === "reset_portal_drive" || data.action === "reset_all") {
+      var purgeResult = purgeAllDriveData(folder);
+      return ContentService.createTextOutput(JSON.stringify(purgeResult))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ============================================================
+    // 3. ACTION: Register / Update Submission in Single Master Sheet
     // ============================================================
     if (data.action === "register_submission" || data.action === "update_submission") {
       var sub = data.submission;
@@ -114,7 +123,7 @@ function doPost(e) {
     }
 
     // ============================================================
-    // 3. ACTION: Sync Master State (Full portal state from Admin)
+    // 4. ACTION: Sync Master State (Full portal state from Admin)
     // ============================================================
     if (data.action === "sync_master_state") {
       var stateData = data.stateData || {};
@@ -126,8 +135,17 @@ function doPost(e) {
 
       // Synchronize rows into Master Sheet
       var subsList = stateData.submissions || [];
-      for (var i = 0; i < subsList.length; i++) {
-        updateOrAppendSubmissionInSheet(ss, subsList[i]);
+      if (subsList.length === 0) {
+        // If master state has 0 submissions (reset), clear all submission rows
+        var sheet = ss.getActiveSheet();
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          sheet.deleteRows(2, lastRow - 1);
+        }
+      } else {
+        for (var i = 0; i < subsList.length; i++) {
+          updateOrAppendSubmissionInSheet(ss, subsList[i]);
+        }
       }
 
       // Update CSV in-place
@@ -601,6 +619,14 @@ function reconcileMasterSheet(folder, ss) {
       var content = jsonFiles.next().getBlob().getDataAsString();
       var state = JSON.parse(content);
       var subs = state.submissions || [];
+
+      // If state.submissions is explicitly empty ([]), this means portal was reset.
+      // Clean all submission rows from sheet so old rows do not resurrect.
+      if (subs.length === 0 && data.length > 1) {
+        sheet.deleteRows(2, data.length - 1);
+        return;
+      }
+
       for (var s = 0; s < subs.length; s++) {
         var sub = subs[s];
         if (sub && sub.teamId && !existingTeamIds[String(sub.teamId).trim().toUpperCase()]) {
@@ -610,6 +636,103 @@ function reconcileMasterSheet(folder, ss) {
       }
     } catch (e) {}
   }
+}
+
+/**
+ * Purge all previous participant submissions, uploaded videos, documents, and reset master spreadsheet
+ */
+function purgeAllDriveData(folder) {
+  var deletedCounts = { videos: 0, documents: 0, uploads: 0, sheetRows: 0 };
+
+  // 1. Clear Master Google Sheet rows (keep row 1 header only)
+  try {
+    var sheetObj = getOrCreateMasterGoogleSheet(folder);
+    var ss = sheetObj.spreadsheet;
+    var sheet = ss.getActiveSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      deletedCounts.sheetRows = lastRow - 1;
+      sheet.deleteRows(2, lastRow - 1);
+    }
+    // Update CSV in place with clean header
+    updateMasterCsvInPlace(folder, ss);
+  } catch (sheetErr) {
+    console.error("Sheet purge error: " + sheetErr);
+  }
+
+  // 2. Clear MasterState.json
+  try {
+    var emptyState = {
+      lastUpdated: new Date().toISOString(),
+      submissions: [],
+      users: []
+    };
+    updateMasterJsonDirect(folder, emptyState);
+  } catch (jsonErr) {
+    console.error("JSON purge error: " + jsonErr);
+  }
+
+  // 3. Purge Videos folder (delete/trash all video files)
+  try {
+    var videosFolder = getOrCreateSubfolder(folder, "Videos");
+    var vFiles = videosFolder.getFiles();
+    while (vFiles.hasNext()) {
+      var vf = vFiles.next();
+      vf.setTrashed(true);
+      deletedCounts.videos++;
+    }
+  } catch (vErr) {
+    console.error("Videos purge error: " + vErr);
+  }
+
+  // 4. Purge Documents folder (delete/trash all pdf proposal files)
+  try {
+    var docsFolder = getOrCreateSubfolder(folder, "Documents");
+    var dFiles = docsFolder.getFiles();
+    while (dFiles.hasNext()) {
+      var df = dFiles.next();
+      df.setTrashed(true);
+      deletedCounts.documents++;
+    }
+  } catch (dErr) {
+    console.error("Documents purge error: " + dErr);
+  }
+
+  // 5. Purge any duplicate or temporary spreadsheet files in Spreadsheets folder
+  try {
+    var spreadSheetFolder = getOrCreateSubfolder(folder, "Spreadsheets");
+    var sFiles = spreadSheetFolder.getFiles();
+    while (sFiles.hasNext()) {
+      var sf = sFiles.next();
+      var name = sf.getName();
+      if (name.indexOf("Copy of") === 0 || name.indexOf("VisionMysuru_2050_Edition2_MasterData (") === 0) {
+        sf.setTrashed(true);
+      }
+    }
+  } catch (sErr) {
+    console.error("Spreadsheets cleanup error: " + sErr);
+  }
+
+  // 6. Purge Uploads folder if present
+  try {
+    var upFolders = folder.getFoldersByName("Uploads");
+    while (upFolders.hasNext()) {
+      var upf = upFolders.next();
+      var uFiles = upf.getFiles();
+      while (uFiles.hasNext()) {
+        uFiles.next().setTrashed(true);
+        deletedCounts.uploads++;
+      }
+    }
+  } catch (uErr) {
+    console.error("Uploads purge error: " + uErr);
+  }
+
+  return {
+    success: true,
+    message: "Google Drive reset complete: Master Sheet cleared, Documents & Videos purged.",
+    deletedCounts: deletedCounts
+  };
 }
 
 function scanAllUploads(folder) {

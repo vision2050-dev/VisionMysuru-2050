@@ -12,6 +12,7 @@ import {
   streamVideoFile,
   VIDEOS_SUBDIR,
   DOCUMENTS_SUBDIR,
+  purgeGoogleDriveRemote,
 } from "../services/googleDriveService.js";
 import {
   updateMasterSpreadsheet,
@@ -1581,9 +1582,16 @@ export const purgeAllPortalData = async (req, res) => {
     // 4. Reset master spreadsheets (both XLSX and CSV)
     await triggerSpreadsheetUpdate();
 
+    // 5. Purge remote Google Drive files and Google Sheets rows
+    try {
+      await purgeGoogleDriveRemote();
+    } catch (e) {
+      console.warn("Could not purge remote Google Drive:", e.message);
+    }
+
     return res.status(200).json({
       success: true,
-      message: "All teams, judges, and uploaded media files have been purged from the portal.",
+      message: "All teams, judges, and uploaded media files have been purged from the portal and Google Drive.",
     });
   } catch (error) {
     console.error("Purge error:", error);

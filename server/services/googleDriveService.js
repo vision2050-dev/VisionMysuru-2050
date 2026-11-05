@@ -243,6 +243,61 @@ export const syncAllStagedFilesToDrive = async () => {
 };
 
 /**
+ * Purge all files (Videos, Documents) and reset master spreadsheet in Google Drive
+ */
+export const purgeGoogleDriveRemote = async () => {
+  // Option A: Google Apps Script Web App Webhook
+  if (APPS_SCRIPT_URL) {
+    try {
+      const resp = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        redirect: "follow",
+        body: JSON.stringify({
+          action: "purge_all",
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (data && data.success) {
+        console.log("[Drive Purge] Successfully purged Drive files and sheet via Apps Script webhook.");
+        return { success: true, data };
+      }
+    } catch (err) {
+      console.warn("[Drive Purge] Apps Script Webhook error:", err.message);
+    }
+  }
+
+  // Option B: Google Cloud Service Account or OAuth2 Client (if credentials present)
+  const drive = getDriveClient();
+  if (drive) {
+    try {
+      const subfolders = ["Videos", "Documents"];
+      for (const sf of subfolders) {
+        const query = `'${TARGET_DRIVE_FOLDER_ID}' in parents and name = '${sf}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+        const res = await drive.files.list({ q: query, fields: "files(id, name)" });
+        if (res.data.files && res.data.files.length > 0) {
+          const folderId = res.data.files[0].id;
+          const filesInFolder = await drive.files.list({
+            q: `'${folderId}' in parents and trashed = false`,
+            fields: "files(id, name)",
+          });
+          if (filesInFolder.data.files) {
+            for (const f of filesInFolder.data.files) {
+              await drive.files.update({ fileId: f.id, resource: { trashed: true } });
+            }
+          }
+        }
+      }
+      return { success: true, message: "Drive files purged via Drive API client" };
+    } catch (apiErr) {
+      console.warn("[Drive Purge] Drive API purge error:", apiErr.message);
+    }
+  }
+
+  return { success: false, message: "No Drive purge mechanism available" };
+};
+
+/**
  * HTTP 206 Partial Content Video Range Streamer
  * Allows smooth seeking, scrub, and fast start for judges in the Juryza Hub
  */
