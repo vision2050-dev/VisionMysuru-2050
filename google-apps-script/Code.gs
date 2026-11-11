@@ -87,6 +87,24 @@ function doPost(e) {
     }
 
     // ============================================================
+    // 2b. ACTION: Delete Specific Files by ID
+    // ============================================================
+    if (data.action === "delete_files") {
+      var fileIds = data.fileIds || [];
+      var deletedCount = 0;
+      for (var dfi = 0; dfi < fileIds.length; dfi++) {
+        try {
+          DriveApp.getFileById(fileIds[dfi]).setTrashed(true);
+          deletedCount++;
+        } catch (delErr) {}
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        deleted: deletedCount
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ============================================================
     // 3. ACTION: Register / Update Submission in Single Master Sheet
     // ============================================================
     if (data.action === "register_submission" || data.action === "update_submission") {
@@ -188,6 +206,12 @@ function doPost(e) {
           }
         }
       }
+    }
+
+    // Prevent duplicates for Videos and Documents if re-uploading the exact same team file
+    var existingMedia = targetFolder.getFilesByName(data.fileName);
+    while (existingMedia.hasNext()) {
+      existingMedia.next().setTrashed(true);
     }
 
     var blob = Utilities.newBlob(Utilities.base64Decode(data.base64Data), data.mimeType, data.fileName);

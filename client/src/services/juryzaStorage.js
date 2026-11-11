@@ -1612,10 +1612,57 @@ export const fileToBase64 = (file) => {
   });
 };
 
+export const uploadFileToAppsScript = async ({
+  fileName,
+  mimeType,
+  file,
+  base64Data,
+  folderType,
+  retries = 2,
+}) => {
+  let dataBase64 = base64Data;
+  if (!dataBase64 && file) {
+    dataBase64 = await fileToBase64(file);
+  }
+  if (!dataBase64) return null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
+
+      const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          fileName,
+          mimeType,
+          base64Data: dataBase64,
+          folderType,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const data = await res.json();
+      if (data && (data.fileId || data.success)) {
+        return data;
+      }
+    } catch (err) {
+      console.warn(`[Drive ${folderType}] Upload attempt ${attempt} notice:`, err.message);
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+  }
+  return null;
+};
+
 export const syncSubmissionFilesToCloudDrive = async ({
   submission,
   videoFile,
   documentFile,
+  onStatusUpdate,
 }) => {
   if (!submission) return null;
 
@@ -1623,21 +1670,20 @@ export const syncSubmissionFilesToCloudDrive = async ({
   const videoName = `[${submission.teamId}]_${cleanTeamName}_Video.mp4`;
   const docName = `[${submission.teamId}]_${cleanTeamName}_Proposal.pdf`;
 
-  // 1. Upload Document to Google Drive (text/plain avoids CORS preflight)
-  if (documentFile) {
+  if (onStatusUpdate) {
+    onStatusUpdate("Syncing Documents, Videos & Spreadsheets simultaneously to Google Drive...");
+  }
+
+  // 1 & 2. Upload Document and Video SIMULTANEOUSLY in parallel
+  const uploadDocPromise = (async () => {
+    if (!documentFile) return null;
     try {
-      const docBase64 = await fileToBase64(documentFile);
-      const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          fileName: docName,
-          mimeType: "application/pdf",
-          base64Data: docBase64,
-          folderType: "Documents",
-        }),
+      const data = await uploadFileToAppsScript({
+        fileName: docName,
+        mimeType: "application/pdf",
+        file: documentFile,
+        folderType: "Documents",
       });
-      const data = await res.json();
       if (data?.fileId) {
         if (!submission.document) submission.document = {};
         submission.document.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
@@ -1645,26 +1691,22 @@ export const syncSubmissionFilesToCloudDrive = async ({
         submission.document.driveFileId = data.fileId;
         submission.document.name = docName;
       }
+      return data;
     } catch (e) {
       console.warn("Cloud Drive Doc sync warning:", e);
+      return null;
     }
-  }
+  })();
 
-  // 2. Upload Pitch Video to Google Drive (text/plain avoids CORS preflight)
-  if (videoFile) {
+  const uploadVideoPromise = (async () => {
+    if (!videoFile) return null;
     try {
-      const videoBase64 = await fileToBase64(videoFile);
-      const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          fileName: videoName,
-          mimeType: "video/mp4",
-          base64Data: videoBase64,
-          folderType: "Videos",
-        }),
+      const data = await uploadFileToAppsScript({
+        fileName: videoName,
+        mimeType: "video/mp4",
+        file: videoFile,
+        folderType: "Videos",
       });
-      const data = await res.json();
       if (data?.fileId) {
         if (!submission.video) submission.video = {};
         submission.video.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
@@ -1672,12 +1714,17 @@ export const syncSubmissionFilesToCloudDrive = async ({
         submission.video.driveFileId = data.fileId;
         submission.video.originalName = videoFile.name || videoName;
       }
+      return data;
     } catch (e) {
       console.warn("Cloud Drive Video sync warning:", e);
+      return null;
     }
-  }
+  })();
 
-  // Save updated URLs to storage immediately
+  // Execute Document and Video uploads simultaneously
+  await Promise.allSettled([uploadDocPromise, uploadVideoPromise]);
+
+  // Save updated file URLs in local client state immediately
   const allSubs = getStoredSubmissions();
   const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
   if (idx !== -1) {
@@ -1685,7 +1732,8 @@ export const syncSubmissionFilesToCloudDrive = async ({
     saveStoredSubmissions(allSubs);
   }
 
-  // 3. Update the Master Spreadsheet in Google Drive (Same sheet updated in-place)
+  // 3. Update the Master Spreadsheet in Google Drive (Spreadsheets folder)
+  // Populated with both video & document URLs!
   try {
     const allUsers = getStoredUsers();
     const currentUser = allUsers.find(
@@ -1711,6 +1759,47 @@ export const syncSubmissionFilesToCloudDrive = async ({
   }
 
   return submission;
+};
+
+/**
+ * Auto-recovery helper: checks if stored submission is missing remote Drive video/doc
+ * and uploads them from IndexedDB in the background.
+ */
+export const autoRecoverDriveMedia = async (submission, userEmail) => {
+  if (!submission || !submission.teamId) return;
+
+  const needVideo = !submission.video?.driveFileId;
+  const needDoc = !submission.document?.driveFileId;
+  if (!needVideo && !needDoc) return;
+
+  try {
+    let videoBlob = null;
+    let docBlob = null;
+
+    if (needVideo) {
+      videoBlob = await getMediaBlob(`video_${submission.teamId}`);
+      if (!videoBlob && userEmail) {
+        videoBlob = await getMediaBlob(`participant_video_${userEmail.toLowerCase().trim()}`);
+      }
+    }
+
+    if (needDoc) {
+      docBlob = await getMediaBlob(`doc_${submission.teamId}`);
+      if (!docBlob && userEmail) {
+        docBlob = await getMediaBlob(`participant_doc_${userEmail.toLowerCase().trim()}`);
+      }
+    }
+
+    if (videoBlob || docBlob) {
+      await syncSubmissionFilesToCloudDrive({
+        submission,
+        videoFile: videoBlob || null,
+        documentFile: docBlob || null,
+      });
+    }
+  } catch (err) {
+    console.warn("Auto-recover drive media notice:", err.message);
+  }
 };
 
 /**

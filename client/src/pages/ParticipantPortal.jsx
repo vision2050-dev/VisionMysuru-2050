@@ -28,6 +28,7 @@ import {
   clientRegisterSubmission,
   getStoredSubmissions,
   syncSubmissionFilesToCloudDrive,
+  autoRecoverDriveMedia,
   getDriveFileId,
   storeMediaBlob,
   getMediaBlobUrl,
@@ -57,6 +58,7 @@ export const ParticipantPortal = () => {
   const [activeCategory, setActiveCategory] = useState(CATEGORY.STUDENT);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState("");
 
   // Compulsory Files State
   const [videoFile, setVideoFile] = useState(null);
@@ -229,6 +231,7 @@ export const ParticipantPortal = () => {
         console.warn("IndexedDB load note:", e);
       }
       setMySubmission(mySub);
+      autoRecoverDriveMedia(mySub, clean).catch(() => {});
     } else {
       setHasRegistered(false);
     }
@@ -448,29 +451,25 @@ export const ParticipantPortal = () => {
         }
       }
 
-      setUploadProgress(100);
-      toast.success("Team registered successfully! Live tracking is active.");
-      setHasRegistered(true);
-      setMySubmission({ ...newSub, videoBlobUrl: localVideoBlob, docBlobUrl: localDocBlob });
+      setUploadProgress(40);
+      setUploadStatus("Simultaneously updating Videos, Documents & Spreadsheets in Google Drive...");
 
-      // Asynchronously sync media files & master spreadsheets to Google Drive
-      syncSubmissionFilesToCloudDrive({
+      // Simultaneously sync media files & master spreadsheets to Google Drive
+      const updatedSub = await syncSubmissionFilesToCloudDrive({
         submission: newSub,
         videoFile,
         documentFile,
-      }).then((updatedSub) => {
-        if (updatedSub) {
-          setMySubmission((prev) => ({
-            ...prev,
-            ...updatedSub,
-            videoBlobUrl: prev?.videoBlobUrl || localVideoBlob,
-            docBlobUrl: prev?.docBlobUrl || localDocBlob,
-          }));
-        }
+        onStatusUpdate: (msg) => setUploadStatus(msg),
       });
+
+      setUploadProgress(100);
+      toast.success("Team registered successfully! Live tracking is active.");
+      setHasRegistered(true);
+      setMySubmission({ ...(updatedSub || newSub), videoBlobUrl: localVideoBlob, docBlobUrl: localDocBlob });
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
+      setUploadStatus("");
     }
   };
 
@@ -1172,8 +1171,10 @@ export const ParticipantPortal = () => {
               {submitting && (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs text-[var(--muted)]">
-                    <span>Uploading files to Google Drive...</span>
-                    <span>{uploadProgress}%</span>
+                    <span className="truncate pr-2 font-medium text-[var(--accent)]">
+                      {uploadStatus || "Simultaneously updating Videos, Documents & Spreadsheets in Google Drive..."}
+                    </span>
+                    <span className="font-bold">{uploadProgress}%</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
                     <div

@@ -595,21 +595,6 @@ export const registerEdition2Submission = async (req, res) => {
       console.warn("File rename notice:", moveErr.message);
     }
 
-    // Upload to Google Drive in background
-    uploadToGoogleDrive({
-      filePath: finalVideoPath,
-      fileName: videoNewName,
-      mimeType: "video/mp4",
-      folderType: "Videos",
-    }).catch((e) => console.warn("Drive Video upload note:", e.message));
-
-    uploadToGoogleDrive({
-      filePath: finalDocPath,
-      fileName: docNewName,
-      mimeType: "application/pdf",
-      folderType: "Documents",
-    }).catch((e) => console.warn("Drive Doc upload note:", e.message));
-
     let parsedMembers = [];
     if (typeof members === "string") {
       try {
@@ -680,8 +665,28 @@ export const registerEdition2Submission = async (req, res) => {
       });
     }
 
-    // Update master spreadsheet with this new submission
-    triggerSpreadsheetUpdate();
+    // Simultaneously upload to Google Drive across all 3 folders: Videos, Documents, and Spreadsheets
+    Promise.allSettled([
+      uploadToGoogleDrive({
+        filePath: finalVideoPath,
+        fileName: videoNewName,
+        mimeType: "video/mp4",
+        folderType: "Videos",
+      }),
+      uploadToGoogleDrive({
+        filePath: finalDocPath,
+        fileName: docNewName,
+        mimeType: "application/pdf",
+        folderType: "Documents",
+      }),
+      triggerSpreadsheetUpdate(),
+    ]).then((results) => {
+      const folderLabels = ["Videos", "Documents", "Spreadsheets"];
+      console.log(
+        `[Drive Multi-Sync] Simultaneous upload results for ${teamId}: ` +
+        results.map((r, i) => `${folderLabels[i]}: ${r.status}`).join(", ")
+      );
+    }).catch((e) => console.warn("Simultaneous Drive upload note:", e.message));
 
     return res.status(201).json({
       message: "Registration completed successfully! Your submission is now in 'submitted' status.",
