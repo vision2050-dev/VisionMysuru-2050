@@ -1129,6 +1129,7 @@ export const clientRegisterSubmission = ({
   documentFileName,
   videoBlobUrl,
   docBlobUrl,
+  videoDriveUrl,
 }) => {
   const subs = getStoredSubmissions();
   const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
@@ -1139,6 +1140,8 @@ export const clientRegisterSubmission = ({
   const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const videoName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
   const docName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
+  const cleanDriveUrl = (videoDriveUrl || "").trim();
+  const driveVidId = getDriveFileId(cleanDriveUrl);
 
   const newSub = {
     _id: `sub-${Date.now()}`,
@@ -1152,10 +1155,11 @@ export const clientRegisterSubmission = ({
     shortDescription,
     detailedProposal: detailedProposal || shortDescription,
     video: {
-      originalName: videoFileName || videoName,
+      originalName: cleanDriveUrl ? (videoFileName || "Google Drive Pitch Video") : (videoFileName || videoName),
       size: 15000000,
-      url: "",
-      webViewLink: "",
+      url: cleanDriveUrl || "",
+      webViewLink: cleanDriveUrl || "",
+      driveFileId: driveVidId || null,
     },
     document: {
       name: documentFileName || docName,
@@ -1792,6 +1796,10 @@ export const syncSubmissionFilesToCloudDrive = async ({
   })();
 
   const uploadVideoPromise = (async () => {
+    // If the submission already has a valid Google Drive video URL, skip uploading video file
+    if (submission.video?.url && submission.video.url.includes("drive.google.com")) {
+      return { webViewLink: submission.video.url, fileId: submission.video.driveFileId };
+    }
     if (!videoFile) return null;
     try {
       // For pitch videos (often 30MB - 50MB), use chunked uploader with progress tracking

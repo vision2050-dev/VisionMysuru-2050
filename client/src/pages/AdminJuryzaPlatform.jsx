@@ -736,8 +736,8 @@ export const AdminJuryzaPlatform = () => {
   const getVideoHref = (sub) => {
     if (!sub) return "/speech.mp4";
     if (sub.videoBlobUrl) return sub.videoBlobUrl;
-    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
-    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
+    if (sub.video?.url) return sub.video.url;
+    if (sub.video?.webViewLink) return sub.video.webViewLink;
     const base = api.defaults.baseURL || "";
     if (base && sub.teamId) {
       return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;

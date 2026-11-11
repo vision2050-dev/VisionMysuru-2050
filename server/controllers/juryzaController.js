@@ -561,14 +561,37 @@ export const registerEdition2Submission = async (req, res) => {
       });
     }
 
-    // Verify compulsory files from multer
-    if (!req.files || !req.files.videoFile || !req.files.documentFile) {
+    const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
+
+    // Strictly disallow YouTube links
+    if (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) {
       return res.status(400).json({
-        message: "Both pitch video (.mp4 ≤ 50 MB) and proposal deck (.pdf ≤ 5 MB) are compulsory.",
+        message: "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
       });
     }
 
-    const videoFile = req.files.videoFile[0];
+    // Verify compulsory document file
+    if (!req.files || !req.files.documentFile || req.files.documentFile.length === 0) {
+      return res.status(400).json({
+        message: "Proposal deck (.pdf ≤ 5 MB) is compulsory to complete registration.",
+      });
+    }
+
+    // Verify pitch video is provided either as a Google Drive link or as an uploaded file
+    const hasVideoFile = req.files && req.files.videoFile && req.files.videoFile.length > 0;
+    if (!videoDriveUrl && !hasVideoFile) {
+      return res.status(400).json({
+        message: "Pitch video is compulsory. Please provide either a Google Drive link or upload an .mp4 file.",
+      });
+    }
+
+    if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
+      return res.status(400).json({
+        message: "Pitch video link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
+      });
+    }
+
+    const videoFile = hasVideoFile ? req.files.videoFile[0] : null;
     const docFile = req.files.documentFile[0];
 
     const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
@@ -581,11 +604,11 @@ export const registerEdition2Submission = async (req, res) => {
     const videoNewName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
     const docNewName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
 
-    const finalVideoPath = path.join(VIDEOS_SUBDIR, videoNewName);
+    const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
     const finalDocPath = path.join(DOCUMENTS_SUBDIR, docNewName);
 
     try {
-      if (fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
+      if (videoFile && fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
         fs.renameSync(videoFile.path, finalVideoPath);
       }
       if (fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
@@ -629,11 +652,16 @@ export const registerEdition2Submission = async (req, res) => {
       shortDescription,
       detailedProposal: detailedProposal || shortDescription,
       video: {
-        originalName: videoNewName,
-        localPath: finalVideoPath,
-        size: videoFile.size,
-        url: "",
-        webViewLink: "",
+        originalName: videoDriveUrl ? "Google Drive Pitch Video" : videoNewName,
+        localPath: finalVideoPath || "",
+        size: videoFile ? videoFile.size : 15000000,
+        url: videoDriveUrl || "",
+        webViewLink: videoDriveUrl || "",
+        driveFileId: videoDriveUrl
+          ? (videoDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
+             videoDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
+             null)
+          : null,
       },
       document: {
         name: docNewName,
@@ -671,14 +699,7 @@ export const registerEdition2Submission = async (req, res) => {
     // Simultaneously upload media files to Google Drive, then sync master spreadsheets
     (async () => {
       try {
-        const [videoRes, docRes] = await Promise.allSettled([
-          uploadToGoogleDrive({
-            filePath: finalVideoPath,
-            fileName: videoNewName,
-            mimeType: "video/mp4",
-            folderType: "Videos",
-            teamId,
-          }),
+        const uploadPromises = [
           uploadToGoogleDrive({
             filePath: finalDocPath,
             fileName: docNewName,
@@ -686,20 +707,36 @@ export const registerEdition2Submission = async (req, res) => {
             folderType: "Documents",
             teamId,
           }),
-        ]);
+        ];
 
-        if (videoRes.status === "fulfilled" && videoRes.value?.webViewLink) {
-          const vUrl = videoRes.value.webViewLink;
-          submissionPayload.video.url = vUrl;
-          submissionPayload.video.webViewLink = vUrl;
-          submissionPayload.video.driveFileId = videoRes.value.fileId;
+        if (videoFile && finalVideoPath) {
+          uploadPromises.push(
+            uploadToGoogleDrive({
+              filePath: finalVideoPath,
+              fileName: videoNewName,
+              mimeType: "video/mp4",
+              folderType: "Videos",
+              teamId,
+            })
+          );
         }
 
-        if (docRes.status === "fulfilled" && docRes.value?.webViewLink) {
+        const results = await Promise.allSettled(uploadPromises);
+        const docRes = results[0];
+        const videoRes = videoFile ? results[1] : null;
+
+        if (docRes && docRes.status === "fulfilled" && docRes.value?.webViewLink) {
           const dUrl = docRes.value.webViewLink;
           submissionPayload.document.url = dUrl;
           submissionPayload.document.webViewLink = dUrl;
           submissionPayload.document.driveFileId = docRes.value.fileId;
+        }
+
+        if (videoRes && videoRes.status === "fulfilled" && videoRes.value?.webViewLink) {
+          const vUrl = videoRes.value.webViewLink;
+          submissionPayload.video.url = vUrl;
+          submissionPayload.video.webViewLink = vUrl;
+          submissionPayload.video.driveFileId = videoRes.value.fileId;
         }
 
         // Update local memory / MongoDB with populated Drive links

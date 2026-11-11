@@ -60,11 +60,18 @@ export const ParticipantPortal = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
 
-  // Compulsory Files State
+  // Compulsory Files & Link Submission State
+  const [videoSubmissionType, setVideoSubmissionType] = useState("link"); // "link" (recommended) | "file"
+  const [videoDriveUrl, setVideoDriveUrl] = useState("");
+  const [videoDriveError, setVideoDriveError] = useState("");
   const [videoFile, setVideoFile] = useState(null);
   const [videoLocalPreview, setVideoLocalPreview] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
   const [documentLocalPreview, setDocumentLocalPreview] = useState(null);
+
+  // Dedicated Registration Confirmed Modal State
+  const [showConfirmedModal, setShowConfirmedModal] = useState(false);
+  const [confirmedTeamData, setConfirmedTeamData] = useState(null);
 
   const [formData, setFormData] = useState({
     teamName: "",
@@ -255,7 +262,29 @@ export const ParticipantPortal = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // 1. Compulsory Video File (.mp4 strictly <= 50 MB)
+  // Google Drive Pitch Video Link Handler with YouTube detection
+  const handleDriveUrlChange = (val) => {
+    setVideoDriveUrl(val);
+    const trimmed = (val || "").trim();
+    if (!trimmed) {
+      setVideoDriveError("");
+      return;
+    }
+
+    if (/youtube\.com/i.test(trimmed) || /youtu\.be/i.test(trimmed)) {
+      setVideoDriveError("YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive link.");
+      return;
+    }
+
+    if (!trimmed.includes("drive.google.com")) {
+      setVideoDriveError("Please enter a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).");
+      return;
+    }
+
+    setVideoDriveError("");
+  };
+
+  // 1. Compulsory Video File (.mp4 strictly <= 25 MB for direct browser upload)
   const handleVideoFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -267,9 +296,10 @@ export const ParticipantPortal = () => {
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
+    if (file.size > 25 * 1024 * 1024) {
       toast.error(
-        `Video exceeds 50 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB). Please compress or trim to ≤ 50 MB.`,
+        `Video size is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Direct file uploads are limited to 25 MB to prevent network timeouts. Please switch to the "Google Drive Link" option to submit videos of any size!`,
+        { duration: 6000 }
       );
       e.target.value = "";
       return;
@@ -373,11 +403,28 @@ export const ParticipantPortal = () => {
       return;
     }
 
-    // Compulsory check
-    if (!videoFile) {
-      toast.error("Pitch video (.mp4 ≤ 50 MB) is compulsory to complete registration!");
-      return;
+    // Compulsory check: Pitch Video (Link or File)
+    if (videoSubmissionType === "link") {
+      const trimmedUrl = videoDriveUrl.trim();
+      if (!trimmedUrl) {
+        toast.error("Google Drive pitch video link is compulsory.");
+        return;
+      }
+      if (/youtube\.com/i.test(trimmedUrl) || /youtu\.be/i.test(trimmedUrl)) {
+        toast.error("YouTube links are strictly not allowed. Please provide a Google Drive link.");
+        return;
+      }
+      if (!trimmedUrl.includes("drive.google.com")) {
+        toast.error("Please enter a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).");
+        return;
+      }
+    } else {
+      if (!videoFile) {
+        toast.error("Pitch video (.mp4 ≤ 25 MB) is compulsory to complete registration!");
+        return;
+      }
     }
+
     if (!documentFile) {
       toast.error("Proposal deck (.pdf ≤ 5 MB) is compulsory to complete registration!");
       return;
@@ -421,14 +468,18 @@ export const ParticipantPortal = () => {
     data.append("leadPhone", leader.phone);
     data.append("members", JSON.stringify(members));
 
-    // Append compulsory files
-    data.append("videoFile", videoFile);
+    // Append compulsory files or link
+    if (videoSubmissionType === "link") {
+      data.append("videoDriveUrl", videoDriveUrl.trim());
+    } else if (videoFile) {
+      data.append("videoFile", videoFile);
+    }
     data.append("documentFile", documentFile);
 
     try {
-      await api.post("/api/v2/submissions", data, {
+      const res = await api.post("/api/v2/submissions", data, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 600000, // 10 minutes timeout to allow full upload of 50 MB files
+        timeout: 600000, // 10 minutes timeout to allow full upload of media files
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1),
@@ -439,12 +490,25 @@ export const ParticipantPortal = () => {
 
       setUploadProgress(100);
       toast.success("Team registered successfully! Live tracking is active.");
-      await fetchParticipantSubmission(currentUserEmail);
+      const loaded = await fetchParticipantSubmission(currentUserEmail);
+      const confirmedSub = res.data?.submission || loaded || {
+        teamId: res.data?.teamId,
+        teamName: formData.teamName.trim(),
+        category: activeCategory,
+        institution: cleanInstitution,
+        solutionName: formData.solutionName.trim(),
+        video: { url: videoSubmissionType === "link" ? videoDriveUrl.trim() : "" },
+        document: { name: documentFile?.name },
+      };
+      setConfirmedTeamData(confirmedSub);
+      setShowConfirmedModal(true);
+      setHasRegistered(true);
+      setMySubmission(confirmedSub);
     } catch (err) {
       console.warn("Backend registration failed, saving locally for zero downtime:", err.message);
       
       // Create local blob previews for instant playback
-      const localVideoBlob = videoFile ? URL.createObjectURL(videoFile) : null;
+      const localVideoBlob = (videoSubmissionType === "file" && videoFile) ? URL.createObjectURL(videoFile) : null;
       const localDocBlob = documentFile ? URL.createObjectURL(documentFile) : null;
 
       // Client-side fallback registration
@@ -460,14 +524,15 @@ export const ParticipantPortal = () => {
         leadPhone: leader.phone,
         institution: cleanInstitution,
         members,
-        videoFileName: videoFile?.name,
+        videoFileName: videoSubmissionType === "file" ? videoFile?.name : "Google Drive Pitch Video",
         documentFileName: documentFile?.name,
         videoBlobUrl: localVideoBlob,
         docBlobUrl: localDocBlob,
+        videoDriveUrl: videoSubmissionType === "link" ? videoDriveUrl.trim() : "",
       });
 
       // Persist raw files in browser IndexedDB for permanent playback across reloads
-      if (videoFile) {
+      if (videoSubmissionType === "file" && videoFile) {
         await storeMediaBlob(`video_${newSub.teamId}`, videoFile);
         if (currentUserEmail) {
           await storeMediaBlob(`participant_video_${currentUserEmail.toLowerCase().trim()}`, videoFile);
@@ -486,16 +551,24 @@ export const ParticipantPortal = () => {
       // Simultaneously sync media files & master spreadsheets to Google Drive
       const updatedSub = await syncSubmissionFilesToCloudDrive({
         submission: newSub,
-        videoFile,
+        videoFile: videoSubmissionType === "file" ? videoFile : null,
         documentFile,
         onStatusUpdate: (msg) => setUploadStatus(msg),
         onProgressUpdate: (pct) => setUploadProgress(Math.min(95, Math.max(30, pct))),
       });
 
+      const finalSub = {
+        ...(updatedSub || newSub),
+        videoBlobUrl: localVideoBlob,
+        docBlobUrl: localDocBlob,
+      };
+
       setUploadProgress(100);
       toast.success("Team registered successfully! Live tracking is active.");
+      setConfirmedTeamData(finalSub);
+      setShowConfirmedModal(true);
       setHasRegistered(true);
-      setMySubmission({ ...(updatedSub || newSub), videoBlobUrl: localVideoBlob, docBlobUrl: localDocBlob });
+      setMySubmission(finalSub);
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
@@ -1047,44 +1120,155 @@ export const ParticipantPortal = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Pitch Video (.mp4 <= 50 MB) */}
-                  <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-4 text-center hover:border-[var(--accent)] transition bg-[var(--surface-2)]/50">
-                    <FiVideo className="h-8 w-8 mx-auto text-[var(--accent)] mb-2" />
-                    <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video (.mp4) *</h4>
-                    <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .mp4 • Maximum 50 MB</p>
-
-                    <input
-                      type="file"
-                      accept=".mp4,video/mp4"
-                      onChange={handleVideoFileChange}
-                      className="hidden"
-                      id="video-upload-input"
-                    />
-                    <label
-                      htmlFor="video-upload-input"
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition"
-                    >
-                      <FiUploadCloud className="h-3.5 w-3.5" />
-                      <span>{videoFile ? "Change Video" : "Select .mp4 File"}</span>
-                    </label>
-
-                    {videoFile && (
-                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                  {/* Pitch Video Submission (Google Drive Link OR File Upload) */}
+                  <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--surface-2)]/50 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <FiVideo className="h-4 w-4 text-[var(--accent)]" />
+                          <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video *</h4>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          Compulsory
+                        </span>
                       </div>
-                    )}
 
-                    {videoLocalPreview && (
-                      <div className="mt-3 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
-                        <video
-                          src={videoLocalPreview}
-                          controls
-                          preload="metadata"
-                          playsInline
-                          className="aspect-video w-full object-cover"
-                        />
+                      {/* Selector Tabs: Google Drive Link vs File Upload */}
+                      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVideoSubmissionType("link");
+                            setVideoFile(null);
+                          }}
+                          className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                            videoSubmissionType === "link"
+                              ? "bg-[var(--accent)] text-white shadow-sm"
+                              : "text-[var(--muted)] hover:text-[var(--text)]"
+                          }`}
+                        >
+                          <span>Drive Link</span>
+                          <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">
+                            Recommended
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVideoSubmissionType("file");
+                            setVideoDriveUrl("");
+                            setVideoDriveError("");
+                          }}
+                          className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                            videoSubmissionType === "file"
+                              ? "bg-[var(--accent)] text-white shadow-sm"
+                              : "text-[var(--muted)] hover:text-[var(--text)]"
+                          }`}
+                        >
+                          <span>Upload File</span>
+                          <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                        </button>
                       </div>
-                    )}
+
+                      {videoSubmissionType === "link" ? (
+                        /* Option 1: Google Drive Link */
+                        <div className="space-y-2 text-left">
+                          <label className="block text-[11px] font-semibold text-[var(--muted)]">
+                            Paste Public Google Drive Link *
+                          </label>
+                          <input
+                            type="url"
+                            required={videoSubmissionType === "link"}
+                            value={videoDriveUrl}
+                            onChange={(e) => handleDriveUrlChange(e.target.value)}
+                            placeholder="https://drive.google.com/file/d/1.../view"
+                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                          />
+
+                          {/* Error warning if YouTube or non-Drive */}
+                          {videoDriveError && (
+                            <div className="flex items-center gap-1.5 rounded-xl bg-red-500/10 border border-red-500/30 p-2 text-[11px] text-red-600 dark:text-red-400 font-semibold">
+                              <FiAlertCircle className="h-3.5 w-3.5 shrink-0" />
+                              <span>{videoDriveError}</span>
+                            </div>
+                          )}
+
+                          {/* Guidance badge */}
+                          <div className="rounded-xl bg-[var(--surface)] p-2.5 border border-[var(--border)] text-[11px] text-[var(--muted)] space-y-1">
+                            <p className="flex items-start gap-1.5">
+                              <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                              <span>
+                                In Google Drive, ensure sharing is set to:{" "}
+                                <strong className="text-[var(--text)]">"Anyone with the link can view"</strong>.
+                              </span>
+                            </p>
+                            <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                              <span className="shrink-0">⚠️</span>
+                              <span>YouTube links are strictly not allowed. Only Google Drive links are accepted.</span>
+                            </p>
+                          </div>
+
+                          {/* Live Google Drive Preview if valid ID extracted */}
+                          {(() => {
+                            const driveId = getDriveFileId(videoDriveUrl);
+                            if (!driveId || videoDriveError) return null;
+                            return (
+                              <div className="mt-2 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
+                                <div className="p-1.5 bg-emerald-500/10 border-b border-emerald-500/20 text-[10px] font-bold text-emerald-600 flex items-center justify-between">
+                                  <span>✓ Live Google Drive Preview</span>
+                                  <span className="font-mono text-[9px]">{driveId}</span>
+                                </div>
+                                <iframe
+                                  src={`https://drive.google.com/file/d/${driveId}/preview`}
+                                  title="Drive Preview"
+                                  className="aspect-video w-full border-0"
+                                  allow="autoplay"
+                                />
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        /* Option 2: Upload .mp4 File (Max 25 MB) */
+                        <div className="text-center py-2">
+                          <p className="text-[11px] text-[var(--muted)]">Strictly .mp4 • Maximum 25 MB</p>
+
+                          <input
+                            type="file"
+                            accept=".mp4,video/mp4"
+                            onChange={handleVideoFileChange}
+                            className="hidden"
+                            id="video-upload-input"
+                          />
+                          <label
+                            htmlFor="video-upload-input"
+                            className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition"
+                          >
+                            <FiUploadCloud className="h-3.5 w-3.5" />
+                            <span>{videoFile ? "Change Video" : "Select .mp4 File"}</span>
+                          </label>
+
+                          {videoFile && (
+                            <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                              ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                            </div>
+                          )}
+
+                          {videoLocalPreview && (
+                            <div className="mt-3 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
+                              <video
+                                src={videoLocalPreview}
+                                controls
+                                preload="metadata"
+                                playsInline
+                                className="aspect-video w-full object-cover"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Proposal Document (.pdf <= 5 MB) */}
@@ -1345,6 +1529,110 @@ export const ParticipantPortal = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dedicated Registration Confirmed Modal */}
+      <AnimatePresence>
+        {showConfirmedModal && confirmedTeamData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-lg rounded-3xl border border-emerald-500/40 bg-[var(--surface)] p-6 sm:p-8 shadow-2xl relative overflow-hidden"
+            >
+              {/* Decorative Glow */}
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+              <div className="text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mb-4 shadow-inner ring-4 ring-emerald-500/10">
+                  <FiCheckCircle className="h-8 w-8" />
+                </div>
+
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-2">
+                  <span>✓ Registration Successfully Confirmed!</span>
+                </div>
+
+                <h2 className="oswald text-2xl sm:text-3xl font-extrabold uppercase text-[var(--text)]">
+                  {confirmedTeamData.teamName}
+                </h2>
+
+                <div className="mt-3 inline-block rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-4 py-2 font-mono text-sm font-bold text-[var(--accent)] tracking-wider">
+                  TEAM ID: {confirmedTeamData.teamId}
+                </div>
+
+                <p className="mt-3 text-xs text-[var(--muted)] leading-relaxed max-w-sm mx-auto">
+                  Institution: <strong className="text-[var(--text)]">{confirmedTeamData.institution || "N/A"}</strong>
+                  <br />
+                  All details, proposal documents, and pitch video links have been permanently secured in the Master Google Sheet and Cloud Drive.
+                </p>
+              </div>
+
+              {/* Status summary list */}
+              <div className="mt-6 space-y-2 rounded-2xl bg-[var(--surface-2)] p-4 border border-[var(--border)] text-xs">
+                <div className="flex items-center justify-between text-[var(--text)]">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <FiVideo className="h-4 w-4 text-emerald-500" />
+                    <span>Pitch Video:</span>
+                  </span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[200px]">
+                    {confirmedTeamData.video?.url ? (
+                      <a
+                        href={confirmedTeamData.video.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline flex items-center gap-1"
+                      >
+                        <span>Google Drive Link</span>
+                        <FiExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      confirmedTeamData.video?.originalName || "Uploaded .mp4"
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[var(--text)] pt-2 border-t border-[var(--border)]">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <FiFileText className="h-4 w-4 text-emerald-500" />
+                    <span>Proposal Deck:</span>
+                  </span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[200px]">
+                    {confirmedTeamData.document?.name || "Uploaded Proposal PDF"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Safe to close notification */}
+              <div className="mt-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  🎉 You may now safely close this tab, refresh, or log out. Your progress and submission are permanent.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(confirmedTeamData.teamId);
+                    toast.success("Team ID copied to clipboard!");
+                  }}
+                  className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-2.5 text-xs font-bold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition cursor-pointer"
+                >
+                  Copy Team ID
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmedModal(false)}
+                  className="flex-1 rounded-xl bg-[var(--accent)] py-2.5 text-xs font-bold text-white hover:brightness-110 shadow-md transition cursor-pointer"
+                >
+                  Go to Live Dashboard →
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
