@@ -157,6 +157,19 @@ export const ParticipantPortal = () => {
     fetchParticipantSubmission(email);
   }, [navigate]);
 
+  // Warn if user attempts to close or reload tab while upload is actively in progress
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (submitting) {
+        e.preventDefault();
+        e.returnValue = "Upload in progress! Closing this tab will cancel your submission.";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [submitting]);
+
   const fetchParticipantSubmission = async (email) => {
     const clean = (email || "").toLowerCase().trim();
     try {
