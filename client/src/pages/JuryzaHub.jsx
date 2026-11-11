@@ -584,7 +584,7 @@ export const JuryzaHub = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)]/30 bg-red-500/10 px-3 py-1 text-xs font-bold text-[var(--primary)] mb-1">
-              <span>⚖️ Official Jury Evaluation Panel</span>
+              <span>Official Jury Evaluation Panel</span>
             </div>
             <h1 className="oswald text-xl sm:text-3xl font-extrabold uppercase text-[var(--text)]">
               Alloted Submissions Evaluation
@@ -633,8 +633,8 @@ export const JuryzaHub = () => {
         ) : submissions.length === 0 ? (
           /* Empty state when no submissions are alloted */
           <div className="text-center py-20 px-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md max-w-2xl mx-auto">
-            <div className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4 text-2xl">
-              ⚖️
+            <div className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4">
+              <FiSliders className="h-7 w-7" />
             </div>
             <h2 className="text-lg font-bold text-[var(--text)]">No Submissions Alloted Yet</h2>
             <p className="text-xs sm:text-sm text-[var(--muted)] mt-2 leading-relaxed">
@@ -748,8 +748,8 @@ export const JuryzaHub = () => {
                           <option value="Round 1">Round 1</option>
                           <option value="Round 2">Round 2</option>
                           <option value="Round 3">Round 3</option>
-                          <option value="Selected">Selected 🏆</option>
-                          <option value="Not Selected">Not Selected ❌</option>
+                          <option value="Selected">Selected</option>
+                          <option value="Not Selected">Not Selected</option>
                         </select>
                       </div>
                     </div>
@@ -984,7 +984,7 @@ export const JuryzaHub = () => {
                         disabled={submittingScore}
                         className="w-full rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] py-3 text-xs sm:text-sm font-bold text-white shadow-md transition cursor-pointer"
                       >
-                        {submittingScore ? "Submitting Rubric..." : "Submit Official Rubric Evaluation ⚖️"}
+                        {submittingScore ? "Submitting Rubric..." : "Submit Official Rubric Evaluation"}
                       </button>
                     </div>
                   </div>
@@ -999,7 +999,7 @@ export const JuryzaHub = () => {
           <div className="max-w-4xl mx-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-10 shadow-xl">
             <div className="text-center mb-8">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
-                ⚡ Pairwise Head-to-Head Comparison
+                Pairwise Head-to-Head Comparison
               </span>
               <h2 className="oswald text-2xl sm:text-3xl font-extrabold uppercase text-[var(--text)] mt-1">
                 Which Innovation Has Higher Impact?
@@ -1034,7 +1034,7 @@ export const JuryzaHub = () => {
                     onClick={() => voteDuel(duelPair[0].teamId, duelPair[1].teamId)}
                     className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition cursor-pointer"
                   >
-                    Vote for Team A 🏆
+                    Vote for Team A
                   </button>
                 </div>
 
@@ -1061,7 +1061,7 @@ export const JuryzaHub = () => {
                     onClick={() => voteDuel(duelPair[1].teamId, duelPair[0].teamId)}
                     className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition cursor-pointer"
                   >
-                    Vote for Team B 🏆
+                    Vote for Team B
                   </button>
                 </div>
               </div>

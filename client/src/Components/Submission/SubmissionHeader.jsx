@@ -25,8 +25,8 @@ const SubmissionHeader = () => {
       <div className="px-2 text-center">
         <div className="mx-auto justify-center mt-4 max-w-4xl rounded-2xl ">
           <p className="text-2xl font-bold leading-tight text-center bg-clip-text text-transparent bg-gradient-to-r from-amber-700 to-yellow-300 sm:text-3xl">
-            🏆Congratulations to the winners of Vision Mysuru 2050 - Ink Your
-            Idea🏆
+            Congratulations to the winners of Vision Mysuru 2050 - Ink Your
+            Idea
           </p>
           <p className="mt-4 text-sm px-2 leading-tight text-[var(--muted)] sm:text-base">
             The Grand Finale has concluded and we are proud to celebrate the

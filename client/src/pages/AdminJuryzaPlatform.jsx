@@ -697,7 +697,7 @@ export const AdminJuryzaPlatform = () => {
   // Purge all portal data (teams & judges) and Google Drive files/sheets
   const handlePurgeAll = async () => {
     const confirmation = window.prompt(
-      '⚠️ DANGER: You are about to DELETE ALL teams, judges, Google Sheet entries, and uploaded files from the portal AND Google Drive.\n\nType "RESET" to confirm and proceed:'
+      'DANGER: You are about to DELETE ALL teams, judges, Google Sheet entries, and uploaded files from the portal AND Google Drive.\n\nType "RESET" to confirm and proceed:'
     );
     if (confirmation !== "RESET") {
       if (confirmation !== null) {
@@ -1040,7 +1040,7 @@ export const AdminJuryzaPlatform = () => {
               </span>
             </div>
             <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block font-medium">
-              Selected 🏆 / Not Selected ❌
+              Selected / Not Selected
             </span>
           </div>
         </div>
@@ -1243,8 +1243,8 @@ export const AdminJuryzaPlatform = () => {
                               <option value="Round 1">Round 1</option>
                               <option value="Round 2">Round 2</option>
                               <option value="Round 3">Round 3</option>
-                              <option value="Selected">Selected 🏆</option>
-                              <option value="Not Selected">Not Selected ❌</option>
+                              <option value="Selected">Selected</option>
+                              <option value="Not Selected">Not Selected</option>
                             </select>
                           </td>
 
@@ -1302,7 +1302,7 @@ export const AdminJuryzaPlatform = () => {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
               >
                 <FiPlus className="h-4 w-4" />
-                <span>➕ Generate Judge Account</span>
+                <span>Generate Judge Account</span>
               </button>
             </div>
 
@@ -1310,7 +1310,7 @@ export const AdminJuryzaPlatform = () => {
             {judgeCreationSuccess && (
               <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <strong className="block text-sm font-bold">🎉 Judge Account Created Successfully!</strong>
+                  <strong className="block text-sm font-bold">Judge Account Created Successfully!</strong>
                   <span className="mt-0.5 block">
                     Judge: <strong>{judgeCreationSuccess.name}</strong> • Email: <code className="bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono">{judgeCreationSuccess.email}</code> • Password: <code className="bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono">{judgeCreationSuccess.password}</code>
                   </span>
@@ -1760,8 +1760,8 @@ export const AdminJuryzaPlatform = () => {
                       <option value="Round 1">Round 1</option>
                       <option value="Round 2">Round 2</option>
                       <option value="Round 3">Round 3</option>
-                      <option value="Selected">Selected 🏆</option>
-                      <option value="Not Selected">Not Selected ❌</option>
+                      <option value="Selected">Selected</option>
+                      <option value="Not Selected">Not Selected</option>
                     </select>
                   </div>
 

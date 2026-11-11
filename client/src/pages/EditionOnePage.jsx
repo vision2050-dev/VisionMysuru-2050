@@ -186,7 +186,7 @@ const EditionOnePage = () => {
               </h1>
 
               <p className="mt-2 text-xl font-semibold italic text-[var(--accent)] sm:text-2xl">
-                INK YOUR IDEAS! 💡
+                INK YOUR IDEAS!
               </p>
 
               <p className="mt-4 text-base leading-relaxed text-[var(--muted)] sm:text-lg">
@@ -262,7 +262,7 @@ const EditionOnePage = () => {
                 Grand Finale Results
               </span>
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-[var(--text)] sm:text-3xl">
-                Edition 1 Winners 🏆
+                Edition 1 Winners
               </h2>
               <p className="mt-2 text-sm text-[var(--muted)]">
                 Honoring the top visionary solutions selected at the Grand Finale pitch before district authorities.

@@ -30,7 +30,7 @@ const sendSubmissionEmail = async ({
     <div style="max-width:620px;margin:auto;font-family:Arial,Helvetica,sans-serif;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
       <div style="background:linear-gradient(135deg,#fafaf9,#fef3c7);padding:22px 26px;border-bottom:1px solid #fde68a;">
         <h2 style="margin:0;font-size:22px;color:#111827;">
-          Submission Received Successfully ✨
+          Submission Received Successfully
         </h2>
         <p style="margin-top:6px;font-size:14px;color:#374151;">
           Vision Mysuru 2050 — Shaping the Future of Our Heritage City
@@ -81,7 +81,7 @@ const sendSubmissionEmail = async ({
         </a>
 
         <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;color:#374151;">
-          📩 For queries, contact
+          For queries, contact
           <a href="mailto:visionmysuru2050@sdmimd.ac.in" style="color:#b45309;text-decoration:none;">
             visionmysuru2050@sdmimd.ac.in
           </a>
@@ -103,10 +103,10 @@ const sendSubmissionEmail = async ({
       html: htmlContent,
     });
 
-    console.log("✅ Email sent successfully:", info.messageId);
+    console.log("[Email] Sent successfully:", info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (err) {
-    console.error("❌ Unexpected email failure:", err);
+    console.error("[Email] Unexpected failure:", err);
     return { success: false, error: err };
   }
 };

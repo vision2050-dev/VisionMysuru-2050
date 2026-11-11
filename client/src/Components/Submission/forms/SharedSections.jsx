@@ -163,7 +163,7 @@ export const SubmitButton = ({ status, confirmSubmit, cancelSubmit }) => {
         <div className="flex items-start gap-3">
           <div>
             <p className="text-xl font-semibold text-amber-900">
-              ⚠️ Final Review
+              Final Review
             </p>
             <p className="text-sm text-amber-800 mt-1 leading-relaxed">
               Please carefully review all entered information like NAME, EMAIL,

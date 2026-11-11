@@ -10,7 +10,7 @@ async function run() {
   const hasAppsScript = Boolean(process.env.GOOGLE_APPS_SCRIPT_URL);
 
   if (!client && !hasAppsScript) {
-    console.log("\n⚠️  No Google Drive Credentials Detected!");
+    console.log("\n[WARNING] No Google Drive Credentials Detected!");
     console.log("To allow automated cloud uploads, choose one of the two options below:\n");
     console.log("Option 1 (Recommended): Google Service Account Key");
     console.log("  1. Place your 'service-account.json' inside the 'server/' folder.");
@@ -20,12 +20,12 @@ async function run() {
     process.exit(1);
   }
 
-  console.log("\n🚀 Starting sync of all locally staged submission files...");
+  console.log("\nStarting sync of all locally staged submission files...");
   try {
     const results = await syncAllStagedFilesToDrive();
     console.log("\nSync Results Summary:");
     results.forEach((r) => {
-      console.log(`- [${r.category}] ${r.file}: ${r.synced ? "✅ Synced (" + r.fileId + ")" : "❌ " + (r.message || r.error)}`);
+      console.log(`- [${r.category}] ${r.file}: ${r.synced ? "[Synced] (" + r.fileId + ")" : "[Failed] " + (r.message || r.error)}`);
     });
     console.log("\nSync complete!");
   } catch (err) {

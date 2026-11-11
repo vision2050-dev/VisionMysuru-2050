@@ -32,6 +32,13 @@ const formatRelativeTime = (isoString) => {
   }
 };
 
+// Strip emojis to maintain strict text compliance across the site
+const stripEmojis = (str) =>
+  (str || "").replace(
+    /[\u{10000}-\u{10ffff}\u{2600}-\u{27bf}\u{2300}-\u{23ff}\u{2b50}-\u{2b55}\u{3030}\u{303d}\u{fe0f}]/gu,
+    ""
+  );
+
 const InstagramCard = ({ post, index }) => {
   const isVideo = post.media_type === "VIDEO" || post.is_reel;
 
@@ -118,7 +125,7 @@ const InstagramCard = ({ post, index }) => {
           </div>
 
           <p className="mt-2 text-xs leading-relaxed text-[var(--text)] line-clamp-3">
-            {post.caption || "Vision Mysuru 2050 Edition 2: Ideas to Impact."}
+            {stripEmojis(post.caption) || "Vision Mysuru 2050 Edition 2: Ideas to Impact."}
           </p>
         </div>
 

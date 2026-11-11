@@ -46,7 +46,11 @@ const fileFilter = (req, file, cb) => {
     if (isMp4) {
       cb(null, true);
     } else {
-      cb(new Error("Pitch video must strictly be an .mp4 file (Maximum 50 MB)."));
+      cb(
+        new Error(
+          "Pitch video must strictly be an .mp4 file (Maximum 25 MB for direct upload, or provide a Google Drive link)."
+        )
+      );
     }
   } else if (file.fieldname === "documentFile") {
     // Strictly .pdf as specified by user
@@ -66,7 +70,7 @@ const fileFilter = (req, file, cb) => {
 const multerUploader = multer({
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB upper ceiling
+    fileSize: 25 * 1024 * 1024, // 25 MB ceiling for direct file uploads
   },
   fileFilter,
 }).fields([
@@ -76,9 +80,9 @@ const multerUploader = multer({
 
 /**
  * Middleware wrapper enforcing:
- * 1. Both files must be present (compulsory)
- * 2. .mp4 <= 50 MB
- * 3. .pdf <= 5 MB
+ * 1. Pitch video: Either valid Google Drive link or uploaded .mp4 file (≤ 25 MB).
+ *    YouTube links are strictly disallowed.
+ * 2. Proposal deck: Strictly compulsory .pdf file (≤ 5 MB).
  */
 export const submissionUpload = (req, res, next) => {
   multerUploader(req, res, (err) => {
@@ -86,7 +90,7 @@ export const submissionUpload = (req, res, next) => {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
           message:
-            "File size limit exceeded. Pitch video must be ≤ 50 MB and PDF proposal must be ≤ 5 MB.",
+            "File size limit exceeded. Uploaded pitch video must be ≤ 25 MB and PDF proposal must be ≤ 5 MB. Alternatively, provide a Google Drive link for your pitch video.",
         });
       }
       return res.status(400).json({ message: `Upload error: ${err.message}` });
@@ -94,14 +98,37 @@ export const submissionUpload = (req, res, next) => {
       return res.status(400).json({ message: err.message });
     }
 
-    // Both files are strictly compulsory for participants
-    if (!req.files || !req.files.videoFile || !req.files.videoFile[0]) {
+    const videoDriveUrl = (req.body?.videoDriveUrl || req.body?.videoUrl || "").trim();
+    const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile[0]);
+
+    // Strictly disallow YouTube links
+    if (
+      videoDriveUrl &&
+      (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))
+    ) {
       return res.status(400).json({
         message:
-          "Pitch video (.mp4, maximum 50 MB) is compulsory to complete registration.",
+          "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
       });
     }
 
+    // Pitch video is strictly compulsory: must have either a Google Drive URL or an uploaded .mp4 file
+    if (!videoDriveUrl && !hasVideoFile) {
+      return res.status(400).json({
+        message:
+          "Pitch video is compulsory. Please provide either a Google Drive link or upload an .mp4 file (≤ 25 MB).",
+      });
+    }
+
+    // If a link is provided, verify it is a Google Drive URL
+    if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
+      return res.status(400).json({
+        message:
+          "Pitch video link must be a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).",
+      });
+    }
+
+    // Proposal PDF is strictly compulsory
     if (!req.files || !req.files.documentFile || !req.files.documentFile[0]) {
       return res.status(400).json({
         message:
@@ -109,20 +136,22 @@ export const submissionUpload = (req, res, next) => {
       });
     }
 
-    const video = req.files.videoFile[0];
     const doc = req.files.documentFile[0];
 
-    // Enforce 50 MB limit on .mp4
-    if (video.size > 50 * 1024 * 1024) {
-      try {
-        fs.unlinkSync(video.path);
-      } catch {}
-      return res.status(400).json({
-        message: `Pitch video exceeds the 50 MB limit (Current: ${(
-          video.size /
-          (1024 * 1024)
-        ).toFixed(1)} MB). Please compress or trim your video.`,
-      });
+    // Enforce 25 MB limit on uploaded .mp4
+    if (hasVideoFile) {
+      const video = req.files.videoFile[0];
+      if (video.size > 25 * 1024 * 1024) {
+        try {
+          fs.unlinkSync(video.path);
+        } catch {}
+        return res.status(400).json({
+          message: `Pitch video exceeds the 25 MB limit (Current: ${(
+            video.size /
+            (1024 * 1024)
+          ).toFixed(1)} MB). Please switch to the "Google Drive Link" option or compress your video.`,
+        });
+      }
     }
 
     // Enforce 5 MB limit on .pdf

@@ -8,6 +8,7 @@ import {
   FiUsers,
   FiPlus,
   FiTrash2,
+  FiCheck,
   FiCheckCircle,
   FiArrowLeft,
   FiUploadCloud,
@@ -143,7 +144,7 @@ export const ParticipantPortal = () => {
       (localStorage.getItem("juryzaRole") === "participant" ? localStorage.getItem("juryzaName") : null);
 
     if (!token || !email) {
-      toast("Please sign in to access the participant submission portal.", { icon: "🔑" });
+      toast("Please sign in to access the participant submission portal.");
       navigate("/register");
       return;
     }
@@ -832,7 +833,11 @@ export const ParticipantPortal = () => {
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider">Outcome</span>
                           {isDecided ? (
-                            <span>{isRejected ? "❌" : "🏆"}</span>
+                            isRejected ? (
+                              <FiAlertCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <FiCheckCircle className="h-4 w-4 text-emerald-500" />
+                            )
                           ) : (
                             <FiClock className="h-4 w-4" />
                           )}
@@ -987,7 +992,7 @@ export const ParticipantPortal = () => {
                 Register Your Innovation Pitch
               </h1>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Provide your team details and upload your compulsory pitch video (.mp4 ≤ 50 MB) and proposal deck (.pdf ≤ 5 MB).
+                Provide your team details and submit your compulsory pitch video (Google Drive link or .mp4 ≤ 25 MB) and proposal deck (.pdf ≤ 5 MB).
               </p>
             </div>
 
@@ -1197,14 +1202,14 @@ export const ParticipantPortal = () => {
                           {/* Guidance badge */}
                           <div className="rounded-xl bg-[var(--surface)] p-2.5 border border-[var(--border)] text-[11px] text-[var(--muted)] space-y-1">
                             <p className="flex items-start gap-1.5">
-                              <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                              <FiCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
                               <span>
                                 In Google Drive, ensure sharing is set to:{" "}
                                 <strong className="text-[var(--text)]">"Anyone with the link can view"</strong>.
                               </span>
                             </p>
                             <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-                              <span className="shrink-0">⚠️</span>
+                              <FiAlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
                               <span>YouTube links are strictly not allowed. Only Google Drive links are accepted.</span>
                             </p>
                           </div>
@@ -1216,7 +1221,10 @@ export const ParticipantPortal = () => {
                             return (
                               <div className="mt-2 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
                                 <div className="p-1.5 bg-emerald-500/10 border-b border-emerald-500/20 text-[10px] font-bold text-emerald-600 flex items-center justify-between">
-                                  <span>✓ Live Google Drive Preview</span>
+                                  <span className="flex items-center gap-1">
+                                    <FiCheck className="h-3 w-3" />
+                                    <span>Live Google Drive Preview</span>
+                                  </span>
                                   <span className="font-mono text-[9px]">{driveId}</span>
                                 </div>
                                 <iframe
@@ -1250,8 +1258,9 @@ export const ParticipantPortal = () => {
                           </label>
 
                           {videoFile && (
-                            <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                              ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                            <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                              <FiCheck className="h-3 w-3 shrink-0" />
+                              <span>{videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
                             </div>
                           )}
 
@@ -1293,16 +1302,18 @@ export const ParticipantPortal = () => {
                     </label>
 
                     {documentFile && (
-                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        ✓ {documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <FiCheck className="h-3 w-3 shrink-0" />
+                        <span>{documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
                       </div>
                     )}
 
                     {documentLocalPreview && (
                       <div className="mt-3 overflow-hidden rounded-xl border border-[var(--primary)]/30 shadow-md">
                         <div className="p-2 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-[var(--text)] truncate max-w-[180px]">
-                            📄 {documentFile?.name}
+                          <span className="text-[11px] font-semibold text-[var(--text)] truncate max-w-[180px] inline-flex items-center gap-1">
+                            <FiFileText className="h-3 w-3 shrink-0" />
+                            <span>{documentFile?.name}</span>
                           </span>
                           <a
                             href={documentLocalPreview}
@@ -1396,7 +1407,7 @@ export const ParticipantPortal = () => {
 
                       <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-4">
                         <span className="text-[11px] font-semibold text-[var(--muted)]">
-                          {m.isLeader ? "★ Team Lead" : "Co-Author"}
+                          {m.isLeader ? "(Team Lead)" : "Co-Author"}
                         </span>
                         {!m.isLeader && (
                           <button
@@ -1439,7 +1450,7 @@ export const ParticipantPortal = () => {
                   submitting ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.01]"
                 }`}
               >
-                {submitting ? "Uploading & Staging Submission..." : "Complete Team Registration 🚀"}
+                {submitting ? "Uploading & Staging Submission..." : "Complete Team Registration"}
               </button>
             </form>
           </div>
@@ -1553,7 +1564,7 @@ export const ParticipantPortal = () => {
                 </div>
 
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-2">
-                  <span>✓ Registration Successfully Confirmed!</span>
+                  <span>Registration Successfully Confirmed</span>
                 </div>
 
                 <h2 className="oswald text-2xl sm:text-3xl font-extrabold uppercase text-[var(--text)]">
@@ -1609,7 +1620,7 @@ export const ParticipantPortal = () => {
               {/* Safe to close notification */}
               <div className="mt-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  🎉 You may now safely close this tab, refresh, or log out. Your progress and submission are permanent.
+                  You may now safely close this tab, refresh, or log out. Your progress and submission are permanent.
                 </p>
               </div>
 

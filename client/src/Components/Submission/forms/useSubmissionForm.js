@@ -94,7 +94,7 @@ export const useSubmissionForm = (initialState, validateFn, options = {}) => {
 
       setStatus({
         state: "success",
-        message: `Idea submitted successfully!🎊`,
+        message: `Idea submitted successfully!`,
         data: { teamId, teamName, solutionName },
       });
       toast.success(`Idea submitted successfully!`);

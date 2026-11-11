@@ -14,7 +14,7 @@ const PrizesSection = () => {
           className="text-center"
         >
           <h2 className="mt-3 text-2xl font-bold tracking-tight text-[var(--text)]  md:text-3xl dm-sans">
-            Your Ideas Deserve to be Rewarded!🏆
+            Your Ideas Deserve to be Rewarded!
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg leading-tight text-[var(--muted)]">
             The Mysuru of 2050 will be built by the ideas of today. Attractive

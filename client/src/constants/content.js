@@ -254,7 +254,7 @@ const GUIDELINES = {
             "Photo must clearly show the civic issue",
             "Be taken within Mysuru city limits",
             "Not be downloaded or reused from online sources",
-            "❌ Stock images or edited visuals will lead to immediate disqualification",
+            "Stock images or edited visuals will lead to immediate disqualification",
           ],
         },
         {
@@ -324,7 +324,7 @@ const GUIDELINES = {
       eligibility: [
         "Open to NGOs, Resident Welfare Associations (RWAs), Trade Associations, Civil Society Groups",
         "Operating within Mysuru district",
-        "✔ Must have verifiable community presence",
+        "Must have verifiable community presence",
       ],
       purpose: [
         "Represent citizen realities",
