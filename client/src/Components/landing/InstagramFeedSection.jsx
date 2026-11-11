@@ -194,6 +194,36 @@ export const InstagramFeedSection = () => {
     return () => clearInterval(interval);
   }, [fetchFeed]);
 
+  // Daily 11:00 PM IST (17:30 UTC) auto-sync scheduler
+  useEffect(() => {
+    let timeoutId;
+    const scheduleNext11PmIst = () => {
+      const now = new Date();
+      // IST is UTC + 5.5 hours
+      const istTime = new Date(now.getTime() + 5.5 * 3600 * 1000);
+      const target = new Date(istTime);
+      target.setUTCHours(23, 0, 0, 0);
+
+      // If 23:00 IST today has already passed, schedule for tomorrow 23:00 IST
+      if (target.getTime() <= istTime.getTime()) {
+        target.setUTCDate(target.getUTCDate() + 1);
+      }
+
+      const nextUtcTimestamp = target.getTime() - 5.5 * 3600 * 1000;
+      const msUntil11PmIst = Math.max(1000, nextUtcTimestamp - now.getTime());
+
+      timeoutId = setTimeout(() => {
+        fetchFeed(true);
+        scheduleNext11PmIst();
+      }, msUntil11PmIst);
+    };
+
+    scheduleNext11PmIst();
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [fetchFeed]);
+
   // Update navigation button states on scroll
   const handleScrollUpdate = () => {
     if (!scrollContainerRef.current) return;
@@ -236,9 +266,15 @@ export const InstagramFeedSection = () => {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-3xl">
             {/* Eyebrow for Edition 2 */}
-            <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
-              Social Sphere
-            </p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
+                Social Sphere
+              </p>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-2)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--muted)] border border-[var(--border)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Updated daily at 11:00 PM IST
+              </span>
+            </div>
 
             {/* Section Name matching Edition 2 typography */}
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">
@@ -259,8 +295,18 @@ export const InstagramFeedSection = () => {
             </p>
           </div>
 
-          {/* Official Follow Button with Instagram Gradient */}
-          <div className="flex items-center gap-3">
+          {/* Official Follow Button and Instant Force Update Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => fetchFeed(true)}
+              disabled={isRefreshing}
+              title="Force update Instagram feed now"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] px-3 py-2 text-xs sm:text-sm font-medium text-[var(--text)] shadow-sm transition-all cursor-pointer"
+            >
+              <FiRefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-pink-500" : ""}`} />
+              <span className="hidden sm:inline">{isRefreshing ? "Updating..." : "Force Update"}</span>
+            </button>
+
             <a
               href="https://www.instagram.com/visionmysuru2050"
               target="_blank"

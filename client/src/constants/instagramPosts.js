@@ -7,6 +7,32 @@
 
 export const INITIAL_INSTAGRAM_POSTS = [
   {
+    id: "vm-ig-reel-edition2-portal",
+    media_type: "VIDEO",
+    permalink: "https://www.instagram.com/visionmysuru2050",
+    media_url: "/reels/edition2_launch.mp4",
+    thumbnail_url: "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1773478561/softlaunch_aaz2ip.jpg",
+    caption: "🚀 Edition 2 Grand Challenge: Step-by-Step Portal Walkthrough! Learn how to register your team, submit your 3-minute pitch video, and upload your proposal deck directly on the portal. Let your ideas shape Mysuru's 2050 master blueprint! 🏙️💡 Link in bio to register now. #VisionMysuru2050 #Edition2 #IdeasToImpact #StudentInnovators #Mysuru2050 #SDMIMD",
+    timestamp: "2026-11-09T17:30:00.000Z",
+    like_count: 645,
+    comments_count: 48,
+    views_count: "5.4K",
+    is_reel: true,
+  },
+  {
+    id: "vm-ig-reel-citizen-impact",
+    media_type: "VIDEO",
+    permalink: "https://www.instagram.com/visionmysuru2050",
+    media_url: "/reels/finalists_pitch.mp4",
+    thumbnail_url: "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1774270194/3_b9ykgu.jpg",
+    caption: "🌟 Voices of Mysuru: From green mobility corridors to heritage precinct restoration, hear what citizens, planners, and college innovators are saying about building a resilient Mysuru for 2050! 🌿🚲 Don't miss your chance to contribute. #CleanMobility #HeritagePreservation #CivicImpact #VisionMysuru2050 #Edition2",
+    timestamp: "2026-11-06T17:30:00.000Z",
+    like_count: 782,
+    comments_count: 61,
+    views_count: "6.9K",
+    is_reel: true,
+  },
+  {
     id: "vm-ig-reel-1",
     media_type: "VIDEO",
     permalink: "https://www.instagram.com/visionmysuru2050",

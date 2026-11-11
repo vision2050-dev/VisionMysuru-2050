@@ -10,6 +10,8 @@ import submissionRoutes from "./routes/submissionRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import juryzaRoutes from "./routes/juryzaRoutes.js";
 import instagramRoutes from "./routes/instagramRoutes.js";
+import { startInstagramDailyScheduler } from "./services/instagramScheduler.js";
+import { executeDailyInstagramSync } from "./controllers/instagramController.js";
 import mongoose from "mongoose";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,6 +80,8 @@ if (fs.existsSync(clientDistPath)) {
 const startServer = () => {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    // Start automated daily 11:00 PM IST Instagram feed sync
+    startInstagramDailyScheduler(executeDailyInstagramSync);
   });
 };
 

@@ -20,6 +20,32 @@ const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes auto-refresh window
 // Fallback seed posts matching official @visionmysuru2050 feed
 const SEED_POSTS = [
   {
+    id: "vm-ig-reel-edition2-portal",
+    media_type: "VIDEO",
+    permalink: "https://www.instagram.com/visionmysuru2050",
+    media_url: "/reels/edition2_launch.mp4",
+    thumbnail_url: "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1773478561/softlaunch_aaz2ip.jpg",
+    caption: "🚀 Edition 2 Grand Challenge: Step-by-Step Portal Walkthrough! Learn how to register your team, submit your 3-minute pitch video, and upload your proposal deck directly on the portal. Let your ideas shape Mysuru's 2050 master blueprint! 🏙️💡 Link in bio to register now. #VisionMysuru2050 #Edition2 #IdeasToImpact #StudentInnovators #Mysuru2050 #SDMIMD",
+    timestamp: "2026-11-09T17:30:00.000Z",
+    like_count: 645,
+    comments_count: 48,
+    views_count: "5.4K",
+    is_reel: true,
+  },
+  {
+    id: "vm-ig-reel-citizen-impact",
+    media_type: "VIDEO",
+    permalink: "https://www.instagram.com/visionmysuru2050",
+    media_url: "/reels/finalists_pitch.mp4",
+    thumbnail_url: "https://res.cloudinary.com/dqlqxcwqr/image/upload/v1774270194/3_b9ykgu.jpg",
+    caption: "🌟 Voices of Mysuru: From green mobility corridors to heritage precinct restoration, hear what citizens, planners, and college innovators are saying about building a resilient Mysuru for 2050! 🌿🚲 Don't miss your chance to contribute. #CleanMobility #HeritagePreservation #CivicImpact #VisionMysuru2050 #Edition2",
+    timestamp: "2026-11-06T17:30:00.000Z",
+    like_count: 782,
+    comments_count: 61,
+    views_count: "6.9K",
+    is_reel: true,
+  },
+  {
     id: "vm-ig-reel-1",
     media_type: "VIDEO",
     permalink: "https://www.instagram.com/visionmysuru2050",
@@ -296,4 +322,32 @@ export const getInstagramFeed = async (req, res) => {
 export const syncInstagramFeed = async (req, res) => {
   req.query.refresh = "true";
   return getInstagramFeed(req, res);
+};
+
+export const executeDailyInstagramSync = async () => {
+  console.log("[Instagram Controller] Executing scheduled daily Instagram feed sync...");
+  const now = Date.now();
+  let posts = SEED_POSTS;
+  let source = "seed";
+  try {
+    posts = await fetchLiveInstagramFeed();
+    source = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.INSTAGRAM_FEED_URL ? "live" : "seed";
+  } catch (err) {
+    console.warn("Daily Instagram fetch fallback:", err.message);
+    posts = cachedFeed || SEED_POSTS;
+  }
+
+  posts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  cachedFeed = posts;
+  lastFetchedTime = now;
+  try {
+    fs.writeFileSync(
+      cacheFilePath,
+      JSON.stringify({ timestamp: now, posts }, null, 2),
+      "utf8"
+    );
+  } catch (e) {
+    console.warn("Could not write instagram cache file:", e.message);
+  }
+  return { success: true, count: posts.length, synced_at: new Date(now).toISOString() };
 };
