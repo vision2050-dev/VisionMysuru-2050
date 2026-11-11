@@ -370,6 +370,19 @@ export const ParticipantPortal = () => {
       return;
     }
 
+    if (!formData.institution?.trim()) {
+      toast.error(
+        activeCategory === CATEGORY.STUDENT
+          ? "Please provide your College / Institution name."
+          : activeCategory === CATEGORY.CORPORATE
+          ? "Please provide your Company / Enterprise name."
+          : activeCategory === CATEGORY.NGO
+          ? "Please provide your Organization / Foundation name."
+          : "Please provide your Institution / Affiliation / Locality."
+      );
+      return;
+    }
+
     const leader = members.find((m) => m.isLeader);
     if (!leader?.name || !leader?.email) {
       toast.error("Please provide Team Leader Name and Contact details.");
@@ -379,6 +392,8 @@ export const ParticipantPortal = () => {
     setSubmitting(true);
     setUploadProgress(10);
 
+    const cleanInstitution = formData.institution.trim();
+
     const data = new FormData();
     data.append("teamName", formData.teamName.trim());
     data.append("category", activeCategory);
@@ -387,7 +402,7 @@ export const ParticipantPortal = () => {
     data.append("solutionName", formData.solutionName.trim());
     data.append("shortDescription", formData.shortDescription.trim());
     data.append("detailedProposal", formData.detailedProposal.trim() || formData.shortDescription.trim());
-    data.append("institution", formData.institution);
+    data.append("institution", cleanInstitution);
     data.append("leadName", leader.name);
     data.append("leadEmail", currentUserEmail || leader.email);
     data.append("leadPhone", leader.phone);
@@ -400,6 +415,7 @@ export const ParticipantPortal = () => {
     try {
       await api.post("/api/v2/submissions", data, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 600000, // 10 minutes timeout to allow full upload of 50 MB files
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1),
@@ -429,7 +445,7 @@ export const ParticipantPortal = () => {
         participantEmail: currentUserEmail || leader.email,
         leadName: leader.name,
         leadPhone: leader.phone,
-        institution: formData.institution,
+        institution: cleanInstitution,
         members,
         videoFileName: videoFile?.name,
         documentFileName: documentFile?.name,
@@ -451,7 +467,7 @@ export const ParticipantPortal = () => {
         }
       }
 
-      setUploadProgress(40);
+      setUploadProgress(30);
       setUploadStatus("Simultaneously updating Videos, Documents & Spreadsheets in Google Drive...");
 
       // Simultaneously sync media files & master spreadsheets to Google Drive
@@ -460,6 +476,7 @@ export const ParticipantPortal = () => {
         videoFile,
         documentFile,
         onStatusUpdate: (msg) => setUploadStatus(msg),
+        onProgressUpdate: (pct) => setUploadProgress(Math.min(95, Math.max(30, pct))),
       });
 
       setUploadProgress(100);
@@ -603,8 +620,11 @@ export const ParticipantPortal = () => {
                     {mySubmission.teamName}
                   </h1>
                   <p className="text-xs text-[var(--muted)] mt-1">
-                    Team ID: <strong className="text-[var(--text)] font-mono">{mySubmission.teamId}</strong> • Registered:{" "}
-                    {new Date(mySubmission.createdAt).toLocaleString("en-IN")}
+                    Team ID: <strong className="text-[var(--text)] font-mono">{mySubmission.teamId}</strong> • Institution:{" "}
+                    <strong className="text-[var(--text)]">
+                      {mySubmission.institution || mySubmission.organizationDetails?.institution || "N/A"}
+                    </strong>{" "}
+                    • Registered: {new Date(mySubmission.createdAt).toLocaleString("en-IN")}
                   </p>
                 </div>
               </div>
@@ -945,6 +965,35 @@ export const ParticipantPortal = () => {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Institution / College / Company / Organization Field */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">
+                  {activeCategory === CATEGORY.STUDENT
+                    ? "College / Educational Institution *"
+                    : activeCategory === CATEGORY.CORPORATE
+                    ? "Company / Enterprise / Startup Name *"
+                    : activeCategory === CATEGORY.NGO
+                    ? "NGO / Foundation / Civil Society Org *"
+                    : "Institution / Organization / Locality *"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.institution}
+                  onChange={(e) => handleInputChange("institution", e.target.value)}
+                  placeholder={
+                    activeCategory === CATEGORY.STUDENT
+                      ? "e.g. SDMIMD, SJCE, NIE, University of Mysore, etc."
+                      : activeCategory === CATEGORY.CORPORATE
+                      ? "e.g. Infosys, Wipro, L&T, Tech Startup, etc."
+                      : activeCategory === CATEGORY.NGO
+                      ? "e.g. Mysuru Heritage Trust, Rotary Mysuru, etc."
+                      : "e.g. Mysuru Resident, Vijayanagar RWA, Citizen Forum, etc."
+                  }
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                />
               </div>
 
               <div>

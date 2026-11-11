@@ -177,7 +177,163 @@ function doPost(e) {
     }
 
     // ============================================================
-    // 4. ACTION: File Upload (PDFs, Videos, or Spreadsheets)
+    // 4. ACTION: Chunked File Upload (For large files like 47 MB videos)
+    // ============================================================
+    if (data.action === "upload_chunk") {
+      var uploadId = data.uploadId || ("up_" + (data.teamId || "team") + "_" + (data.fileName || "file").replace(/[^a-zA-Z0-9]/g, "_"));
+      var chunkIndex = parseInt(data.chunkIndex, 10);
+      var totalChunks = parseInt(data.totalChunks, 10);
+      var folderType = data.folderType || "Videos";
+      var fileName = data.fileName;
+      var mimeType = data.mimeType || "video/mp4";
+      var teamId = data.teamId;
+
+      var tempFolder = getOrCreateSubfolder(folder, "_temp_chunks");
+      var chunkName = uploadId + "_chunk_" + chunkIndex;
+
+      // Save chunk
+      var chunkBlob = Utilities.newBlob(Utilities.base64Decode(data.base64Chunk), "application/octet-stream", chunkName);
+      
+      // Remove any existing chunk with same name if retrying
+      var existingChunks = tempFolder.getFilesByName(chunkName);
+      while (existingChunks.hasNext()) {
+        existingChunks.next().setTrashed(true);
+      }
+      tempFolder.createFile(chunkBlob);
+
+      // If not the last chunk, acknowledge receipt
+      if (chunkIndex < totalChunks - 1) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          chunkIndex: chunkIndex,
+          totalChunks: totalChunks,
+          uploadId: uploadId,
+          status: "chunk_received"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // LAST CHUNK ARRIVED! Assemble all chunks in order
+      var targetFolder = getOrCreateSubfolder(folder, folderType);
+
+      // Clean old existing file with the same name in target folder
+      var existingMedia = targetFolder.getFilesByName(fileName);
+      while (existingMedia.hasNext()) {
+        existingMedia.next().setTrashed(true);
+      }
+
+      // Gather byte arrays from all chunks in order 0 ... totalChunks - 1
+      var combinedBytes = [];
+      var missingChunk = -1;
+      for (var c = 0; c < totalChunks; c++) {
+        var cName = uploadId + "_chunk_" + c;
+        var cFiles = tempFolder.getFilesByName(cName);
+        if (!cFiles.hasNext()) {
+          missingChunk = c;
+          break;
+        }
+        var cFile = cFiles.next();
+        var bytes = cFile.getBlob().getBytes();
+        combinedBytes = combinedBytes.concat(bytes);
+      }
+
+      if (missingChunk !== -1) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          error: "Missing chunk index: " + missingChunk + " for uploadId " + uploadId
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Create final file in Videos or Documents
+      var finalBlob = Utilities.newBlob(combinedBytes, mimeType, fileName);
+      var finalFile = targetFolder.createFile(finalBlob);
+      try {
+        finalFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (shErr) {}
+
+      // Clean up temporary chunk files
+      try {
+        for (var d = 0; d < totalChunks; d++) {
+          var delFiles = tempFolder.getFilesByName(uploadId + "_chunk_" + d);
+          while (delFiles.hasNext()) {
+            delFiles.next().setTrashed(true);
+          }
+        }
+      } catch (cleanErr) {}
+
+      // Extract teamId from fileName if not provided
+      if (!teamId) {
+        var tMatch = String(fileName || "").match(/\[([a-zA-Z0-9_-]+)\]/);
+        if (tMatch) teamId = tMatch[1];
+      }
+
+      var fileUrl = finalFile.getUrl();
+      if (teamId) {
+        var sheetObj = getOrCreateMasterGoogleSheet(folder);
+        var ss = sheetObj.spreadsheet;
+        var sheet = ss.getActiveSheet();
+        var sData = sheet.getDataRange().getValues();
+        var colIndex = (folderType === "Videos" || folderType === "video") ? 14 : 15;
+        for (var r = 1; r < sData.length; r++) {
+          if (String(sData[r][1]).trim().toUpperCase() === String(teamId).trim().toUpperCase()) {
+            sheet.getRange(r + 1, colIndex).setValue(fileUrl);
+            break;
+          }
+        }
+        updateMasterJsonFileUrl(folder, teamId, folderType, finalFile.getId(), fileUrl);
+        updateMasterCsvInPlace(folder, ss);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        fileId: finalFile.getId(),
+        webViewLink: fileUrl,
+        teamId: teamId,
+        fileName: fileName,
+        totalBytes: combinedBytes.length
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ============================================================
+    // 5. ACTION: Confirm / Link File to Team Row in Master Sheet
+    // ============================================================
+    if (data.action === "confirm_file_upload" || data.action === "link_file_to_team") {
+      var teamId = data.teamId;
+      var fileId = data.fileId;
+      var fileUrl = data.fileUrl || (fileId ? ("https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk") : "");
+      var folderType = data.folderType || "Videos";
+
+      if (fileId) {
+        try {
+          DriveApp.getFileById(fileId).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch (shErr) {}
+      }
+
+      if (teamId && fileUrl) {
+        var sheetObj = getOrCreateMasterGoogleSheet(folder);
+        var ss = sheetObj.spreadsheet;
+        var sheet = ss.getActiveSheet();
+        var sData = sheet.getDataRange().getValues();
+        var colIndex = (folderType === "Videos" || folderType === "video") ? 14 : 15;
+        for (var r = 1; r < sData.length; r++) {
+          if (String(sData[r][1]).trim().toUpperCase() === String(teamId).trim().toUpperCase()) {
+            sheet.getRange(r + 1, colIndex).setValue(fileUrl);
+            break;
+          }
+        }
+        updateMasterJsonFileUrl(folder, teamId, folderType, fileId, fileUrl);
+        updateMasterCsvInPlace(folder, ss);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        teamId: teamId,
+        fileId: fileId,
+        fileUrl: fileUrl
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ============================================================
+    // 6. ACTION: Direct File Upload (PDFs, smaller Videos, or Spreadsheets)
     // ============================================================
     var folderType = data.folderType || "Uploads";
     var targetFolder = getOrCreateSubfolder(folder, folderType);
@@ -216,6 +372,31 @@ function doPost(e) {
 
     var blob = Utilities.newBlob(Utilities.base64Decode(data.base64Data), data.mimeType, data.fileName);
     var file = targetFolder.createFile(blob);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shErr) {}
+
+    // Extract teamId from data or fileName to immediately update the master sheet
+    var uploadTeamId = data.teamId;
+    if (!uploadTeamId) {
+      var tMatch = String(data.fileName || "").match(/\[([a-zA-Z0-9_-]+)\]/);
+      if (tMatch) uploadTeamId = tMatch[1];
+    }
+    if (uploadTeamId && (folderType === "Videos" || folderType === "Documents")) {
+      var sheetObj = getOrCreateMasterGoogleSheet(folder);
+      var ss = sheetObj.spreadsheet;
+      var sheet = ss.getActiveSheet();
+      var sData = sheet.getDataRange().getValues();
+      var colIndex = (folderType === "Videos" || folderType === "video") ? 14 : 15;
+      for (var r = 1; r < sData.length; r++) {
+        if (String(sData[r][1]).trim().toUpperCase() === String(uploadTeamId).trim().toUpperCase()) {
+          sheet.getRange(r + 1, colIndex).setValue(file.getUrl());
+          break;
+        }
+      }
+      updateMasterJsonFileUrl(folder, uploadTeamId, folderType, file.getId(), file.getUrl());
+      updateMasterCsvInPlace(folder, ss);
+    }
 
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
@@ -411,6 +592,69 @@ function updateOrAppendSubmissionInSheet(ss, sub) {
     }
   }
 
+  // Strip invalid folder URLs
+  if (videoUrl && videoUrl.indexOf("/drive/folders/") !== -1) {
+    videoUrl = "";
+  }
+  if (docUrl && docUrl.indexOf("/drive/folders/") !== -1) {
+    docUrl = "";
+  }
+
+  // Preserve existing valid file URLs from sheet if incoming object has empty URLs
+  var existingVideoUrl = rowIndex > 0 ? String(data[rowIndex - 1][13] || "").trim() : "";
+  if (existingVideoUrl && existingVideoUrl.indexOf("/drive/folders/") !== -1) {
+    existingVideoUrl = "";
+  }
+  var finalVideoUrl = videoUrl || existingVideoUrl;
+
+  var existingDocUrl = rowIndex > 0 ? String(data[rowIndex - 1][14] || "").trim() : "";
+  if (existingDocUrl && existingDocUrl.indexOf("/drive/folders/") !== -1) {
+    existingDocUrl = "";
+  }
+  var finalDocUrl = docUrl || existingDocUrl;
+
+  // Auto-detect from Drive folders if still missing
+  if (!finalVideoUrl || !finalDocUrl) {
+    try {
+      var folder = DriveApp.getFolderById(MASTER_FOLDER_ID);
+      if (!finalVideoUrl) {
+        var vFolder = getOrCreateSubfolder(folder, "Videos");
+        var vFiles = vFolder.getFiles();
+        while (vFiles.hasNext()) {
+          var vf = vFiles.next();
+          if (vf.getName().toUpperCase().indexOf("[" + teamId.toUpperCase() + "]") !== -1) {
+            finalVideoUrl = vf.getUrl();
+            break;
+          }
+        }
+      }
+      if (!finalDocUrl) {
+        var dFolder = getOrCreateSubfolder(folder, "Documents");
+        var dFiles = dFolder.getFiles();
+        while (dFiles.hasNext()) {
+          var df = dFiles.next();
+          if (df.getName().toUpperCase().indexOf("[" + teamId.toUpperCase() + "]") !== -1) {
+            finalDocUrl = df.getUrl();
+            break;
+          }
+        }
+      }
+    } catch (searchErr) {}
+  }
+
+  // Robust Institution resolution
+  var inst = sub.institution || (sub.organizationDetails && sub.organizationDetails.institution) || leader.college || "";
+  if (!inst || inst === "N/A") {
+    inst = rowIndex > 0 ? String(data[rowIndex - 1][9] || "").trim() : "";
+  }
+  if (!inst || inst === "N/A") {
+    var cat = String(sub.category || "").toLowerCase();
+    if (cat.indexOf("student") !== -1) inst = "SDMIMD / College Innovator";
+    else if (cat.indexOf("corp") !== -1) inst = "Corporate / Enterprise";
+    else if (cat.indexOf("ngo") !== -1) inst = "Civil Society / NGO";
+    else inst = "Mysuru Citizen";
+  }
+
   var rowData = [
     rowIndex > 0 ? data[rowIndex - 1][0] : Math.max(1, data.length),
     teamId,
@@ -421,12 +665,12 @@ function updateOrAppendSubmissionInSheet(ss, sub) {
     leader.name || sub.leadName || (rowIndex > 0 ? data[rowIndex - 1][6] : ""),
     leader.email || sub.participantEmail || (rowIndex > 0 ? data[rowIndex - 1][7] : ""),
     leader.phone || sub.leadPhone || (rowIndex > 0 ? data[rowIndex - 1][8] : ""),
-    leader.college || (sub.organizationDetails && sub.organizationDetails.institution) || (rowIndex > 0 ? data[rowIndex - 1][9] : ""),
+    inst,
     sub.stage || (rowIndex > 0 ? data[rowIndex - 1][10] : "submitted"),
     judges || (rowIndex > 0 ? data[rowIndex - 1][11] : ""),
     sub.rubricAverage !== undefined ? sub.rubricAverage : (rowIndex > 0 ? data[rowIndex - 1][12] : 0),
-    videoUrl || (rowIndex > 0 ? data[rowIndex - 1][13] : ""),
-    docUrl || (rowIndex > 0 ? data[rowIndex - 1][14] : ""),
+    finalVideoUrl,
+    finalDocUrl,
     membersList || (rowIndex > 0 ? data[rowIndex - 1][15] : ""),
     regAt || (rowIndex > 0 ? data[rowIndex - 1][16] : "")
   ];
@@ -470,6 +714,9 @@ function readSubmissionsFromGoogleSheet(ss) {
 
     var allotedJudges = allotedJudgesStr ? allotedJudgesStr.split(",").map(function(s){ return s.trim(); }).filter(Boolean) : [];
 
+    var cleanVideoUrl = (videoUrl && videoUrl.indexOf("/drive/folders/") === -1) ? videoUrl : "";
+    var cleanDocUrl = (docUrl && docUrl.indexOf("/drive/folders/") === -1) ? docUrl : "";
+
     submissions.push({
       _id: "sub-sheet-" + teamId,
       teamId: teamId,
@@ -484,15 +731,15 @@ function readSubmissionsFromGoogleSheet(ss) {
       video: {
         originalName: teamName + "_Video.mp4",
         size: 15000000,
-        url: videoUrl,
-        webViewLink: videoUrl,
+        url: cleanVideoUrl,
+        webViewLink: cleanVideoUrl,
       },
       document: {
         name: teamName + "_Proposal.pdf",
         originalName: teamName + "_Proposal.pdf",
         size: 2000000,
-        url: docUrl,
-        webViewLink: docUrl,
+        url: cleanDocUrl,
+        webViewLink: cleanDocUrl,
       },
       members: [
         {
@@ -503,6 +750,7 @@ function readSubmissionsFromGoogleSheet(ss) {
           isLeader: true,
         }
       ],
+      institution: institution,
       organizationDetails: { institution: institution },
       stage: stage,
       allotedJudges: allotedJudges,
@@ -627,6 +875,40 @@ function updateMasterCsvInPlace(folder, ss) {
   return csvFile;
 }
 
+function updateMasterJsonFileUrl(folder, teamId, folderType, fileId, fileUrl) {
+  var spreadSheetFolder = getOrCreateSubfolder(folder, "Spreadsheets");
+  var files = spreadSheetFolder.getFilesByName(MASTER_JSON_NAME);
+  if (!files.hasNext()) return;
+  var jsonFile = files.next();
+  try {
+    var state = JSON.parse(jsonFile.getBlob().getDataAsString());
+    var subs = state.submissions || [];
+    var changed = false;
+    for (var i = 0; i < subs.length; i++) {
+      if (String(subs[i].teamId).trim().toUpperCase() === String(teamId).trim().toUpperCase()) {
+        if (folderType === "Videos" || folderType === "video") {
+          if (!subs[i].video) subs[i].video = {};
+          subs[i].video.url = fileUrl;
+          subs[i].video.webViewLink = fileUrl;
+          subs[i].video.driveFileId = fileId;
+          changed = true;
+        } else if (folderType === "Documents" || folderType === "document") {
+          if (!subs[i].document) subs[i].document = {};
+          subs[i].document.url = fileUrl;
+          subs[i].document.webViewLink = fileUrl;
+          subs[i].document.driveFileId = fileId;
+          changed = true;
+        }
+        break;
+      }
+    }
+    if (changed) {
+      state.lastUpdated = new Date().toISOString();
+      jsonFile.setContent(JSON.stringify(state, null, 2));
+    }
+  } catch (err) {}
+}
+
 function reconcileMasterSheet(folder, ss) {
   var spreadSheetFolder = getOrCreateSubfolder(folder, "Spreadsheets");
   var sheet = ss.getActiveSheet();
@@ -634,14 +916,37 @@ function reconcileMasterSheet(folder, ss) {
   var existingTeamIds = {};
   for (var i = 1; i < data.length; i++) {
     var tid = String(data[i][1] || "").trim().toUpperCase();
-    if (tid) existingTeamIds[tid] = true;
+    if (tid) existingTeamIds[tid] = i + 1; // 1-based row index
   }
 
+  // 1. Scan Documents and Videos in Drive to build map of real uploaded files
+  var driveVideoMap = {};
+  var driveDocMap = {};
+  try {
+    var vFolder = getOrCreateSubfolder(folder, "Videos");
+    var vFiles = vFolder.getFiles();
+    while (vFiles.hasNext()) {
+      var vf = vFiles.next();
+      var vm = vf.getName().match(/\[([a-zA-Z0-9_-]+)\]/);
+      if (vm) driveVideoMap[vm[1].toUpperCase()] = vf.getUrl();
+    }
+
+    var dFolder = getOrCreateSubfolder(folder, "Documents");
+    var dFiles = dFolder.getFiles();
+    while (dFiles.hasNext()) {
+      var df = dFiles.next();
+      var dm = df.getName().match(/\[([a-zA-Z0-9_-]+)\]/);
+      if (dm) driveDocMap[dm[1].toUpperCase()] = df.getUrl();
+    }
+  } catch (scanErr) {}
+
+  // 2. Read MasterState.json and ensure rows exist in the sheet
+  var state = { submissions: [], users: [] };
   var jsonFiles = spreadSheetFolder.getFilesByName(MASTER_JSON_NAME);
   if (jsonFiles.hasNext()) {
     try {
       var content = jsonFiles.next().getBlob().getDataAsString();
-      var state = JSON.parse(content);
+      state = JSON.parse(content);
       var subs = state.submissions || [];
 
       // If state.submissions is explicitly empty ([]), this means portal was reset.
@@ -655,12 +960,74 @@ function reconcileMasterSheet(folder, ss) {
         var sub = subs[s];
         if (sub && sub.teamId && !existingTeamIds[String(sub.teamId).trim().toUpperCase()]) {
           updateOrAppendSubmissionInSheet(ss, sub);
-          existingTeamIds[String(sub.teamId).trim().toUpperCase()] = true;
+          var newRowIdx = sheet.getLastRow();
+          existingTeamIds[String(sub.teamId).trim().toUpperCase()] = newRowIdx;
         }
       }
     } catch (e) {}
   }
+
+  // 3. Reconcile existing rows in sheet (fix invalid folder URLs, populate missing video/doc links, fix N/A institution)
+  data = sheet.getDataRange().getValues();
+  var sheetModified = false;
+  for (var r = 1; r < data.length; r++) {
+    var rowTeamId = String(data[r][1] || "").trim().toUpperCase();
+    if (!rowTeamId) continue;
+
+    var curInst = String(data[r][9] || "").trim();
+    var curVideo = String(data[r][13] || "").trim();
+    var curDoc = String(data[r][14] || "").trim();
+    var cat = String(data[r][3] || "").toLowerCase();
+
+    // Fix invalid folder link in Video column
+    if (curVideo.indexOf("/drive/folders/") !== -1) {
+      curVideo = driveVideoMap[rowTeamId] || "";
+      sheet.getRange(r + 1, 14).setValue(curVideo);
+      sheetModified = true;
+    } else if (!curVideo && driveVideoMap[rowTeamId]) {
+      sheet.getRange(r + 1, 14).setValue(driveVideoMap[rowTeamId]);
+      sheetModified = true;
+    }
+
+    // Fix missing or invalid Document column
+    if (curDoc.indexOf("/drive/folders/") !== -1) {
+      curDoc = driveDocMap[rowTeamId] || "";
+      sheet.getRange(r + 1, 15).setValue(curDoc);
+      sheetModified = true;
+    } else if (!curDoc && driveDocMap[rowTeamId]) {
+      sheet.getRange(r + 1, 15).setValue(driveDocMap[rowTeamId]);
+      sheetModified = true;
+    }
+
+    // Fix N/A institution
+    if (!curInst || curInst === "N/A") {
+      var foundInst = "";
+      if (state.submissions) {
+        var matchSub = state.submissions.find(function(item) {
+          return String(item.teamId).trim().toUpperCase() === rowTeamId;
+        });
+        if (matchSub) {
+          foundInst = matchSub.institution || (matchSub.organizationDetails && matchSub.organizationDetails.institution) || (matchSub.members && matchSub.members[0] && matchSub.members[0].college) || "";
+        }
+      }
+      if (!foundInst || foundInst === "N/A") {
+        if (cat.indexOf("student") !== -1) foundInst = "SDMIMD / College Innovator";
+        else if (cat.indexOf("corp") !== -1) foundInst = "Corporate / Enterprise";
+        else if (cat.indexOf("ngo") !== -1) foundInst = "Civil Society / NGO";
+        else foundInst = "Mysuru Citizen";
+      }
+      sheet.getRange(r + 1, 10).setValue(foundInst);
+      sheetModified = true;
+    }
+  }
+
+  if (sheetModified) {
+    updateMasterCsvInPlace(folder, ss);
+  }
 }
+
+// Backward compatibility alias to prevent any ReferenceError from external scripts
+var readSubsubmissionsFromGoogleSheet = readSubmissionsFromGoogleSheet;
 
 /**
  * Purge all previous participant submissions, uploaded videos, documents, and reset master spreadsheet

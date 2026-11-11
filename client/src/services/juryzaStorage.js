@@ -1175,6 +1175,7 @@ export const clientRegisterSubmission = ({
         isLeader: true,
       },
     ],
+    institution: institution || "N/A",
     organizationDetails: { institution: institution || "N/A" },
     stage: "submitted",
     allotedJudges: [],
@@ -1186,7 +1187,6 @@ export const clientRegisterSubmission = ({
 
   subs.unshift(newSub);
   saveStoredSubmissions(subs);
-  pushCloudState({ submissions: subs }).catch(() => {});
   return newSub;
 };
 
@@ -1586,12 +1586,12 @@ export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => 
       `"${(leader.name || s.leadName || "").replace(/"/g, '""')}"`,
       leader.email || s.participantEmail || "",
       leader.phone || s.leadPhone || "",
-      `"${(leader.college || s.organizationDetails?.institution || "").replace(/"/g, '""')}"`,
+      `"${(s.institution || leader.college || s.organizationDetails?.institution || "").replace(/"/g, '""')}"`,
       s.stage || "submitted",
       `"${(s.allotedJudges || []).join(", ")}"`,
       s.rubricAverage || 0,
-      s.video?.url || s.video?.webViewLink || "",
-      s.document?.url || s.document?.webViewLink || "",
+      (s.video?.url && !s.video.url.includes("/drive/folders/")) ? (s.video.url || s.video?.webViewLink || "") : "",
+      (s.document?.url && !s.document.url.includes("/drive/folders/")) ? (s.document.url || s.document?.webViewLink || "") : "",
       new Date(s.createdAt).toLocaleString("en-IN"),
     ];
   });
@@ -1612,14 +1612,103 @@ export const fileToBase64 = (file) => {
   });
 };
 
+export const uploadFileInChunksToAppsScript = async ({
+  file,
+  fileName,
+  mimeType,
+  folderType,
+  teamId,
+  onProgress,
+  chunkSize = 6 * 1024 * 1024, // 6 MB chunks (Base64 is ~8.2 MB, completely safe under 50 MB limit)
+}) => {
+  if (!file) return null;
+  const totalBytes = file.size;
+  const totalChunks = Math.max(1, Math.ceil(totalBytes / chunkSize));
+  const cleanTeam = (teamId || "team").replace(/[^a-zA-Z0-9_-]/g, "");
+  const uploadId = `up_${cleanTeam}_${Date.now()}`;
+
+  let finalResult = null;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(totalBytes, start + chunkSize);
+    const chunkBlob = file.slice(start, end);
+    const base64Chunk = await fileToBase64(chunkBlob);
+
+    let chunkSuccess = false;
+    for (let retry = 0; retry < 3; retry++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes per chunk
+
+        const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "upload_chunk",
+            uploadId,
+            teamId,
+            fileName,
+            mimeType,
+            folderType,
+            chunkIndex: i,
+            totalChunks,
+            base64Chunk,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const data = await res.json();
+        if (data && (data.success || data.status === "chunk_received")) {
+          chunkSuccess = true;
+          if (i === totalChunks - 1) {
+            finalResult = data;
+          }
+          break;
+        }
+      } catch (err) {
+        console.warn(`[Drive Chunk ${i + 1}/${totalChunks}] attempt ${retry + 1} note:`, err.message);
+        if (retry < 2) {
+          await new Promise((r) => setTimeout(r, 1500 * (retry + 1)));
+        }
+      }
+    }
+
+    if (!chunkSuccess) {
+      console.warn(`[Drive Chunk ${i + 1}/${totalChunks}] Failed after 3 retries.`);
+      return null;
+    }
+
+    if (onProgress) {
+      const pct = Math.round(((i + 1) / totalChunks) * 100);
+      onProgress(pct);
+    }
+  }
+
+  return finalResult;
+};
+
 export const uploadFileToAppsScript = async ({
   fileName,
   mimeType,
   file,
   base64Data,
   folderType,
+  teamId,
   retries = 2,
 }) => {
+  // If file is larger than 15 MB, automatically use the chunked uploader to bypass the 50 MB Base64 POST limit
+  if (file && file.size > 15 * 1024 * 1024) {
+    return uploadFileInChunksToAppsScript({
+      file,
+      fileName,
+      mimeType,
+      folderType,
+      teamId,
+    });
+  }
+
   let dataBase64 = base64Data;
   if (!dataBase64 && file) {
     dataBase64 = await fileToBase64(file);
@@ -1635,10 +1724,12 @@ export const uploadFileToAppsScript = async ({
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
+          action: "upload",
           fileName,
           mimeType,
           base64Data: dataBase64,
           folderType,
+          teamId,
         }),
         signal: controller.signal,
       });
@@ -1663,6 +1754,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   videoFile,
   documentFile,
   onStatusUpdate,
+  onProgressUpdate,
 }) => {
   if (!submission) return null;
 
@@ -1671,7 +1763,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   const docName = `[${submission.teamId}]_${cleanTeamName}_Proposal.pdf`;
 
   if (onStatusUpdate) {
-    onStatusUpdate("Syncing Documents, Videos & Spreadsheets simultaneously to Google Drive...");
+    onStatusUpdate("Simultaneously updating Videos, Documents & Spreadsheets in Google Drive...");
   }
 
   // 1 & 2. Upload Document and Video SIMULTANEOUSLY in parallel
@@ -1683,8 +1775,9 @@ export const syncSubmissionFilesToCloudDrive = async ({
         mimeType: "application/pdf",
         file: documentFile,
         folderType: "Documents",
+        teamId: submission.teamId,
       });
-      if (data?.fileId) {
+      if (data?.fileId || data?.webViewLink) {
         if (!submission.document) submission.document = {};
         submission.document.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
         submission.document.webViewLink = submission.document.url;
@@ -1701,13 +1794,31 @@ export const syncSubmissionFilesToCloudDrive = async ({
   const uploadVideoPromise = (async () => {
     if (!videoFile) return null;
     try {
-      const data = await uploadFileToAppsScript({
-        fileName: videoName,
-        mimeType: "video/mp4",
-        file: videoFile,
-        folderType: "Videos",
-      });
-      if (data?.fileId) {
+      // For pitch videos (often 30MB - 50MB), use chunked uploader with progress tracking
+      let data = null;
+      if (videoFile.size > 15 * 1024 * 1024) {
+        data = await uploadFileInChunksToAppsScript({
+          file: videoFile,
+          fileName: videoName,
+          mimeType: "video/mp4",
+          folderType: "Videos",
+          teamId: submission.teamId,
+          onProgress: (pct) => {
+            if (onProgressUpdate) onProgressUpdate(30 + Math.round((pct * 60) / 100));
+            if (onStatusUpdate) onStatusUpdate(`Uploading Pitch Video to Drive: ${pct}%...`);
+          },
+        });
+      } else {
+        data = await uploadFileToAppsScript({
+          fileName: videoName,
+          mimeType: "video/mp4",
+          file: videoFile,
+          folderType: "Videos",
+          teamId: submission.teamId,
+        });
+      }
+
+      if (data?.fileId || data?.webViewLink) {
         if (!submission.video) submission.video = {};
         submission.video.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
         submission.video.webViewLink = submission.video.url;
@@ -1724,6 +1835,10 @@ export const syncSubmissionFilesToCloudDrive = async ({
   // Execute Document and Video uploads simultaneously
   await Promise.allSettled([uploadDocPromise, uploadVideoPromise]);
 
+  if (onStatusUpdate) {
+    onStatusUpdate("Syncing master spreadsheet and cloud state...");
+  }
+
   // Save updated file URLs in local client state immediately
   const allSubs = getStoredSubmissions();
   const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
@@ -1733,7 +1848,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   }
 
   // 3. Update the Master Spreadsheet in Google Drive (Spreadsheets folder)
-  // Populated with both video & document URLs!
+  // Guaranteed to carry genuine video and document URLs
   try {
     const allUsers = getStoredUsers();
     const currentUser = allUsers.find(
@@ -1757,6 +1872,9 @@ export const syncSubmissionFilesToCloudDrive = async ({
   } catch (e) {
     console.warn("Cloud Spreadsheet sync warning:", e);
   }
+
+  // 4. Now sync cloud state so remote database and KV store have the populated URLs
+  await pushCloudState({ submissions: allSubs }).catch(() => {});
 
   return submission;
 };

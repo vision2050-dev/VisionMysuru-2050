@@ -72,7 +72,7 @@ export const updateMasterSpreadsheet = async ({ submissions = [], judges = [] })
         "Leader Gmail": leader.email || sub.leadEmail || sub.participantEmail || "N/A",
         "Leader Phone": leader.phone || sub.leadPhone || "N/A",
         "College / Institution":
-          leader.college || sub.organizationDetails?.institution || "N/A",
+          sub.institution || (sub.organizationDetails && sub.organizationDetails.institution) || leader.college || "N/A",
         "Other Members": otherMembers || "None",
         "Pitch Video (.mp4)": sub.video?.originalName || (sub.video?.localPath ? path.basename(sub.video.localPath) : "Uploaded"),
         "Pitch Proposal (.pdf)": sub.document?.name || (sub.document?.localPath ? path.basename(sub.document.localPath) : "Uploaded"),

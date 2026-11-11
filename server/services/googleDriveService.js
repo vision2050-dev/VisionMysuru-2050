@@ -132,34 +132,107 @@ export const uploadToGoogleDrive = async ({
   fileName,
   mimeType,
   folderType = "Videos", // "Videos" | "Documents" | "Spreadsheets"
+  teamId,
   parentFolderId = TARGET_DRIVE_FOLDER_ID,
 }) => {
   // Option A: Google Apps Script Web App Webhook (no service account needed)
   if (APPS_SCRIPT_URL) {
     try {
-      const fileBuffer = fs.readFileSync(filePath);
-      const base64Data = fileBuffer.toString("base64");
-      const resp = await fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        redirect: "follow",
-        body: JSON.stringify({
-          fileName,
-          mimeType,
-          base64Data,
-          folderType,
-          parentFolderId,
-        }),
-      });
+      const fileStats = fs.statSync(filePath);
+      const totalBytes = fileStats.size;
 
-      const data = await resp.json();
-      if (data && (data.success || data.fileId)) {
-        return {
-          synced: true,
-          fileId: data.fileId,
-          webViewLink: data.webViewLink,
-          driveFolderId: parentFolderId,
-        };
+      if (totalBytes > 15 * 1024 * 1024) {
+        // Large file (e.g. 47 MB pitch video): Upload in 6 MB chunks to bypass Google Apps Script 50 MB body limit
+        const chunkSize = 6 * 1024 * 1024;
+        const totalChunks = Math.ceil(totalBytes / chunkSize);
+        const cleanTeam = (teamId || "team").replace(/[^a-zA-Z0-9_-]/g, "");
+        const uploadId = `up_${cleanTeam}_${Date.now()}`;
+        const fd = fs.openSync(filePath, "r");
+        let lastResult = null;
+
+        for (let i = 0; i < totalChunks; i++) {
+          const buffer = Buffer.alloc(Math.min(chunkSize, totalBytes - i * chunkSize));
+          fs.readSync(fd, buffer, 0, buffer.length, i * chunkSize);
+          const base64Chunk = buffer.toString("base64");
+
+          let chunkSuccess = false;
+          for (let retry = 0; retry < 3; retry++) {
+            try {
+              const resp = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                redirect: "follow",
+                body: JSON.stringify({
+                  action: "upload_chunk",
+                  uploadId,
+                  teamId,
+                  fileName,
+                  mimeType,
+                  folderType,
+                  chunkIndex: i,
+                  totalChunks,
+                  base64Chunk,
+                }),
+              });
+              const data = await resp.json();
+              if (data && (data.success || data.status === "chunk_received")) {
+                chunkSuccess = true;
+                if (i === totalChunks - 1) {
+                  lastResult = data;
+                }
+                break;
+              }
+            } catch (chunkErr) {
+              console.warn(`[Drive Chunk ${i + 1}/${totalChunks}] attempt ${retry + 1} notice:`, chunkErr.message);
+              if (retry < 2) {
+                await new Promise((r) => setTimeout(r, 1500 * (retry + 1)));
+              }
+            }
+          }
+
+          if (!chunkSuccess) {
+            console.warn(`[Drive Chunk ${i + 1}/${totalChunks}] Failed after 3 retries.`);
+            break;
+          }
+        }
+        fs.closeSync(fd);
+
+        if (lastResult && (lastResult.fileId || lastResult.webViewLink)) {
+          return {
+            synced: true,
+            fileId: lastResult.fileId,
+            webViewLink: lastResult.webViewLink,
+            driveFolderId: parentFolderId,
+          };
+        }
+      } else {
+        // Small file (≤ 15 MB, e.g. PDF deck): Upload directly in 1 request
+        const fileBuffer = fs.readFileSync(filePath);
+        const base64Data = fileBuffer.toString("base64");
+        const resp = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          redirect: "follow",
+          body: JSON.stringify({
+            action: "upload",
+            fileName,
+            mimeType,
+            base64Data,
+            folderType,
+            teamId,
+            parentFolderId,
+          }),
+        });
+
+        const data = await resp.json();
+        if (data && (data.success || data.fileId)) {
+          return {
+            synced: true,
+            fileId: data.fileId,
+            webViewLink: data.webViewLink,
+            driveFolderId: parentFolderId,
+          };
+        }
       }
     } catch (scriptErr) {
       console.warn("[Drive Apps Script Note]:", scriptErr.message);

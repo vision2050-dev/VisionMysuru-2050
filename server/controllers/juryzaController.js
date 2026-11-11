@@ -632,16 +632,19 @@ export const registerEdition2Submission = async (req, res) => {
         originalName: videoNewName,
         localPath: finalVideoPath,
         size: videoFile.size,
-        driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+        url: "",
+        webViewLink: "",
       },
       document: {
         name: docNewName,
         originalName: docNewName,
         localPath: finalDocPath,
         size: docFile.size,
-        driveDestination: `https://drive.google.com/drive/folders/${TARGET_DRIVE_FOLDER_ID}`,
+        url: "",
+        webViewLink: "",
       },
       members: parsedMembers,
+      institution: institution || "N/A",
       organizationDetails: {
         institution: institution || "N/A",
       },
@@ -665,28 +668,68 @@ export const registerEdition2Submission = async (req, res) => {
       });
     }
 
-    // Simultaneously upload to Google Drive across all 3 folders: Videos, Documents, and Spreadsheets
-    Promise.allSettled([
-      uploadToGoogleDrive({
-        filePath: finalVideoPath,
-        fileName: videoNewName,
-        mimeType: "video/mp4",
-        folderType: "Videos",
-      }),
-      uploadToGoogleDrive({
-        filePath: finalDocPath,
-        fileName: docNewName,
-        mimeType: "application/pdf",
-        folderType: "Documents",
-      }),
-      triggerSpreadsheetUpdate(),
-    ]).then((results) => {
-      const folderLabels = ["Videos", "Documents", "Spreadsheets"];
-      console.log(
-        `[Drive Multi-Sync] Simultaneous upload results for ${teamId}: ` +
-        results.map((r, i) => `${folderLabels[i]}: ${r.status}`).join(", ")
-      );
-    }).catch((e) => console.warn("Simultaneous Drive upload note:", e.message));
+    // Simultaneously upload media files to Google Drive, then sync master spreadsheets
+    (async () => {
+      try {
+        const [videoRes, docRes] = await Promise.allSettled([
+          uploadToGoogleDrive({
+            filePath: finalVideoPath,
+            fileName: videoNewName,
+            mimeType: "video/mp4",
+            folderType: "Videos",
+            teamId,
+          }),
+          uploadToGoogleDrive({
+            filePath: finalDocPath,
+            fileName: docNewName,
+            mimeType: "application/pdf",
+            folderType: "Documents",
+            teamId,
+          }),
+        ]);
+
+        if (videoRes.status === "fulfilled" && videoRes.value?.webViewLink) {
+          const vUrl = videoRes.value.webViewLink;
+          submissionPayload.video.url = vUrl;
+          submissionPayload.video.webViewLink = vUrl;
+          submissionPayload.video.driveFileId = videoRes.value.fileId;
+        }
+
+        if (docRes.status === "fulfilled" && docRes.value?.webViewLink) {
+          const dUrl = docRes.value.webViewLink;
+          submissionPayload.document.url = dUrl;
+          submissionPayload.document.webViewLink = dUrl;
+          submissionPayload.document.driveFileId = docRes.value.fileId;
+        }
+
+        // Update local memory / MongoDB with populated Drive links
+        if (isDbConnected()) {
+          await Edition2Submission.findOneAndUpdate(
+            { teamId },
+            {
+              "video.url": submissionPayload.video.url,
+              "video.webViewLink": submissionPayload.video.webViewLink,
+              "video.driveFileId": submissionPayload.video.driveFileId,
+              "document.url": submissionPayload.document.url,
+              "document.webViewLink": submissionPayload.document.webViewLink,
+              "document.driveFileId": submissionPayload.document.driveFileId,
+            }
+          );
+        } else {
+          const idx = localSubmissionsStore.findIndex((s) => s.teamId === teamId);
+          if (idx !== -1) {
+            localSubmissionsStore[idx] = { ...localSubmissionsStore[idx], ...submissionPayload };
+          }
+        }
+
+        // Now trigger spreadsheet update with populated URLs
+        await triggerSpreadsheetUpdate();
+
+        console.log(`[Drive Multi-Sync] Simultaneous upload and master sheet sync completed for ${teamId}.`);
+      } catch (syncErr) {
+        console.warn("[Drive Multi-Sync] Sync notice:", syncErr.message);
+      }
+    })();
 
     return res.status(201).json({
       message: "Registration completed successfully! Your submission is now in 'submitted' status.",

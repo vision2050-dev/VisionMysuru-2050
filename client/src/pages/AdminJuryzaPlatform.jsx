@@ -568,7 +568,7 @@ export const AdminJuryzaPlatform = () => {
       leadName: leader.name || sub.leadName || "",
       leadEmail: leader.email || sub.participantEmail || "",
       leadPhone: leader.phone || sub.leadPhone || "",
-      institution: leader.college || sub.organizationDetails?.institution || "",
+      institution: sub.institution || leader.college || sub.organizationDetails?.institution || "",
       stage: sub.stage || "submitted",
       rubricAverage: sub.rubricAverage ?? 0,
       password: getTeamPassword(sub),
