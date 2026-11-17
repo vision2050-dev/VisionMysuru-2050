@@ -8,7 +8,6 @@ import {
   FiHeart,
   FiMessageCircle,
   FiExternalLink,
-  FiRefreshCw,
   FiVideo,
   FiImage,
 } from "react-icons/fi";
@@ -273,15 +272,9 @@ export const InstagramFeedSection = () => {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-3xl">
             {/* Eyebrow for Edition 2 */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
-                Social Sphere
-              </p>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-2)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--muted)] border border-[var(--border)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Updated daily at 11:00 PM IST
-              </span>
-            </div>
+            <p className="text-sm font-semibold tracking-wide text-[var(--accent)]">
+              Social Sphere
+            </p>
 
             {/* Section Name matching Edition 2 typography */}
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">
@@ -302,18 +295,8 @@ export const InstagramFeedSection = () => {
             </p>
           </div>
 
-          {/* Official Follow Button and Instant Force Update Button */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => fetchFeed(true)}
-              disabled={isRefreshing}
-              title="Force update Instagram feed now"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] px-3 py-2 text-xs sm:text-sm font-medium text-[var(--text)] shadow-sm transition-all cursor-pointer"
-            >
-              <FiRefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-pink-500" : ""}`} />
-              <span className="hidden sm:inline">{isRefreshing ? "Updating..." : "Force Update"}</span>
-            </button>
-
+          {/* Official Follow Button */}
+          <div className="flex items-center">
             <a
               href="https://www.instagram.com/visionmysuru2050"
               target="_blank"
