@@ -570,18 +570,14 @@ export const registerEdition2Submission = async (req, res) => {
       });
     }
 
-    // Verify compulsory document file
-    if (!req.files || !req.files.documentFile || req.files.documentFile.length === 0) {
-      return res.status(400).json({
-        message: "Proposal deck (.pdf ≤ 5 MB) is compulsory to complete registration.",
-      });
-    }
+    // Verify flexible submission: Teams have a choice to upload either a Pitch Video or a Proposal Document, or both
+    const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
+    const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
+    const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
 
-    // Verify pitch video is provided either as a Google Drive link or as an uploaded file
-    const hasVideoFile = req.files && req.files.videoFile && req.files.videoFile.length > 0;
-    if (!videoDriveUrl && !hasVideoFile) {
+    if (!hasVideo && !hasDocFile) {
       return res.status(400).json({
-        message: "Pitch video is compulsory. Please provide either a Google Drive link or upload an .mp4 file.",
+        message: "Please provide at least one submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) or a proposal document (.pdf ≤ 5 MB).",
       });
     }
 
@@ -592,7 +588,7 @@ export const registerEdition2Submission = async (req, res) => {
     }
 
     const videoFile = hasVideoFile ? req.files.videoFile[0] : null;
-    const docFile = req.files.documentFile[0];
+    const docFile = hasDocFile ? req.files.documentFile[0] : null;
 
     const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
       .toString(36)
@@ -601,17 +597,17 @@ export const registerEdition2Submission = async (req, res) => {
 
     // Rename files with Team ID prefix for clean separation
     const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const videoNewName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
-    const docNewName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
+    const videoNewName = hasVideo ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
+    const docNewName = hasDocFile ? `[${teamId}]_${cleanTeamName}_Proposal.pdf` : "";
 
     const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
-    const finalDocPath = path.join(DOCUMENTS_SUBDIR, docNewName);
+    const finalDocPath = docFile ? path.join(DOCUMENTS_SUBDIR, docNewName) : null;
 
     try {
       if (videoFile && fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
         fs.renameSync(videoFile.path, finalVideoPath);
       }
-      if (fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
+      if (docFile && fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
         fs.renameSync(docFile.path, finalDocPath);
       }
     } catch (moveErr) {
@@ -651,7 +647,7 @@ export const registerEdition2Submission = async (req, res) => {
       solutionName,
       shortDescription,
       detailedProposal: detailedProposal || shortDescription,
-      video: {
+      video: hasVideo ? {
         originalName: videoDriveUrl ? "Google Drive Pitch Video" : videoNewName,
         localPath: finalVideoPath || "",
         size: videoFile ? videoFile.size : 15000000,
@@ -662,12 +658,26 @@ export const registerEdition2Submission = async (req, res) => {
              videoDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
              null)
           : null,
+      } : {
+        originalName: "",
+        localPath: "",
+        size: 0,
+        url: "",
+        webViewLink: "",
+        driveFileId: null,
       },
-      document: {
+      document: hasDocFile ? {
         name: docNewName,
         originalName: docNewName,
         localPath: finalDocPath,
-        size: docFile.size,
+        size: docFile ? docFile.size : 0,
+        url: "",
+        webViewLink: "",
+      } : {
+        name: "",
+        originalName: "",
+        localPath: "",
+        size: 0,
         url: "",
         webViewLink: "",
       },
@@ -699,15 +709,19 @@ export const registerEdition2Submission = async (req, res) => {
     // Simultaneously upload media files to Google Drive, then sync master spreadsheets
     (async () => {
       try {
-        const uploadPromises = [
-          uploadToGoogleDrive({
-            filePath: finalDocPath,
-            fileName: docNewName,
-            mimeType: "application/pdf",
-            folderType: "Documents",
-            teamId,
-          }),
-        ];
+        const uploadPromises = [];
+
+        if (docFile && finalDocPath) {
+          uploadPromises.push(
+            uploadToGoogleDrive({
+              filePath: finalDocPath,
+              fileName: docNewName,
+              mimeType: "application/pdf",
+              folderType: "Documents",
+              teamId,
+            }).then((res) => ({ type: "doc", res }))
+          );
+        }
 
         if (videoFile && finalVideoPath) {
           uploadPromises.push(
@@ -717,27 +731,26 @@ export const registerEdition2Submission = async (req, res) => {
               mimeType: "video/mp4",
               folderType: "Videos",
               teamId,
-            })
+            }).then((res) => ({ type: "video", res }))
           );
         }
 
         const results = await Promise.allSettled(uploadPromises);
-        const docRes = results[0];
-        const videoRes = videoFile ? results[1] : null;
-
-        if (docRes && docRes.status === "fulfilled" && docRes.value?.webViewLink) {
-          const dUrl = docRes.value.webViewLink;
-          submissionPayload.document.url = dUrl;
-          submissionPayload.document.webViewLink = dUrl;
-          submissionPayload.document.driveFileId = docRes.value.fileId;
-        }
-
-        if (videoRes && videoRes.status === "fulfilled" && videoRes.value?.webViewLink) {
-          const vUrl = videoRes.value.webViewLink;
-          submissionPayload.video.url = vUrl;
-          submissionPayload.video.webViewLink = vUrl;
-          submissionPayload.video.driveFileId = videoRes.value.fileId;
-        }
+        results.forEach((r) => {
+          if (r.status === "fulfilled" && r.value?.res?.webViewLink) {
+            if (r.value.type === "doc") {
+              const dUrl = r.value.res.webViewLink;
+              submissionPayload.document.url = dUrl;
+              submissionPayload.document.webViewLink = dUrl;
+              submissionPayload.document.driveFileId = r.value.res.fileId;
+            } else if (r.value.type === "video") {
+              const vUrl = r.value.res.webViewLink;
+              submissionPayload.video.url = vUrl;
+              submissionPayload.video.webViewLink = vUrl;
+              submissionPayload.video.driveFileId = r.value.res.fileId;
+            }
+          }
+        });
 
         // Update local memory / MongoDB with populated Drive links
         if (isDbConnected()) {
@@ -1353,8 +1366,8 @@ export const streamSubmissionVideo = async (req, res) => {
       ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    if (!sub || !sub.video) {
-      return res.status(404).json({ message: "Video not found for this submission." });
+    if (!sub || !sub.video || (!sub.video.localPath && !sub.video.url && !sub.video.originalName)) {
+      return res.status(404).json({ message: "No pitch video was submitted for this team." });
     }
 
     if (sub.video.localPath && fs.existsSync(sub.video.localPath)) {
@@ -1388,8 +1401,8 @@ export const previewSubmissionDocument = async (req, res) => {
       ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    if (!sub || !sub.document) {
-      return res.status(404).json({ message: "Document not found for this submission." });
+    if (!sub || !sub.document || (!sub.document.localPath && !sub.document.url && !sub.document.name)) {
+      return res.status(404).json({ message: "No proposal document was submitted for this team." });
     }
 
     if (sub.document.localPath && fs.existsSync(sub.document.localPath)) {

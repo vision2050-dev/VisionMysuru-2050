@@ -767,6 +767,30 @@ export const JuryzaHub = () => {
                     const directMp4Url = isDirectMp4
                       ? selectedSubmission.video.url || selectedSubmission.video.webViewLink
                       : null;
+                    const hasValidVideo = Boolean(
+                      driveVidId ||
+                      activeVideoBlob ||
+                      directMp4Url ||
+                      (selectedSubmission.video?.url && !selectedSubmission.video.url.includes("/drive/folders/"))
+                    );
+
+                    if (!hasValidVideo) {
+                      return (
+                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)] mb-3">
+                            <FiVideo className="h-4 w-4 text-[var(--muted)] opacity-50" />
+                            <span>Pitch Video (.mp4)</span>
+                          </div>
+                          <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                            <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                            <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
+                            <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                              This team chose to submit only a Proposal Document (.pdf).
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
@@ -831,25 +855,27 @@ export const JuryzaHub = () => {
                         <FiFileText className="h-4 w-4 text-[var(--accent)]" />
                         <span>Proposal Document (.pdf) & Abstract</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={getDocHref(selectedSubmission)}
-                          download={selectedSubmission.document?.name || "Proposal.pdf"}
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
-                        >
-                          <FiDownload className="h-3 w-3" />
-                          <span>Download</span>
-                        </a>
-                        <a
-                          href={getDocHref(selectedSubmission)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
-                        >
-                          <span>Fullscreen PDF</span>
-                          <FiExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
+                      {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) && (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getDocHref(selectedSubmission)}
+                            download={selectedSubmission.document?.name || "Proposal.pdf"}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
+                          >
+                            <FiDownload className="h-3 w-3" />
+                            <span>Download</span>
+                          </a>
+                          <a
+                            href={getDocHref(selectedSubmission)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
+                          >
+                            <span>Fullscreen PDF</span>
+                            <FiExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      )}
                     </div>
 
                     <p className="text-xs sm:text-sm text-[var(--text)] leading-relaxed bg-[var(--surface-2)] p-4 rounded-2xl border border-[var(--border)] mb-4">
@@ -857,14 +883,24 @@ export const JuryzaHub = () => {
                     </p>
 
                     {/* Embedded Interactive PDF Viewer */}
-                    <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
-                      <iframe
-                        key={selectedSubmission.teamId}
-                        src={`${getDocHref(selectedSubmission)}#toolbar=0&navpanes=0`}
-                        title="Proposal PDF Document"
-                        className="h-full w-full border-0 rounded-2xl"
-                      />
-                    </div>
+                    {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) ? (
+                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
+                        <iframe
+                          key={selectedSubmission.teamId}
+                          src={`${getDocHref(selectedSubmission)}#toolbar=0&navpanes=0`}
+                          title="Proposal PDF Document"
+                          className="h-full w-full border-0 rounded-2xl"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                        <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                        <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
+                        <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                          This team chose to submit only a Pitch Video.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Rubric Evaluation Form */}

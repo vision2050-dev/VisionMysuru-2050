@@ -1142,6 +1142,8 @@ export const clientRegisterSubmission = ({
   const docName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
   const cleanDriveUrl = (videoDriveUrl || "").trim();
   const driveVidId = getDriveFileId(cleanDriveUrl);
+  const hasVideo = Boolean(cleanDriveUrl || videoBlobUrl || videoFileName);
+  const hasDoc = Boolean(documentFileName || docBlobUrl);
 
   const newSub = {
     _id: `sub-${Date.now()}`,
@@ -1154,17 +1156,29 @@ export const clientRegisterSubmission = ({
     solutionName,
     shortDescription,
     detailedProposal: detailedProposal || shortDescription,
-    video: {
+    video: hasVideo ? {
       originalName: cleanDriveUrl ? (videoFileName || "Google Drive Pitch Video") : (videoFileName || videoName),
       size: 15000000,
       url: cleanDriveUrl || "",
       webViewLink: cleanDriveUrl || "",
       driveFileId: driveVidId || null,
+    } : {
+      originalName: "",
+      size: 0,
+      url: "",
+      webViewLink: "",
+      driveFileId: null,
     },
-    document: {
+    document: hasDoc ? {
       name: documentFileName || docName,
       originalName: documentFileName || docName,
       size: 2000000,
+      url: "",
+      webViewLink: "",
+    } : {
+      name: "",
+      originalName: "",
+      size: 0,
       url: "",
       webViewLink: "",
     },

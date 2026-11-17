@@ -404,31 +404,27 @@ export const ParticipantPortal = () => {
       return;
     }
 
-    // Compulsory check: Pitch Video (Link or File)
-    if (videoSubmissionType === "link") {
-      const trimmedUrl = videoDriveUrl.trim();
-      if (!trimmedUrl) {
-        toast.error("Google Drive pitch video link is compulsory.");
-        return;
-      }
-      if (/youtube\.com/i.test(trimmedUrl) || /youtu\.be/i.test(trimmedUrl)) {
-        toast.error("YouTube links are strictly not allowed. Please provide a Google Drive link.");
-        return;
-      }
-      if (!trimmedUrl.includes("drive.google.com")) {
-        toast.error("Please enter a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).");
-        return;
-      }
-    } else {
-      if (!videoFile) {
-        toast.error("Pitch video (.mp4 ≤ 25 MB) is compulsory to complete registration!");
-        return;
-      }
+    // Flexible submission check: Teams have a choice to provide either Video or PDF (or both)
+    const trimmedVideoUrl = videoDriveUrl.trim();
+    const hasVideo = videoSubmissionType === "link" ? Boolean(trimmedVideoUrl) : Boolean(videoFile);
+    const hasDocument = Boolean(documentFile);
+
+    if (!hasVideo && !hasDocument) {
+      toast.error("Please provide at least one submission: either a Pitch Video or a Proposal Deck (.pdf).");
+      return;
     }
 
-    if (!documentFile) {
-      toast.error("Proposal deck (.pdf ≤ 5 MB) is compulsory to complete registration!");
-      return;
+    if (hasVideo) {
+      if (videoSubmissionType === "link") {
+        if (/youtube\.com/i.test(trimmedVideoUrl) || /youtu\.be/i.test(trimmedVideoUrl)) {
+          toast.error("YouTube links are strictly not allowed. Please provide a Google Drive link.");
+          return;
+        }
+        if (!trimmedVideoUrl.includes("drive.google.com")) {
+          toast.error("Please enter a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).");
+          return;
+        }
+      }
     }
 
     if (!formData.institution?.trim()) {
@@ -469,13 +465,15 @@ export const ParticipantPortal = () => {
     data.append("leadPhone", leader.phone);
     data.append("members", JSON.stringify(members));
 
-    // Append compulsory files or link
-    if (videoSubmissionType === "link") {
+    // Append submitted media files or link
+    if (videoSubmissionType === "link" && videoDriveUrl.trim()) {
       data.append("videoDriveUrl", videoDriveUrl.trim());
     } else if (videoFile) {
       data.append("videoFile", videoFile);
     }
-    data.append("documentFile", documentFile);
+    if (documentFile) {
+      data.append("documentFile", documentFile);
+    }
 
     try {
       const res = await api.post("/api/v2/submissions", data, {
@@ -866,7 +864,7 @@ export const ParticipantPortal = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
                     <FiVideo className="h-4 w-4 text-[var(--accent)]" />
-                    <span>Compulsory Pitch Video (.mp4)</span>
+                    <span>Pitch Video (.mp4)</span>
                   </div>
                 </div>
 
@@ -881,6 +879,19 @@ export const ParticipantPortal = () => {
                   const directMp4Url = isDirectMp4
                     ? mySubmission.video.url || mySubmission.video.webViewLink
                     : null;
+                  const hasValidVideo = Boolean(driveVidId || activeVideoBlob || directMp4Url || (mySubmission.video?.url && !mySubmission.video.url.includes("/drive/folders/")));
+
+                  if (!hasValidVideo) {
+                    return (
+                      <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                        <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
+                        <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
+                        <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                          Your team opted to submit a Proposal Document (.pdf) for evaluation.
+                        </p>
+                      </div>
+                    );
+                  }
 
                   return (
                     <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
@@ -926,7 +937,7 @@ export const ParticipantPortal = () => {
 
                 <div className="flex items-center justify-between mt-2.5">
                   <p className="text-xs text-[var(--muted)]">
-                    File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || "Uploaded Pitch Video"}</strong>
+                    File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || (mySubmission.video?.url ? "Google Drive Pitch Video" : "Not Provided")}</strong>
                   </p>
                 </div>
               </div>
@@ -937,44 +948,56 @@ export const ParticipantPortal = () => {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
                       <FiFileText className="h-4 w-4 text-[var(--primary)]" />
-                      <span>Compulsory Proposal Deck (.pdf)</span>
+                      <span>Proposal Deck (.pdf)</span>
                     </div>
                   </div>
 
                   {/* Embedded PDF Viewer Preview */}
-                  <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
-                    <iframe
-                      src={`${getDocHref(mySubmission)}#toolbar=0&navpanes=0`}
-                      title="Proposal PDF Document"
-                      className="h-full w-full border-0 rounded-2xl"
-                    />
-                  </div>
+                  {Boolean(mySubmission.document?.url || mySubmission.docBlobUrl || (mySubmission.document?.name && mySubmission.document.name.endsWith(".pdf"))) ? (
+                    <>
+                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
+                        <iframe
+                          src={`${getDocHref(mySubmission)}#toolbar=0&navpanes=0`}
+                          title="Proposal PDF Document"
+                          className="h-full w-full border-0 rounded-2xl"
+                        />
+                      </div>
 
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-xs text-[var(--muted)] truncate">
-                      File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
-                    </p>
-                  </div>
-                </div>
+                      <div className="mt-3 flex items-center justify-between">
+                        <p className="text-xs text-[var(--muted)] truncate">
+                          File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
+                        </p>
+                      </div>
 
-                <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
-                  <a
-                    href={getDocHref(mySubmission)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-md"
-                  >
-                    <FiEye className="h-4 w-4" />
-                    <span>View Fullscreen</span>
-                  </a>
-                  <a
-                    href={getDocHref(mySubmission)}
-                    download={mySubmission.document?.name || "Proposal.pdf"}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] px-4 py-2.5 text-xs font-semibold hover:border-[var(--primary)] transition cursor-pointer"
-                  >
-                    <FiDownload className="h-4 w-4" />
-                    <span>Download</span>
-                  </a>
+                      <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
+                        <a
+                          href={getDocHref(mySubmission)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-md"
+                        >
+                          <FiEye className="h-4 w-4" />
+                          <span>View Fullscreen</span>
+                        </a>
+                        <a
+                          href={getDocHref(mySubmission)}
+                          download={mySubmission.document?.name || "Proposal.pdf"}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] px-4 py-2.5 text-xs font-semibold hover:border-[var(--primary)] transition cursor-pointer"
+                        >
+                          <FiDownload className="h-4 w-4" />
+                          <span>Download</span>
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                      <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
+                      <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
+                      <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                        Your team opted to submit a Pitch Video for evaluation.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -992,7 +1015,7 @@ export const ParticipantPortal = () => {
                 Register Your Innovation Pitch
               </h1>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Provide your team details and submit your compulsory pitch video (Google Drive link or .mp4 ≤ 25 MB) and proposal deck (.pdf ≤ 5 MB).
+                Provide your team details and submit your pitch video (Google Drive link or .mp4 ≤ 25 MB), proposal deck (.pdf ≤ 5 MB), or both, based on your team's preference.
               </p>
             </div>
 
@@ -1117,11 +1140,18 @@ export const ParticipantPortal = () => {
 
               {/* COMPULSORY UPLOADS SECTION */}
               <div className="pt-4 border-t border-[var(--border)]">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
-                    Compulsory Uploads
+                    Submission Materials
                   </span>
-                  <span className="text-[11px] text-[var(--muted)]">(Both files required)</span>
+                  <span className="text-[11px] text-[var(--muted)]">(Choice: Pitch Video, Proposal Deck, or Both)</span>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-3.5 text-xs text-[var(--text)] flex items-start gap-2.5 mb-4">
+                  <FiCheck className="h-4 w-4 text-[var(--primary)] shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong className="text-[var(--primary)]">Submission Choice:</strong> Teams have the choice to submit either a <strong>Pitch Video</strong> (Google Drive link or .mp4 ≤ 25 MB) or a <strong>Proposal Document</strong> (.pdf ≤ 5 MB), or <strong>both</strong>, based on your preference. At least one format is required.
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1131,10 +1161,10 @@ export const ParticipantPortal = () => {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-1.5">
                           <FiVideo className="h-4 w-4 text-[var(--accent)]" />
-                          <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video *</h4>
+                          <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video</h4>
                         </div>
-                        <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                          Compulsory
+                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Either Video or PDF
                         </span>
                       </div>
 
@@ -1180,14 +1210,13 @@ export const ParticipantPortal = () => {
                         /* Option 1: Google Drive Link */
                         <div className="space-y-2 text-left">
                           <label className="block text-[11px] font-semibold text-[var(--muted)]">
-                            Paste Public Google Drive Link *
+                            Paste Public Google Drive Link
                           </label>
                           <input
                             type="url"
-                            required={videoSubmissionType === "link"}
                             value={videoDriveUrl}
                             onChange={(e) => handleDriveUrlChange(e.target.value)}
-                            placeholder="https://drive.google.com/file/d/1.../view"
+                            placeholder="https://drive.google.com/file/d/1.../view (Optional if PDF provided)"
                             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
                           />
 
@@ -1258,9 +1287,24 @@ export const ParticipantPortal = () => {
                           </label>
 
                           {videoFile && (
-                            <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                              <FiCheck className="h-3 w-3 shrink-0" />
-                              <span>{videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                            <div className="mt-2 flex items-center justify-center gap-2">
+                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                                <FiCheck className="h-3 w-3 shrink-0" />
+                                <span>{videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setVideoFile(null);
+                                  if (videoLocalPreview) {
+                                    URL.revokeObjectURL(videoLocalPreview);
+                                    setVideoLocalPreview(null);
+                                  }
+                                }}
+                                className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                              >
+                                Remove
+                              </button>
                             </div>
                           )}
 
@@ -1282,9 +1326,16 @@ export const ParticipantPortal = () => {
 
                   {/* Proposal Document (.pdf <= 5 MB) */}
                   <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-4 text-center hover:border-[var(--primary)] transition bg-[var(--surface-2)]/50">
-                    <FiFileText className="h-8 w-8 mx-auto text-[var(--primary)] mb-2" />
-                    <h4 className="text-xs font-bold text-[var(--text)]">Proposal Deck (.pdf) *</h4>
-                    <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
+                    <div className="flex items-center justify-between mb-3 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <FiFileText className="h-4 w-4 text-[var(--primary)]" />
+                          <h4 className="text-xs font-bold text-[var(--text)]">Proposal Deck (.pdf)</h4>
+                        </div>
+                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Either PDF or Video
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
 
                     <input
                       type="file"
@@ -1302,9 +1353,24 @@ export const ParticipantPortal = () => {
                     </label>
 
                     {documentFile && (
-                      <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                        <FiCheck className="h-3 w-3 shrink-0" />
-                        <span>{documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                      <div className="mt-2 flex items-center justify-center gap-2">
+                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                          <FiCheck className="h-3 w-3 shrink-0" />
+                          <span>{documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDocumentFile(null);
+                            if (documentLocalPreview) {
+                              URL.revokeObjectURL(documentLocalPreview);
+                              setDocumentLocalPreview(null);
+                            }
+                          }}
+                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                        >
+                          Remove
+                        </button>
                       </div>
                     )}
 
@@ -1580,8 +1646,10 @@ export const ParticipantPortal = () => {
                         <span>Google Drive Link</span>
                         <FiExternalLink className="h-3 w-3" />
                       </a>
+                    ) : confirmedTeamData.video?.originalName ? (
+                      confirmedTeamData.video.originalName
                     ) : (
-                      confirmedTeamData.video?.originalName || "Uploaded .mp4"
+                      <span className="text-[var(--muted)] font-normal italic">Not provided (PDF submitted)</span>
                     )}
                   </span>
                 </div>
@@ -1592,7 +1660,11 @@ export const ParticipantPortal = () => {
                     <span>Proposal Deck:</span>
                   </span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[200px]">
-                    {confirmedTeamData.document?.name || "Uploaded Proposal PDF"}
+                    {confirmedTeamData.document?.name ? (
+                      confirmedTeamData.document.name
+                    ) : (
+                      <span className="text-[var(--muted)] font-normal italic">Not provided (Video submitted)</span>
+                    )}
                   </span>
                 </div>
               </div>

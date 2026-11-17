@@ -80,9 +80,10 @@ const multerUploader = multer({
 
 /**
  * Middleware wrapper enforcing:
- * 1. Pitch video: Either valid Google Drive link or uploaded .mp4 file (≤ 25 MB).
- *    YouTube links are strictly disallowed.
- * 2. Proposal deck: Strictly compulsory .pdf file (≤ 5 MB).
+ * 1. Flexible submission choice: Teams can choose to upload either a Pitch Video
+ *    (Google Drive link or .mp4 ≤ 25 MB) or a Proposal Deck (.pdf ≤ 5 MB), or both.
+ *    At least one format is required to complete registration.
+ * 2. YouTube links are strictly disallowed for pitch videos.
  */
 export const submissionUpload = (req, res, next) => {
   multerUploader(req, res, (err) => {
@@ -100,6 +101,8 @@ export const submissionUpload = (req, res, next) => {
 
     const videoDriveUrl = (req.body?.videoDriveUrl || req.body?.videoUrl || "").trim();
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile[0]);
+    const hasDocumentFile = Boolean(req.files && req.files.documentFile && req.files.documentFile[0]);
+    const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
 
     // Strictly disallow YouTube links
     if (
@@ -112,15 +115,15 @@ export const submissionUpload = (req, res, next) => {
       });
     }
 
-    // Pitch video is strictly compulsory: must have either a Google Drive URL or an uploaded .mp4 file
-    if (!videoDriveUrl && !hasVideoFile) {
+    // Teams have a choice: At least ONE submission format (video OR PDF, or both) is required
+    if (!hasVideo && !hasDocumentFile) {
       return res.status(400).json({
         message:
-          "Pitch video is compulsory. Please provide either a Google Drive link or upload an .mp4 file (≤ 25 MB).",
+          "Please provide at least one submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) or a proposal document (.pdf ≤ 5 MB).",
       });
     }
 
-    // If a link is provided, verify it is a Google Drive URL
+    // If a video link is provided, verify it is a valid Google Drive URL
     if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
       return res.status(400).json({
         message:
@@ -128,17 +131,7 @@ export const submissionUpload = (req, res, next) => {
       });
     }
 
-    // Proposal PDF is strictly compulsory
-    if (!req.files || !req.files.documentFile || !req.files.documentFile[0]) {
-      return res.status(400).json({
-        message:
-          "Proposal document (.pdf, maximum 5 MB) is compulsory to complete registration.",
-      });
-    }
-
-    const doc = req.files.documentFile[0];
-
-    // Enforce 25 MB limit on uploaded .mp4
+    // Enforce 25 MB limit on uploaded .mp4 (if provided)
     if (hasVideoFile) {
       const video = req.files.videoFile[0];
       if (video.size > 25 * 1024 * 1024) {
@@ -154,17 +147,20 @@ export const submissionUpload = (req, res, next) => {
       }
     }
 
-    // Enforce 5 MB limit on .pdf
-    if (doc.size > 5 * 1024 * 1024) {
-      try {
-        fs.unlinkSync(doc.path);
-      } catch {}
-      return res.status(400).json({
-        message: `Proposal PDF exceeds the 5 MB limit (Current: ${(
-          doc.size /
-          (1024 * 1024)
-        ).toFixed(1)} MB). Maximum allowed size is 5 MB.`,
-      });
+    // Enforce 5 MB limit on .pdf (if provided)
+    if (hasDocumentFile) {
+      const doc = req.files.documentFile[0];
+      if (doc.size > 5 * 1024 * 1024) {
+        try {
+          fs.unlinkSync(doc.path);
+        } catch {}
+        return res.status(400).json({
+          message: `Proposal PDF exceeds the 5 MB limit (Current: ${(
+            doc.size /
+            (1024 * 1024)
+          ).toFixed(1)} MB). Maximum allowed size is 5 MB.`,
+        });
+      }
     }
 
     next();

@@ -3,7 +3,7 @@
  * Account: @visionmysuru2050 (https://www.instagram.com/visionmysuru2050/)
  * 
  * Automatically synchronized with live Instagram metrics.
- * Synced: 2026-11-17T15:26:56.767Z
+ * Synced: 2026-11-17T18:38:17.244Z
  */
 
 export const INITIAL_INSTAGRAM_POSTS = [
@@ -15,7 +15,7 @@ export const INITIAL_INSTAGRAM_POSTS = [
     "thumbnail_url": "/instagram/DfrqCxtuj_D.jpg",
     "caption": "What if the future of Mysuru begins with YOUR idea? \n\nThrough Vision Mysuru 2050, SDMIMD brings together its vast alumni network and industry experts as delegates and jury members to turn citizens’ ideas into meaningful action.\n\nYour city. Your future. Your idea. \n\nSubmit your idea. Be the change.\n\n#VisionMysuru2050 #SDMIMD #Mysuru #citizenparticipation #ideastoimpact",
     "timestamp": "2026-11-13T12:00:00.000Z",
-    "like_count": 101,
+    "like_count": 103,
     "comments_count": 0,
     "views_count": null,
     "is_reel": true

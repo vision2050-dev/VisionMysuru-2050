@@ -1121,6 +1121,8 @@ export const AdminJuryzaPlatform = () => {
                       const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
                       const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
                       const focusArea = sub.theme || sub.thematicArea || "Focus Area";
+                      const hasSubVideo = Boolean(sub.videoBlobUrl || sub.video?.url || (sub.video?.originalName && sub.video.originalName !== "Not Provided"));
+                      const hasSubDoc = Boolean(sub.document?.url || (sub.document?.name && sub.document.name !== "Not Provided" && sub.document.name.endsWith(".pdf")));
                       const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
                       const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
 
@@ -1180,32 +1182,47 @@ export const AdminJuryzaPlatform = () => {
 
                           {/* Media Uploads */}
                           <td className="px-4 py-3.5 space-y-1.5">
-                            <div className="flex items-center gap-1.5 text-[11px]">
-                              <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
-                              <a
-                                href={getVideoHref(sub)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
-                                title={`Open Video: ${videoName}`}
-                              >
-                                <span className="truncate">{videoName}</span>
-                                <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
-                              </a>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px]">
-                              <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
-                              <a
-                                href={getDocHref(sub)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
-                                title={`Open PDF: ${docName}`}
-                              >
-                                <span className="truncate">{docName}</span>
-                                <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
-                              </a>
-                            </div>
+                            {hasSubVideo ? (
+                              <div className="flex items-center gap-1.5 text-[11px]">
+                                <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
+                                <a
+                                  href={getVideoHref(sub)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
+                                  title={`Open Video: ${videoName}`}
+                                >
+                                  <span className="truncate">{videoName}</span>
+                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                </a>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
+                                <FiVideo className="h-3 w-3 shrink-0 opacity-40" />
+                                <span className="italic">PDF only</span>
+                              </div>
+                            )}
+
+                            {hasSubDoc ? (
+                              <div className="flex items-center gap-1.5 text-[11px]">
+                                <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
+                                <a
+                                  href={getDocHref(sub)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
+                                  title={`Open PDF: ${docName}`}
+                                >
+                                  <span className="truncate">{docName}</span>
+                                  <FiExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                </a>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
+                                <FiFileText className="h-3 w-3 shrink-0 opacity-40" />
+                                <span className="italic">Video only</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Judge Allocation Dropdown */}
