@@ -1767,7 +1767,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   const docName = `[${submission.teamId}]_${cleanTeamName}_Proposal.pdf`;
 
   if (onStatusUpdate) {
-    onStatusUpdate("Simultaneously updating Videos, Documents & Spreadsheets in Google Drive...");
+    onStatusUpdate("Uploading submission...");
   }
 
   // 1 & 2. Upload Document and Video SIMULTANEOUSLY in parallel
@@ -1813,7 +1813,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
           teamId: submission.teamId,
           onProgress: (pct) => {
             if (onProgressUpdate) onProgressUpdate(30 + Math.round((pct * 60) / 100));
-            if (onStatusUpdate) onStatusUpdate(`Uploading Pitch Video to Drive: ${pct}%...`);
+            if (onStatusUpdate) onStatusUpdate(`Uploading Pitch Video: ${pct}%...`);
           },
         });
       } else {
@@ -1844,7 +1844,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   await Promise.allSettled([uploadDocPromise, uploadVideoPromise]);
 
   if (onStatusUpdate) {
-    onStatusUpdate("Syncing master spreadsheet and cloud state...");
+    onStatusUpdate("Finalizing submission...");
   }
 
   // Save updated file URLs in local client state immediately

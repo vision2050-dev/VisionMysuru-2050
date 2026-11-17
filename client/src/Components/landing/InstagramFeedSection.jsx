@@ -91,19 +91,10 @@ const InstagramCard = ({ post, index }) => {
             )}
           </div>
 
-          {/* Views or Likes indicator */}
+          {/* Likes indicator */}
           <div className="flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 backdrop-blur-md border border-white/10 text-[11px] font-medium text-white/90">
-            {isVideo && post.views_count ? (
-              <>
-                <FiPlay className="h-3 w-3 fill-current text-white/80" />
-                <span>{post.views_count}</span>
-              </>
-            ) : (
-              <>
-                <FiHeart className="h-3 w-3 fill-pink-500 text-pink-500" />
-                <span>{post.like_count || 450}</span>
-              </>
-            )}
+            <FiHeart className="h-3 w-3 fill-pink-500 text-pink-500" />
+            <span>{post.like_count ?? 0}</span>
           </div>
         </div>
 
@@ -133,11 +124,11 @@ const InstagramCard = ({ post, index }) => {
           <div className="flex items-center gap-3 text-xs text-[var(--muted)]">
             <span className="flex items-center gap-1">
               <FiHeart className="h-3.5 w-3.5 text-pink-500" />
-              {post.like_count || 320}
+              {post.like_count ?? 0}
             </span>
             <span className="flex items-center gap-1">
               <FiMessageCircle className="h-3.5 w-3.5 text-sky-500" />
-              {post.comments_count || 24}
+              {post.comments_count ?? 0}
             </span>
           </div>
 

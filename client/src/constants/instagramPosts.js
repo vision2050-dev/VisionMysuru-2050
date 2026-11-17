@@ -3,7 +3,7 @@
  * Account: @visionmysuru2050 (https://www.instagram.com/visionmysuru2050/)
  * 
  * Replicating exactly the latest 10 official posts/reels with authentic captions,
- * permalinks, and local high-resolution thumbnails.
+ * permalinks, accurate interaction counts, and local high-resolution thumbnails.
  */
 
 export const INITIAL_INSTAGRAM_POSTS = [
@@ -15,9 +15,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DflhaCbOcBp.jpg",
     caption: "Every big vision needs a plan, and every plan needs the right numbers. \n\nThe Finance Team of Vision Mysuru 2050 is here to turn possibilities into practical, sustainable progress.\n\nBecause building the future isn’t just about dreaming big, it’s about making it achievable. \n\n#VisionMysuru2050#SDMIMD #buildingthefuturetogether #Mysuru #citizenparticipation",
     timestamp: "2026-11-10T15:00:00.000Z",
-    like_count: 612,
-    comments_count: 38,
-    views_count: "5.8K",
+    like_count: 85,
+    comments_count: 0,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -28,9 +28,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/Dfhb7W8Oepc.jpg",
     caption: "Mysuru’s future begins with our ideas. \n\nLet’s come together to build a cleaner, safer, smarter and more sustainable Mysuru. Every citizen has a voice, and every idea has the power to create an impact.\n\nBe a part of the change. Share your ideas and help shape the Mysuru of 2050!\n\nRegistrations are now open! Join the movement and turn your ideas into action. Link in bio \n\nVision Mysuru 2050 – Ideas to Impact.\n\n#VisionMysuru2050 #IdeasToImpact #Mysuru #CitizenParticipation #sdmimd",
     timestamp: "2026-11-09T14:30:00.000Z",
-    like_count: 745,
-    comments_count: 52,
-    views_count: "6.4K",
+    like_count: 112,
+    comments_count: 0,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -41,9 +41,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/Dfbli29O7Tg.jpg",
     caption: "A cleaner Mysuru, a brighter future! \n\nWe, Team Vision Mysuru 2050 from SDMIMD, were proud to be part of the HR Dasara Clean-Up Drive, taking a step towards a cleaner, greener, and more sustainable Mysuru.\n\nBecause the Mysuru we envision for 2050 begins with the actions we take today. \n\nSmall steps. Collective efforts. Lasting change.\n\n#VisionMysuru2050 #SDMIMD #HRDasara #SwachhMysuru #nammamysuru",
     timestamp: "2026-11-06T12:00:00.000Z",
-    like_count: 589,
-    comments_count: 34,
-    views_count: "5.1K",
+    like_count: 99,
+    comments_count: 5,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -54,9 +54,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DezCjLOugHa.jpg",
     caption: "The beginning of something bigger!\n\nThe 2nd Edition of Vision Mysuru 2050 officially begins with the poster release, graced by our Chief Guest, Shri Dharmendra Kumar Sir.\n\nThis is just the beginning. There’s so much more to come as we work towards building the Mysuru of tomorrow.\nThe vision is set. The journey begins.\n\n#VisionMysore #mysuru #nammamysuru #sdmimd",
     timestamp: "2026-10-22T10:15:00.000Z",
-    like_count: 512,
-    comments_count: 29,
-    views_count: "4.9K",
+    like_count: 804,
+    comments_count: 1,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -67,9 +67,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DehZa21s8bk.jpg",
     caption: "Get ready for the launch of the Second Edition of Vision Mysuru 2050 on 16th October 2026!\n\nBecause the future of Mysuru is not just something we imagine. It is something we build together. #VisionMysore #Mysore #Mysuru #NammaMysuru #SDMIMD #SecondEdition #IdeasToImpact",
     timestamp: "2026-10-15T09:00:00.000Z",
-    like_count: 630,
-    comments_count: 41,
-    views_count: "5.5K",
+    like_count: 179,
+    comments_count: 1,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -80,9 +80,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DWofJExk32-.jpg",
     caption: "The final moments of Vision Mysuru 2050 captured not just an event — but a collective intention for the future.\n\nThese glimpses from the last day reflect more than presentations and discussions. They reflect participation, curiosity, responsibility, and hope.\n\nDon’t just live in Mysuru. Lead Mysuru.\n\n#VisionMysuru2050 #SDMIMD #IdeasToImpact",
     timestamp: "2026-04-02T16:00:00.000Z",
-    like_count: 715,
-    comments_count: 47,
-    views_count: "6.2K",
+    like_count: 79,
+    comments_count: 1,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -93,9 +93,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DWRH3TmkZUF.jpg",
     caption: "The final day of Vision Mysuru 2050 has concluded — but what has begun is far greater than an event.\n\nOver the past days, students, educators, civic minds, and change-makers came together.\n\nThe future of Mysuru is not accidental. It is designed with thought, participation, and collective commitment.\n\nDon’t just live in Mysuru. Lead Mysuru.",
     timestamp: "2026-03-24T18:00:00.000Z",
-    like_count: 680,
-    comments_count: 39,
-    views_count: "5.9K",
+    like_count: 100,
+    comments_count: 0,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -106,9 +106,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DWJTeTpDoBB.jpg",
     caption: "Highlights and moments from the grand evaluation stages of Vision Mysuru 2050 at SDMIMD. Inspiring ideas presented before distinguished jury panels. #VisionMysuru2050 #SDMIMD #YouthInnovators",
     timestamp: "2026-03-21T17:00:00.000Z",
-    like_count: 490,
-    comments_count: 23,
-    views_count: "4.7K",
+    like_count: 51,
+    comments_count: 0,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -119,9 +119,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DWGrrnyDp7c.jpg",
     caption: "Vision Mysuru 2050 is an open call to every student, citizen, professional, entrepreneur, policymaker, and dreamer who believes Mysuru deserves thoughtful, inclusive, and future-ready growth.\n\nYou don’t need authority to share an idea.\nYou don’t need a title to shape tomorrow.\nYou just need perspective.\n\nMysuru 2050. A city designed by its own people. What’s your idea?",
     timestamp: "2026-03-20T19:30:00.000Z",
-    like_count: 790,
-    comments_count: 58,
-    views_count: "6.8K",
+    like_count: 50,
+    comments_count: 0,
+    views_count: null,
     is_reel: true,
   },
   {
@@ -132,9 +132,9 @@ export const INITIAL_INSTAGRAM_POSTS = [
     thumbnail_url: "/instagram/DWGQPIAEd8F.jpg",
     caption: "Mysuru is growing… but are we growing right? \n\nNew cafés, more traffic, bigger roads, smarter tech… But what about sustainability, planning, and our future? \n\nThat’s where Vision Mysuru 2050 steps in—bringing together students, experts, and changemakers to build a city that’s not just aesthetic… but actually livable \n\n#VisionMysuru2050 #MysuruDiaries #CityWithPurpose #SustainableLivingIndia #FutureReadyIndia",
     timestamp: "2026-03-20T14:00:00.000Z",
-    like_count: 840,
-    comments_count: 65,
-    views_count: "7.2K",
+    like_count: 259,
+    comments_count: 4,
+    views_count: null,
     is_reel: true,
   },
 ];

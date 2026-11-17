@@ -547,7 +547,7 @@ export const ParticipantPortal = () => {
       }
 
       setUploadProgress(30);
-      setUploadStatus("Simultaneously updating Videos, Documents & Spreadsheets in Google Drive...");
+      setUploadStatus("Submitting proposal...");
 
       // Simultaneously sync media files & master spreadsheets to Google Drive
       const updatedSub = await syncSubmissionFilesToCloudDrive({
@@ -1424,24 +1424,6 @@ export const ParticipantPortal = () => {
                 </div>
               </div>
 
-              {/* Progress bar if uploading */}
-              {submitting && (
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs text-[var(--muted)]">
-                    <span className="truncate pr-2 font-medium text-[var(--accent)]">
-                      {uploadStatus || "Simultaneously updating Videos, Documents & Spreadsheets in Google Drive..."}
-                    </span>
-                    <span className="font-bold">{uploadProgress}%</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
-                    <div
-                      className="h-full bg-[var(--accent)] transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* Submit CTA */}
               <button
                 type="submit"
@@ -1577,8 +1559,6 @@ export const ParticipantPortal = () => {
 
                 <p className="mt-3 text-xs text-[var(--muted)] leading-relaxed max-w-sm mx-auto">
                   Institution: <strong className="text-[var(--text)]">{confirmedTeamData.institution || "N/A"}</strong>
-                  <br />
-                  All details, proposal documents, and pitch video links have been permanently secured in the Master Google Sheet and Cloud Drive.
                 </p>
               </div>
 
