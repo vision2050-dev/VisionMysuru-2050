@@ -207,6 +207,44 @@ async function fetchLiveInstagramFeed() {
     }
   }
 
+  // 3. Direct Live Scrape: Fetch public post/reel meta tags in parallel
+  try {
+    const updated = await Promise.all(
+      SEED_POSTS.map(async (post) => {
+        try {
+          const codeMatch = post.permalink?.match(/\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+          const code = codeMatch ? codeMatch[1] : null;
+          if (!code) return post;
+          const res = await fetch(`https://www.instagram.com/reel/${code}/`, {
+            headers: {
+              "User-Agent": "curl/7.88.1",
+              Accept: "*/*",
+            },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (res.ok) {
+            const html = await res.text();
+            const match = html.match(/([0-9,]+)\s+likes?,\s+([0-9,]+)\s+comments?/i);
+            if (match) {
+              return {
+                ...post,
+                like_count: parseInt(match[1].replace(/,/g, ""), 10),
+                comments_count: parseInt(match[2].replace(/,/g, ""), 10),
+                views_count: null,
+              };
+            }
+          }
+        } catch {
+          // Gracefully retain existing metrics on network hiccup
+        }
+        return post;
+      })
+    );
+    return updated;
+  } catch (err) {
+    console.warn("Direct live Instagram scrape fallback:", err.message);
+  }
+
   // If no external provider configured, return seed posts
   return SEED_POSTS;
 }
@@ -269,6 +307,8 @@ export const getInstagramFeed = async (req, res) => {
       console.warn("Could not write instagram cache file:", e.message);
     }
 
+    writeStaticJsonFeeds(posts, now);
+
     return res.status(200).json({
       success: true,
       source,
@@ -323,5 +363,38 @@ export const executeDailyInstagramSync = async () => {
   } catch (e) {
     console.warn("Could not write instagram cache file:", e.message);
   }
+
+  writeStaticJsonFeeds(posts, now);
   return { success: true, count: posts.length, synced_at: new Date(now).toISOString() };
 };
+
+// Helper to write static JSON feeds for frontend access
+function writeStaticJsonFeeds(posts, now) {
+  try {
+    const payload = JSON.stringify(
+      {
+        success: true,
+        source: "auto-synced",
+        account: "visionmysuru2050",
+        profile_url: "https://www.instagram.com/visionmysuru2050",
+        total: posts.length,
+        synced_at: new Date(now).toISOString(),
+        posts,
+      },
+      null,
+      2
+    );
+
+    const publicFeedPath = path.join(__dirname, "../../client/public/data/instagram_feed.json");
+    const distFeedPath = path.join(__dirname, "../../client/dist/data/instagram_feed.json");
+
+    if (fs.existsSync(path.dirname(publicFeedPath))) {
+      fs.writeFileSync(publicFeedPath, payload, "utf8");
+    }
+    if (fs.existsSync(path.dirname(distFeedPath))) {
+      fs.writeFileSync(distFeedPath, payload, "utf8");
+    }
+  } catch (err) {
+    console.warn("Could not write static instagram feed json:", err.message);
+  }
+}

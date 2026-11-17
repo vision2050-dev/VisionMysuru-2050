@@ -152,17 +152,24 @@ export const InstagramFeedSection = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // Fetch live feed from local or production backend
+  // Fetch live feed from local or production backend, with fallback to static auto-synced JSON
   const fetchFeed = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     try {
-      // Determine API URL based on origin or dev server
+      // 1. Try server API endpoint (Express backend on port 5001 / Vercel)
       const endpoint = "/api/v1/instagram/feed" + (isManualRefresh ? "?refresh=true" : "");
-      const res = await fetch(endpoint, {
+      let res = await fetch(endpoint, {
         headers: { Accept: "application/json" },
-      });
+      }).catch(() => null);
 
-      if (res.ok) {
+      // 2. Fallback to static auto-synced JSON if API is 404 (e.g. IIS static hosting)
+      if (!res || !res.ok) {
+        res = await fetch(`/data/instagram_feed.json?t=${Date.now()}`, {
+          headers: { Accept: "application/json" },
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (data && Array.isArray(data.posts) && data.posts.length > 0) {
           // Sort newest first so the latest post is the left-most post

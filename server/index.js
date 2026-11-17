@@ -82,6 +82,10 @@ const startServer = () => {
     console.log(`Server is running on port ${PORT}`);
     // Start automated daily 11:00 PM IST Instagram feed sync
     startInstagramDailyScheduler(executeDailyInstagramSync);
+    // Initial background sync on boot
+    executeDailyInstagramSync().catch((err) =>
+      console.warn("[Instagram Sync] Initial boot sync note:", err.message)
+    );
   });
 };
 

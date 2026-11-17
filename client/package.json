@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "sync:ig": "node scripts/sync-instagram.js",
     "build": "node scripts/build-atomic.js",
     "build:direct": "vite build",
     "lint": "eslint .",

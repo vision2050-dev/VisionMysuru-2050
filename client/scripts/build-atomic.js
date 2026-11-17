@@ -9,11 +9,21 @@ const distPath = path.join(clientRoot, "dist");
 const tempPath = path.join(clientRoot, "dist-temp");
 const backupPath = path.join(clientRoot, "dist-backup");
 
-console.log("🚀 Starting Zero-Downtime Atomic Build...");
+console.log("[Build] Starting Zero-Downtime Atomic Build...");
 
 // Ensure clean slate for temporary build directory
 if (fs.existsSync(tempPath)) {
   fs.rmSync(tempPath, { recursive: true, force: true });
+}
+
+// 0. Automatically fetch latest live Instagram likes & comments before building
+try {
+  execSync("node scripts/sync-instagram.js", {
+    cwd: clientRoot,
+    stdio: "inherit",
+  });
+} catch (syncErr) {
+  console.warn("[Build] Instagram sync note:", syncErr.message);
 }
 
 // 1. Build to temporary folder so Express continues serving live `dist` uninterrupted
@@ -23,7 +33,7 @@ try {
     stdio: "inherit",
   });
 } catch (err) {
-  console.error("❌ Build failed! Live site remains untouched.");
+  console.error("[Build] Error: Build failed! Live site remains untouched.");
   if (fs.existsSync(tempPath)) {
     fs.rmSync(tempPath, { recursive: true, force: true });
   }
@@ -42,7 +52,7 @@ try {
       fs.renameSync(tempPath, distPath);
     } catch (renameErr) {
       // Windows or cross-device fallback if atomic rename is locked
-      console.warn("⚠️ Standard rename failed, using fast copy-swap fallback:", renameErr.message);
+      console.warn("[Build] Standard rename failed, using fast copy-swap fallback:", renameErr.message);
       fs.cpSync(tempPath, distPath, { recursive: true, force: true });
       fs.rmSync(tempPath, { recursive: true, force: true });
     }
@@ -55,9 +65,9 @@ try {
     fs.rmSync(backupPath, { recursive: true, force: true });
   }
 
-  console.log("✅ Zero-Downtime Atomic Deployment complete! Swapped in <10ms.");
+  console.log("[Build] Zero-Downtime Atomic Deployment complete! Swapped in <10ms.");
 } catch (swapErr) {
-  console.error("⚠️ Swap error:", swapErr.message);
+  console.error("[Build] Swap error:", swapErr.message);
   // Attempt rollback if dist is missing but backup exists
   if (!fs.existsSync(distPath) && fs.existsSync(backupPath)) {
     fs.renameSync(backupPath, distPath);
