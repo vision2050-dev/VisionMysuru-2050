@@ -40,6 +40,39 @@ try {
   process.exit(1);
 }
 
+// 1.5. Ensure the live generated feed is preserved during deployment and not overwritten by a stale build
+try {
+  const liveDistFeed = path.join(distPath, "data/instagram_feed.json");
+  const tempDistFeed = path.join(tempPath, "data/instagram_feed.json");
+
+  if (fs.existsSync(liveDistFeed)) {
+    const tempFeedDir = path.dirname(tempDistFeed);
+    if (!fs.existsSync(tempFeedDir)) {
+      fs.mkdirSync(tempFeedDir, { recursive: true });
+    }
+
+    let shouldPreserveLive = true;
+    if (fs.existsSync(tempDistFeed)) {
+      try {
+        const liveData = JSON.parse(fs.readFileSync(liveDistFeed, "utf8"));
+        const tempData = JSON.parse(fs.readFileSync(tempDistFeed, "utf8"));
+        const liveTime = new Date(liveData.synced_at || 0).getTime();
+        const tempTime = new Date(tempData.synced_at || 0).getTime();
+        if (tempTime > liveTime) {
+          shouldPreserveLive = false;
+        }
+      } catch {}
+    }
+
+    if (shouldPreserveLive) {
+      fs.copyFileSync(liveDistFeed, tempDistFeed);
+      console.log("[Build] Preserved live Instagram feed in dist deployment.");
+    }
+  }
+} catch (feedErr) {
+  console.warn("[Build] Note on feed preservation:", feedErr.message);
+}
+
 // 2. Perform atomic swap (< 10ms)
 try {
   if (fs.existsSync(backupPath)) {

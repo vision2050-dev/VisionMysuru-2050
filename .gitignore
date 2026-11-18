@@ -3,4 +3,15 @@ node_modules/
 .env
 .env.*
 dist/
+dist-temp/
+dist-backup/
 *.log
+
+# Runtime storage & live cache data
+server/runtime/
+server/data/*.cache.json
+*.cache.json
+
+# Uploads runtime directories (keep structure .gitkeep only)
+server/uploads/*
+!server/uploads/**/.gitkeep

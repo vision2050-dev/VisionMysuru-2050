@@ -5,10 +5,12 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(clientRoot, "..");
-const postsFilePath = path.join(clientRoot, "src/constants/instagramPosts.js");
-const publicDataDir = path.join(clientRoot, "public/data");
-const publicJsonPath = path.join(publicDataDir, "instagram_feed.json");
-const serverCachePath = path.join(repoRoot, "server/data/instagram_cache.json");
+
+// Runtime directories (ignored by Git)
+const serverRuntimeDir = path.join(repoRoot, "server/runtime");
+const serverRuntimeCachePath = path.join(serverRuntimeDir, "instagram_cache.json");
+const distDataDir = path.join(clientRoot, "dist/data");
+const distTempDataDir = path.join(clientRoot, "dist-temp/data");
 
 // Strip emojis to guarantee text compliance
 const stripEmojis = (str) =>
@@ -89,24 +91,6 @@ export async function syncInstagram() {
     );
 
     const nowIso = new Date().toISOString();
-
-    // 1. Write updated client constants file
-    const jsContent = `/**
- * Vision Mysuru 2050 - Official Instagram Feed Data
- * Account: @visionmysuru2050 (https://www.instagram.com/visionmysuru2050/)
- * 
- * Automatically synchronized with live Instagram metrics.
- * Synced: ${nowIso}
- */
-
-export const INITIAL_INSTAGRAM_POSTS = ${JSON.stringify(updatedPosts, null, 2)};
-`;
-    fs.writeFileSync(postsFilePath, jsContent, "utf8");
-
-    // 2. Write client public static JSON (accessible via /data/instagram_feed.json)
-    if (!fs.existsSync(publicDataDir)) {
-      fs.mkdirSync(publicDataDir, { recursive: true });
-    }
     const publicJsonPayload = {
       success: true,
       source: "auto-synced",
@@ -116,16 +100,46 @@ export const INITIAL_INSTAGRAM_POSTS = ${JSON.stringify(updatedPosts, null, 2)};
       synced_at: nowIso,
       posts: updatedPosts,
     };
-    fs.writeFileSync(publicJsonPath, JSON.stringify(publicJsonPayload, null, 2), "utf8");
+    const jsonString = JSON.stringify(publicJsonPayload, null, 2);
 
-    // 3. Write server cache if server directory exists
-    const serverDataDir = path.dirname(serverCachePath);
-    if (fs.existsSync(serverDataDir)) {
+    // 1. Write server runtime cache (strictly outside Git repository)
+    if (!fs.existsSync(serverRuntimeDir)) {
+      try {
+        fs.mkdirSync(serverRuntimeDir, { recursive: true });
+      } catch {}
+    }
+    try {
       fs.writeFileSync(
-        serverCachePath,
+        serverRuntimeCachePath,
         JSON.stringify({ timestamp: Date.now(), posts: updatedPosts }, null, 2),
         "utf8"
       );
+    } catch (cacheErr) {
+      console.warn("[Instagram Sync] Note on server runtime cache:", cacheErr.message);
+    }
+
+    // 2. Write directly to dist/ runtime data (serving path for Express / IIS)
+    if (fs.existsSync(path.join(clientRoot, "dist"))) {
+      if (!fs.existsSync(distDataDir)) {
+        try {
+          fs.mkdirSync(distDataDir, { recursive: true });
+        } catch {}
+      }
+      try {
+        fs.writeFileSync(path.join(distDataDir, "instagram_feed.json"), jsonString, "utf8");
+      } catch {}
+    }
+
+    // 3. Also write to dist-temp if currently running during an atomic build
+    if (fs.existsSync(path.join(clientRoot, "dist-temp"))) {
+      if (!fs.existsSync(distTempDataDir)) {
+        try {
+          fs.mkdirSync(distTempDataDir, { recursive: true });
+        } catch {}
+      }
+      try {
+        fs.writeFileSync(path.join(distTempDataDir, "instagram_feed.json"), jsonString, "utf8");
+      } catch {}
     }
 
     const elapsed = Date.now() - startTime;

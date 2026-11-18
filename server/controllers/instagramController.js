@@ -4,13 +4,16 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const cacheFilePath = path.join(__dirname, "../data/instagram_cache.json");
 
-// Ensure data folder exists
-const dataDir = path.join(__dirname, "../data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// Runtime storage outside Git repository (ignored by Git)
+const runtimeDir = path.join(__dirname, "../runtime");
+if (!fs.existsSync(runtimeDir)) {
+  try {
+    fs.mkdirSync(runtimeDir, { recursive: true });
+  } catch {}
 }
+const cacheFilePath = path.join(runtimeDir, "instagram_cache.json");
+const legacySeedCachePath = path.join(__dirname, "../data/instagram_cache.json");
 
 // In-memory cache
 let cachedFeed = null;
@@ -254,16 +257,24 @@ export const getInstagramFeed = async (req, res) => {
     const forceRefresh = req.query.refresh === "true";
     const now = Date.now();
 
-    // Check disk cache if memory cache is empty
-    if (!cachedFeed && fs.existsSync(cacheFilePath)) {
-      try {
-        const fileContent = JSON.parse(fs.readFileSync(cacheFilePath, "utf8"));
-        if (fileContent && Array.isArray(fileContent.posts)) {
-          cachedFeed = fileContent.posts;
-          lastFetchedTime = fileContent.timestamp || 0;
+    // Check disk cache if memory cache is empty (prefer runtime cache, fallback to seed cache)
+    if (!cachedFeed) {
+      const pathToRead = fs.existsSync(cacheFilePath)
+        ? cacheFilePath
+        : fs.existsSync(legacySeedCachePath)
+        ? legacySeedCachePath
+        : null;
+
+      if (pathToRead) {
+        try {
+          const fileContent = JSON.parse(fs.readFileSync(pathToRead, "utf8"));
+          if (fileContent && Array.isArray(fileContent.posts)) {
+            cachedFeed = fileContent.posts;
+            lastFetchedTime = fileContent.timestamp || 0;
+          }
+        } catch (e) {
+          console.warn("Could not read instagram disk cache:", e.message);
         }
-      } catch (e) {
-        console.warn("Could not read instagram disk cache:", e.message);
       }
     }
 
@@ -368,7 +379,7 @@ export const executeDailyInstagramSync = async () => {
   return { success: true, count: posts.length, synced_at: new Date(now).toISOString() };
 };
 
-// Helper to write static JSON feeds for frontend access
+// Helper to write static JSON feeds for frontend access (strictly into client/dist runtime storage, never client/public)
 function writeStaticJsonFeeds(posts, now) {
   try {
     const payload = JSON.stringify(
@@ -385,16 +396,16 @@ function writeStaticJsonFeeds(posts, now) {
       2
     );
 
-    const publicFeedPath = path.join(__dirname, "../../client/public/data/instagram_feed.json");
-    const distFeedPath = path.join(__dirname, "../../client/dist/data/instagram_feed.json");
-
-    if (fs.existsSync(path.dirname(publicFeedPath))) {
-      fs.writeFileSync(publicFeedPath, payload, "utf8");
+    // Only write to dist/ (runtime build serving directory, already git-ignored)
+    const distDataDir = path.join(__dirname, "../../client/dist/data");
+    if (!fs.existsSync(distDataDir)) {
+      try {
+        fs.mkdirSync(distDataDir, { recursive: true });
+      } catch {}
     }
-    if (fs.existsSync(path.dirname(distFeedPath))) {
-      fs.writeFileSync(distFeedPath, payload, "utf8");
-    }
+    const distFeedPath = path.join(distDataDir, "instagram_feed.json");
+    fs.writeFileSync(distFeedPath, payload, "utf8");
   } catch (err) {
-    console.warn("Could not write static instagram feed json:", err.message);
+    console.warn("Could not write static instagram feed json to dist:", err.message);
   }
 }
