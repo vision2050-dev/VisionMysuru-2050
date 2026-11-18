@@ -103,7 +103,7 @@ const TIMELINE = [
   },
   {
     title: "Registration Closes",
-    date: "Jan 10, 2027",
+    date: "Jan 6, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Final deadline to submit your ideas and proposals. Ensure all required documents, video pitches, and deck submissions are uploaded.",
