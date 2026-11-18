@@ -110,7 +110,7 @@ const TIMELINE = [
   },
   {
     title: "Round 1: Expert Screening",
-    date: "Jan 13, 2027",
+    date: "Jan 8, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Category experts review submissions. Top teams from each category advance to the category showdown round.",
