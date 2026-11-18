@@ -130,11 +130,11 @@ const TIMELINE = [
       "Shortlisted teams will engage with government representatives, domain experts, industry, NGOs and citizen groups to validate their proposals, assess feasibility and develop actionable implementation plans with defined resources, responsibilities and timelines.",
   },
   {
-    title: "Grand Finale: Final Event",
+    title: "Grand Finale – Sankalpa to Siddhi",
     date: "Jan 26, 2027",
     eligibleFor: ["Grand Finalists"],
     detail:
-      "Final pitch before Mysuru district authorities and distinguished jury panel. Attractive awards for top winners and civic policy compilation.",
+      "Teams will present their refined implementation plans to a senior jury comprising government officials, industry leaders and domain experts. The round will focus on identifying pilot opportunities, establishing partnerships and defining implementation pathways, with selected teams showcasing their solutions and stakeholder support.",
   },
 ];
 
