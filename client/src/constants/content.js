@@ -109,13 +109,6 @@ const TIMELINE = [
       "Final deadline to submit your ideas and proposals. Ensure all required documents, video pitches, and deck submissions are uploaded.",
   },
   {
-    title: "Round Zero: Administrative Check",
-    date: "Jan 11, 2027",
-    eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
-    detail:
-      "All submissions undergo an administrative check to verify completeness and eligibility across all four categories.",
-  },
-  {
     title: "Round 1: Expert Screening",
     date: "Jan 13, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
