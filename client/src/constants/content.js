@@ -117,7 +117,7 @@ const TIMELINE = [
   },
   {
     title: "Round 2: Category Showdown",
-    date: "Jan 16, 2027",
+    date: "Jan 12, 2027",
     eligibleFor: ["Students", "Corporates", "NGOs", "Citizens"],
     detail:
       "Physical presentations before category-specific experts at the SDMIMD campus to determine the highest scoring teams.",
