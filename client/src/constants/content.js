@@ -123,11 +123,11 @@ const TIMELINE = [
       "Physical presentations before category-specific experts at the SDMIMD campus to determine the highest scoring teams.",
   },
   {
-    title: "Round 3: Proposal Presentation",
-    date: "Jan 19, 2027",
+    title: "Round 3 – Implementation Proposal | Namma Ooru Samvaada",
+    date: "Jan 20, 2027",
     eligibleFor: ["Shortlisted Finalists", "Track 1", "Track 2"],
     detail:
-      "Presentation before senior jury members (academia, industry, government) at SDMIMD Campus to select teams for the Grand Finale.",
+      "Shortlisted teams will engage with government representatives, domain experts, industry, NGOs and citizen groups to validate their proposals, assess feasibility and develop actionable implementation plans with defined resources, responsibilities and timelines.",
   },
   {
     title: "Grand Finale: Final Event",
