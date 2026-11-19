@@ -61,7 +61,8 @@ export const ParticipantPortal = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
 
-  // Compulsory Files & Link Submission State
+  // Compulsory Files & Link Submission State (Mutually Exclusive: Video OR Document)
+  const [submissionFormat, setSubmissionFormat] = useState("video"); // "video" | "document"
   const [videoSubmissionType, setVideoSubmissionType] = useState("link"); // "link" (recommended) | "file"
   const [videoDriveUrl, setVideoDriveUrl] = useState("");
   const [videoDriveError, setVideoDriveError] = useState("");
@@ -263,6 +264,26 @@ export const ParticipantPortal = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Mutually exclusive format switcher (Option 1: Pitch Video OR Option 2: Proposal Deck)
+  const handleSelectSubmissionFormat = (format) => {
+    setSubmissionFormat(format);
+    if (format === "video") {
+      setDocumentFile(null);
+      if (documentLocalPreview) {
+        URL.revokeObjectURL(documentLocalPreview);
+        setDocumentLocalPreview(null);
+      }
+    } else {
+      setVideoFile(null);
+      setVideoDriveUrl("");
+      setVideoDriveError("");
+      if (videoLocalPreview) {
+        URL.revokeObjectURL(videoLocalPreview);
+        setVideoLocalPreview(null);
+      }
+    }
+  };
+
   // Google Drive Pitch Video Link Handler with YouTube detection
   const handleDriveUrlChange = (val) => {
     setVideoDriveUrl(val);
@@ -270,6 +291,15 @@ export const ParticipantPortal = () => {
     if (!trimmed) {
       setVideoDriveError("");
       return;
+    }
+
+    // Auto-clear document to maintain mutual exclusivity
+    if (documentFile || documentLocalPreview) {
+      setDocumentFile(null);
+      if (documentLocalPreview) {
+        URL.revokeObjectURL(documentLocalPreview);
+        setDocumentLocalPreview(null);
+      }
     }
 
     if (/youtube\.com/i.test(trimmed) || /youtu\.be/i.test(trimmed)) {
@@ -306,6 +336,13 @@ export const ParticipantPortal = () => {
       return;
     }
 
+    // Auto-clear document to maintain mutual exclusivity
+    setDocumentFile(null);
+    if (documentLocalPreview) {
+      URL.revokeObjectURL(documentLocalPreview);
+      setDocumentLocalPreview(null);
+    }
+
     setVideoFile(file);
     if (videoLocalPreview) {
       URL.revokeObjectURL(videoLocalPreview);
@@ -338,6 +375,15 @@ export const ParticipantPortal = () => {
       );
       e.target.value = "";
       return;
+    }
+
+    // Auto-clear video to maintain mutual exclusivity
+    setVideoFile(null);
+    setVideoDriveUrl("");
+    setVideoDriveError("");
+    if (videoLocalPreview) {
+      URL.revokeObjectURL(videoLocalPreview);
+      setVideoLocalPreview(null);
     }
 
     setDocumentFile(file);
@@ -404,13 +450,18 @@ export const ParticipantPortal = () => {
       return;
     }
 
-    // Flexible submission check: Teams have a choice to provide either Video or PDF (or both)
+    // Strictly mutually exclusive submission check: Teams must provide either Video OR PDF, NOT both
     const trimmedVideoUrl = videoDriveUrl.trim();
     const hasVideo = videoSubmissionType === "link" ? Boolean(trimmedVideoUrl) : Boolean(videoFile);
     const hasDocument = Boolean(documentFile);
 
+    if (hasVideo && hasDocument) {
+      toast.error("Teams are only allowed to submit one format: either a Pitch Video OR a Proposal Deck (.pdf), not both.");
+      return;
+    }
+
     if (!hasVideo && !hasDocument) {
-      toast.error("Please provide at least one submission: either a Pitch Video or a Proposal Deck (.pdf).");
+      toast.error("Please provide your submission: either a Pitch Video OR a Proposal Deck (.pdf).");
       return;
     }
 
@@ -465,14 +516,18 @@ export const ParticipantPortal = () => {
     data.append("leadPhone", leader.phone);
     data.append("members", JSON.stringify(members));
 
-    // Append submitted media files or link
-    if (videoSubmissionType === "link" && videoDriveUrl.trim()) {
-      data.append("videoDriveUrl", videoDriveUrl.trim());
-    } else if (videoFile) {
-      data.append("videoFile", videoFile);
-    }
-    if (documentFile) {
-      data.append("documentFile", documentFile);
+    // Append submitted media file or link (strictly mutually exclusive)
+    const isVideoChosen = submissionFormat === "video" || (hasVideo && !hasDocument);
+    if (isVideoChosen) {
+      if (videoSubmissionType === "link" && videoDriveUrl.trim()) {
+        data.append("videoDriveUrl", videoDriveUrl.trim());
+      } else if (videoFile) {
+        data.append("videoFile", videoFile);
+      }
+    } else {
+      if (documentFile) {
+        data.append("documentFile", documentFile);
+      }
     }
 
     try {
@@ -496,8 +551,13 @@ export const ParticipantPortal = () => {
         category: activeCategory,
         institution: cleanInstitution,
         solutionName: formData.solutionName.trim(),
-        video: { url: videoSubmissionType === "link" ? videoDriveUrl.trim() : "" },
-        document: { name: documentFile?.name },
+        video: isVideoChosen
+          ? {
+              url: videoSubmissionType === "link" ? videoDriveUrl.trim() : "",
+              originalName: videoFile?.name,
+            }
+          : undefined,
+        document: !isVideoChosen ? { name: documentFile?.name } : undefined,
       };
       setConfirmedTeamData(confirmedSub);
       setShowConfirmedModal(true);
@@ -507,8 +567,8 @@ export const ParticipantPortal = () => {
       console.warn("Backend registration failed, saving locally for zero downtime:", err.message);
       
       // Create local blob previews for instant playback
-      const localVideoBlob = (videoSubmissionType === "file" && videoFile) ? URL.createObjectURL(videoFile) : null;
-      const localDocBlob = documentFile ? URL.createObjectURL(documentFile) : null;
+      const localVideoBlob = (isVideoChosen && videoSubmissionType === "file" && videoFile) ? URL.createObjectURL(videoFile) : null;
+      const localDocBlob = (!isVideoChosen && documentFile) ? URL.createObjectURL(documentFile) : null;
 
       // Client-side fallback registration
       const newSub = clientRegisterSubmission({
@@ -523,21 +583,21 @@ export const ParticipantPortal = () => {
         leadPhone: leader.phone,
         institution: cleanInstitution,
         members,
-        videoFileName: videoSubmissionType === "file" ? videoFile?.name : "Google Drive Pitch Video",
-        documentFileName: documentFile?.name,
+        videoFileName: isVideoChosen ? (videoSubmissionType === "file" ? videoFile?.name : "Google Drive Pitch Video") : undefined,
+        documentFileName: !isVideoChosen ? documentFile?.name : undefined,
         videoBlobUrl: localVideoBlob,
         docBlobUrl: localDocBlob,
-        videoDriveUrl: videoSubmissionType === "link" ? videoDriveUrl.trim() : "",
+        videoDriveUrl: isVideoChosen && videoSubmissionType === "link" ? videoDriveUrl.trim() : "",
       });
 
       // Persist raw files in browser IndexedDB for permanent playback across reloads
-      if (videoSubmissionType === "file" && videoFile) {
+      if (isVideoChosen && videoSubmissionType === "file" && videoFile) {
         await storeMediaBlob(`video_${newSub.teamId}`, videoFile);
         if (currentUserEmail) {
           await storeMediaBlob(`participant_video_${currentUserEmail.toLowerCase().trim()}`, videoFile);
         }
       }
-      if (documentFile) {
+      if (!isVideoChosen && documentFile) {
         await storeMediaBlob(`doc_${newSub.teamId}`, documentFile);
         if (currentUserEmail) {
           await storeMediaBlob(`participant_doc_${currentUserEmail.toLowerCase().trim()}`, documentFile);
@@ -550,8 +610,8 @@ export const ParticipantPortal = () => {
       // Simultaneously sync media files & master spreadsheets to Google Drive
       const updatedSub = await syncSubmissionFilesToCloudDrive({
         submission: newSub,
-        videoFile: videoSubmissionType === "file" ? videoFile : null,
-        documentFile,
+        videoFile: isVideoChosen && videoSubmissionType === "file" ? videoFile : null,
+        documentFile: !isVideoChosen ? documentFile : null,
         onStatusUpdate: (msg) => setUploadStatus(msg),
         onProgressUpdate: (pct) => setUploadProgress(Math.min(95, Math.max(30, pct))),
       });
@@ -1015,7 +1075,7 @@ export const ParticipantPortal = () => {
                 Register Your Innovation Pitch
               </h1>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Provide your team details and submit your pitch video (Google Drive link or .mp4 ≤ 25 MB), proposal deck (.pdf ≤ 5 MB), or both, based on your team's preference.
+                Provide your team details and submit either your pitch video (Google Drive link or .mp4 ≤ 25 MB) OR proposal deck (.pdf ≤ 5 MB), based on your team's preference.
               </p>
             </div>
 
@@ -1138,270 +1198,362 @@ export const ParticipantPortal = () => {
                 />
               </div>
 
-              {/* COMPULSORY UPLOADS SECTION */}
+              {/* COMPULSORY UPLOADS SECTION (MUTUALLY EXCLUSIVE) */}
               <div className="pt-4 border-t border-[var(--border)]">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
                     Submission Materials
                   </span>
-                  <span className="text-[11px] text-[var(--muted)]">(Choice: Pitch Video, Proposal Deck, or Both)</span>
+                  <span className="text-[11px] text-[var(--muted)]">(Select One: Pitch Video OR Proposal Deck)</span>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-3.5 text-xs text-[var(--text)] flex items-start gap-2.5 mb-4">
                   <FiCheck className="h-4 w-4 text-[var(--primary)] shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
-                    <strong className="text-[var(--primary)]">Submission Choice:</strong> Teams have the choice to submit either a <strong>Pitch Video</strong> (Google Drive link or .mp4 ≤ 25 MB) or a <strong>Proposal Document</strong> (.pdf ≤ 5 MB), or <strong>both</strong>, based on your preference. At least one format is required.
+                    <strong className="text-[var(--primary)]">Submission Rule:</strong> Teams are required to submit <strong>either</strong> a <strong>Pitch Video</strong> (Google Drive link or .mp4 ≤ 25 MB) <strong>OR</strong> a <strong>Proposal Deck</strong> (.pdf ≤ 5 MB). Teams are not allowed to submit both. Please select your submission format below.
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Pitch Video Submission (Google Drive Link OR File Upload) */}
-                  <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--surface-2)]/50 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-1.5">
-                          <FiVideo className="h-4 w-4 text-[var(--accent)]" />
-                          <h4 className="text-xs font-bold text-[var(--text)]">Pitch Video</h4>
-                        </div>
-                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                          Either Video or PDF
-                        </span>
+                {/* Mutually Exclusive Format Selector Tabs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSubmissionFormat("video")}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                      submissionFormat === "video"
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 shadow-sm"
+                        : "border-[var(--border)] bg-[var(--surface-2)]/50 hover:border-[var(--accent)]/50 text-[var(--muted)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          submissionFormat === "video"
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]"
+                        }`}
+                      >
+                        <FiVideo className="h-4 w-4" />
                       </div>
-
-                      {/* Selector Tabs: Google Drive Link vs File Upload */}
-                      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] mb-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVideoSubmissionType("link");
-                            setVideoFile(null);
-                          }}
-                          className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                            videoSubmissionType === "link"
-                              ? "bg-[var(--accent)] text-white shadow-sm"
-                              : "text-[var(--muted)] hover:text-[var(--text)]"
-                          }`}
-                        >
-                          <span>Drive Link</span>
-                          <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">
-                            Recommended
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVideoSubmissionType("file");
-                            setVideoDriveUrl("");
-                            setVideoDriveError("");
-                          }}
-                          className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                            videoSubmissionType === "file"
-                              ? "bg-[var(--accent)] text-white shadow-sm"
-                              : "text-[var(--muted)] hover:text-[var(--text)]"
-                          }`}
-                        >
-                          <span>Upload File</span>
-                          <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
-                        </button>
-                      </div>
-
-                      {videoSubmissionType === "link" ? (
-                        /* Option 1: Google Drive Link */
-                        <div className="space-y-2 text-left">
-                          <label className="block text-[11px] font-semibold text-[var(--muted)]">
-                            Paste Public Google Drive Link
-                          </label>
-                          <input
-                            type="url"
-                            value={videoDriveUrl}
-                            onChange={(e) => handleDriveUrlChange(e.target.value)}
-                            placeholder="https://drive.google.com/file/d/1.../view (Optional if PDF provided)"
-                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
-                          />
-
-                          {/* Error warning if YouTube or non-Drive */}
-                          {videoDriveError && (
-                            <div className="flex items-center gap-1.5 rounded-xl bg-red-500/10 border border-red-500/30 p-2 text-[11px] text-red-600 dark:text-red-400 font-semibold">
-                              <FiAlertCircle className="h-3.5 w-3.5 shrink-0" />
-                              <span>{videoDriveError}</span>
-                            </div>
-                          )}
-
-                          {/* Guidance badge */}
-                          <div className="rounded-xl bg-[var(--surface)] p-2.5 border border-[var(--border)] text-[11px] text-[var(--muted)] space-y-1">
-                            <p className="flex items-start gap-1.5">
-                              <FiCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                              <span>
-                                In Google Drive, ensure sharing is set to:{" "}
-                                <strong className="text-[var(--text)]">"Anyone with the link can view"</strong>.
-                              </span>
-                            </p>
-                            <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-                              <FiAlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                              <span>YouTube links are strictly not allowed. Only Google Drive links are accepted.</span>
-                            </p>
-                          </div>
-
-                          {/* Live Google Drive Preview if valid ID extracted */}
-                          {(() => {
-                            const driveId = getDriveFileId(videoDriveUrl);
-                            if (!driveId || videoDriveError) return null;
-                            return (
-                              <div className="mt-2 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
-                                <div className="p-1.5 bg-emerald-500/10 border-b border-emerald-500/20 text-[10px] font-bold text-emerald-600 flex items-center justify-between">
-                                  <span className="flex items-center gap-1">
-                                    <FiCheck className="h-3 w-3" />
-                                    <span>Live Google Drive Preview</span>
-                                  </span>
-                                  <span className="font-mono text-[9px]">{driveId}</span>
-                                </div>
-                                <iframe
-                                  src={`https://drive.google.com/file/d/${driveId}/preview`}
-                                  title="Drive Preview"
-                                  className="aspect-video w-full border-0"
-                                  allow="autoplay"
-                                />
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        /* Option 2: Upload .mp4 File (Max 25 MB) */
-                        <div className="text-center py-2">
-                          <p className="text-[11px] text-[var(--muted)]">Strictly .mp4 • Maximum 25 MB</p>
-
-                          <input
-                            type="file"
-                            accept=".mp4,video/mp4"
-                            onChange={handleVideoFileChange}
-                            className="hidden"
-                            id="video-upload-input"
-                          />
-                          <label
-                            htmlFor="video-upload-input"
-                            className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition"
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-bold ${
+                              submissionFormat === "video" ? "text-[var(--text)]" : "text-[var(--muted)]"
+                            }`}
                           >
-                            <FiUploadCloud className="h-3.5 w-3.5" />
-                            <span>{videoFile ? "Change Video" : "Select .mp4 File"}</span>
-                          </label>
+                            Option 1: Pitch Video
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[var(--muted)]">Drive link or .mp4 ≤ 25 MB</p>
+                      </div>
+                    </div>
+                    <div
+                      className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
+                        submissionFormat === "video"
+                          ? "border-[var(--accent)] bg-[var(--accent)]"
+                          : "border-[var(--border)]"
+                      }`}
+                    >
+                      {submissionFormat === "video" && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
 
-                          {videoFile && (
-                            <div className="mt-2 flex items-center justify-center gap-2">
-                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                                <FiCheck className="h-3 w-3 shrink-0" />
-                                <span>{videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setVideoFile(null);
-                                  if (videoLocalPreview) {
-                                    URL.revokeObjectURL(videoLocalPreview);
-                                    setVideoLocalPreview(null);
-                                  }
-                                }}
-                                className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          )}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSubmissionFormat("document")}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                      submissionFormat === "document"
+                        ? "border-[var(--primary)] bg-[var(--primary)]/10 shadow-sm"
+                        : "border-[var(--border)] bg-[var(--surface-2)]/50 hover:border-[var(--primary)]/50 text-[var(--muted)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          submissionFormat === "document"
+                            ? "bg-[var(--primary)] text-white"
+                            : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]"
+                        }`}
+                      >
+                        <FiFileText className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-bold ${
+                              submissionFormat === "document" ? "text-[var(--text)]" : "text-[var(--muted)]"
+                            }`}
+                          >
+                            Option 2: Proposal Deck
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[var(--muted)]">Proposal document (.pdf ≤ 5 MB)</p>
+                      </div>
+                    </div>
+                    <div
+                      className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
+                        submissionFormat === "document"
+                          ? "border-[var(--primary)] bg-[var(--primary)]"
+                          : "border-[var(--border)]"
+                      }`}
+                    >
+                      {submissionFormat === "document" && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+                </div>
 
-                          {videoLocalPreview && (
-                            <div className="mt-3 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
-                              <video
-                                src={videoLocalPreview}
-                                controls
-                                preload="metadata"
-                                playsInline
-                                className="aspect-video w-full object-cover"
+                {/* Active Format Upload Card */}
+                {submissionFormat === "video" ? (
+                  /* Option 1: Pitch Video Submission Card */
+                  <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--surface-2)]/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <FiVideo className="h-4 w-4 text-[var(--accent)]" />
+                        <h4 className="text-xs font-bold text-[var(--text)]">Option 1: Pitch Video Submission</h4>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        Selected Format
+                      </span>
+                    </div>
+
+                    {/* Selector Tabs: Google Drive Link vs File Upload */}
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] mb-3 max-w-sm">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVideoSubmissionType("link");
+                          setVideoFile(null);
+                        }}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          videoSubmissionType === "link"
+                            ? "bg-[var(--accent)] text-white shadow-sm"
+                            : "text-[var(--muted)] hover:text-[var(--text)]"
+                        }`}
+                      >
+                        <span>Drive Link</span>
+                        <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">
+                          Recommended
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVideoSubmissionType("file");
+                          setVideoDriveUrl("");
+                          setVideoDriveError("");
+                        }}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          videoSubmissionType === "file"
+                            ? "bg-[var(--accent)] text-white shadow-sm"
+                            : "text-[var(--muted)] hover:text-[var(--text)]"
+                        }`}
+                      >
+                        <span>Upload File</span>
+                        <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                      </button>
+                    </div>
+
+                    {videoSubmissionType === "link" ? (
+                      /* Option 1A: Google Drive Link */
+                      <div className="space-y-2 text-left">
+                        <label className="block text-[11px] font-semibold text-[var(--muted)]">
+                          Paste Public Google Drive Link *
+                        </label>
+                        <input
+                          type="url"
+                          value={videoDriveUrl}
+                          onChange={(e) => handleDriveUrlChange(e.target.value)}
+                          placeholder="https://drive.google.com/file/d/1.../view"
+                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--accent)] focus:outline-none transition"
+                        />
+
+                        {/* Error warning if YouTube or non-Drive */}
+                        {videoDriveError && (
+                          <div className="flex items-center gap-1.5 rounded-xl bg-red-500/10 border border-red-500/30 p-2 text-[11px] text-red-600 dark:text-red-400 font-semibold">
+                            <FiAlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>{videoDriveError}</span>
+                          </div>
+                        )}
+
+                        {/* Guidance badge */}
+                        <div className="rounded-xl bg-[var(--surface)] p-2.5 border border-[var(--border)] text-[11px] text-[var(--muted)] space-y-1">
+                          <p className="flex items-start gap-1.5">
+                            <FiCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <span>
+                              In Google Drive, ensure sharing is set to:{" "}
+                              <strong className="text-[var(--text)]">"Anyone with the link can view"</strong>.
+                            </span>
+                          </p>
+                          <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                            <FiAlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <span>YouTube links are strictly not allowed. Only Google Drive links are accepted.</span>
+                          </p>
+                        </div>
+
+                        {/* Live Google Drive Preview if valid ID extracted */}
+                        {(() => {
+                          const driveId = getDriveFileId(videoDriveUrl);
+                          if (!driveId || videoDriveError) return null;
+                          return (
+                            <div className="mt-2 overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
+                              <div className="p-1.5 bg-emerald-500/10 border-b border-emerald-500/20 text-[10px] font-bold text-emerald-600 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                  <FiCheck className="h-3 w-3" />
+                                  <span>Live Google Drive Preview</span>
+                                </span>
+                                <span className="font-mono text-[9px]">{driveId}</span>
+                              </div>
+                              <iframe
+                                src={`https://drive.google.com/file/d/${driveId}/preview`}
+                                title="Drive Preview"
+                                className="aspect-video w-full border-0"
+                                allow="autoplay"
                               />
                             </div>
-                          )}
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      /* Option 1B: Upload .mp4 File (Max 25 MB) */
+                      <div className="text-center py-4 border-2 border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface)]">
+                        <p className="text-[11px] text-[var(--muted)]">Strictly .mp4 • Maximum 25 MB</p>
+
+                        <input
+                          type="file"
+                          accept=".mp4,video/mp4"
+                          onChange={handleVideoFileChange}
+                          className="hidden"
+                          id="video-upload-input"
+                        />
+                        <label
+                          htmlFor="video-upload-input"
+                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition shadow-sm"
+                        >
+                          <FiUploadCloud className="h-3.5 w-3.5" />
+                          <span>{videoFile ? "Change Video File" : "Select .mp4 File"}</span>
+                        </label>
+
+                        {videoFile && (
+                          <div className="mt-2 flex items-center justify-center gap-2">
+                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                              <FiCheck className="h-3 w-3 shrink-0" />
+                              <span>{videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVideoFile(null);
+                                if (videoLocalPreview) {
+                                  URL.revokeObjectURL(videoLocalPreview);
+                                  setVideoLocalPreview(null);
+                                }
+                              }}
+                              className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+
+                        {videoLocalPreview && (
+                          <div className="mt-3 max-w-lg mx-auto overflow-hidden rounded-xl border border-emerald-500/30 shadow-md">
+                            <video
+                              src={videoLocalPreview}
+                              controls
+                              preload="metadata"
+                              playsInline
+                              className="aspect-video w-full object-cover"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Option 2: Proposal Document (.pdf <= 5 MB) Card */
+                  <div className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--surface-2)]/50">
+                    <div className="flex items-center justify-between mb-3 text-left">
+                      <div className="flex items-center gap-1.5">
+                        <FiFileText className="h-4 w-4 text-[var(--primary)]" />
+                        <h4 className="text-xs font-bold text-[var(--text)]">Option 2: Proposal Deck Submission</h4>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        Selected Format
+                      </span>
+                    </div>
+
+                    <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-6 text-center hover:border-[var(--primary)] transition bg-[var(--surface)]">
+                      <p className="text-xs font-medium text-[var(--text)]">Upload your team proposal deck</p>
+                      <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
+
+                      <input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={handleDocumentFileChange}
+                        className="hidden"
+                        id="doc-upload-input"
+                      />
+                      <label
+                        htmlFor="doc-upload-input"
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--primary)] cursor-pointer transition shadow-sm"
+                      >
+                        <FiUploadCloud className="h-3.5 w-3.5" />
+                        <span>{documentFile ? "Change PDF" : "Select .pdf File"}</span>
+                      </label>
+
+                      {documentFile && (
+                        <div className="mt-2 flex items-center justify-center gap-2">
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                            <FiCheck className="h-3 w-3 shrink-0" />
+                            <span>{documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDocumentFile(null);
+                              if (documentLocalPreview) {
+                                URL.revokeObjectURL(documentLocalPreview);
+                                setDocumentLocalPreview(null);
+                              }
+                            }}
+                            className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+
+                      {documentLocalPreview && (
+                        <div className="mt-3 max-w-xl mx-auto overflow-hidden rounded-xl border border-[var(--primary)]/30 shadow-md text-left">
+                          <div className="p-2 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-[var(--text)] truncate max-w-[220px] inline-flex items-center gap-1">
+                              <FiFileText className="h-3 w-3 shrink-0 text-[var(--primary)]" />
+                              <span>{documentFile?.name}</span>
+                            </span>
+                            <a
+                              href={documentLocalPreview}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--primary)] hover:underline"
+                            >
+                              <span>Preview</span>
+                              <FiExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                          <div className="h-56 w-full bg-[var(--surface-2)]">
+                            <iframe
+                              src={`${documentLocalPreview}#toolbar=0&navpanes=0`}
+                              title="Selected Proposal PDF Preview"
+                              className="w-full h-full border-0"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {/* Proposal Document (.pdf <= 5 MB) */}
-                  <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-4 text-center hover:border-[var(--primary)] transition bg-[var(--surface-2)]/50">
-                    <div className="flex items-center justify-between mb-3 text-left">
-                        <div className="flex items-center gap-1.5">
-                          <FiFileText className="h-4 w-4 text-[var(--primary)]" />
-                          <h4 className="text-xs font-bold text-[var(--text)]">Proposal Deck (.pdf)</h4>
-                        </div>
-                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                          Either PDF or Video
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
-
-                    <input
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      onChange={handleDocumentFileChange}
-                      className="hidden"
-                      id="doc-upload-input"
-                    />
-                    <label
-                      htmlFor="doc-upload-input"
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:border-[var(--primary)] cursor-pointer transition"
-                    >
-                      <FiUploadCloud className="h-3.5 w-3.5" />
-                      <span>{documentFile ? "Change PDF" : "Select .pdf File"}</span>
-                    </label>
-
-                    {documentFile && (
-                      <div className="mt-2 flex items-center justify-center gap-2">
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                          <FiCheck className="h-3 w-3 shrink-0" />
-                          <span>{documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDocumentFile(null);
-                            if (documentLocalPreview) {
-                              URL.revokeObjectURL(documentLocalPreview);
-                              setDocumentLocalPreview(null);
-                            }
-                          }}
-                          className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-
-                    {documentLocalPreview && (
-                      <div className="mt-3 overflow-hidden rounded-xl border border-[var(--primary)]/30 shadow-md">
-                        <div className="p-2 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-[var(--text)] truncate max-w-[180px] inline-flex items-center gap-1">
-                            <FiFileText className="h-3 w-3 shrink-0" />
-                            <span>{documentFile?.name}</span>
-                          </span>
-                          <a
-                            href={documentLocalPreview}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--primary)] hover:underline"
-                          >
-                            <span>Preview</span>
-                            <FiExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                        <div className="h-44 w-full bg-[var(--surface-2)]">
-                          <iframe
-                            src={`${documentLocalPreview}#toolbar=0&navpanes=0`}
-                            title="Selected Proposal PDF Preview"
-                            className="w-full h-full border-0"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Team Members Section */}

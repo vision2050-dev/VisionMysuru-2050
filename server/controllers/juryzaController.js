@@ -570,14 +570,20 @@ export const registerEdition2Submission = async (req, res) => {
       });
     }
 
-    // Verify flexible submission: Teams have a choice to upload either a Pitch Video or a Proposal Document, or both
+    // Verify mutually exclusive submission: Teams must upload either a Pitch Video OR a Proposal Document, NOT both
     const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
 
+    if (hasVideo && hasDocFile) {
+      return res.status(400).json({
+        message: "Teams are not allowed to submit both. Please provide either a pitch video OR a proposal document, not both.",
+      });
+    }
+
     if (!hasVideo && !hasDocFile) {
       return res.status(400).json({
-        message: "Please provide at least one submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) or a proposal document (.pdf ≤ 5 MB).",
+        message: "Please provide your submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) OR a proposal document (.pdf ≤ 5 MB).",
       });
     }
 
