@@ -32,6 +32,9 @@ import {
   resolveSubmissionMedia,
   sanitizeSubmissionForStorage,
   mergeSubmissions,
+  getActiveAllocatedJudges,
+  hasExplicitRoundAllocations,
+  normalizeStageLabel,
   getMediaBlobUrl,
   syncCloudPortalState,
 } from "../services/juryzaStorage";
@@ -232,13 +235,14 @@ export const JuryzaHub = () => {
       const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
 
       // STRICT JUDGE FILTER:
-      // Only include submissions strictly alloted to this judge!
+      // Only include submissions strictly alloted to this judge for their active round!
       const judgeOnlyList = list.filter((sub) => {
-        const inJudges =
-          Array.isArray(sub.allotedJudges) &&
-          sub.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
-        const inJudgeTeams = sub.teamId && allotedTeamIds.includes(sub.teamId);
-        return inJudges || inJudgeTeams;
+        const activeJudges = getActiveAllocatedJudges(sub);
+        if (activeJudges.includes(myEmail)) return true;
+        if (!hasExplicitRoundAllocations(sub) && (!Array.isArray(sub.allotedJudges) || sub.allotedJudges.length === 0)) {
+          return Boolean(sub.teamId && allotedTeamIds.includes(sub.teamId));
+        }
+        return false;
       });
 
       setSubmissions(judgeOnlyList);
@@ -280,13 +284,14 @@ export const JuryzaHub = () => {
       const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
 
       // STRICT JUDGE FILTER:
-      // ONLY teams specifically alloted to this judge! NEVER fallback to all stored teams or unalloted teams!
+      // ONLY teams specifically alloted to this judge in their active round!
       const myTeams = stored.filter((s) => {
-        const inJudges =
-          Array.isArray(s.allotedJudges) &&
-          s.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
-        const inJudgeTeams = s.teamId && allotedTeamIds.includes(s.teamId);
-        return inJudges || inJudgeTeams;
+        const activeJudges = getActiveAllocatedJudges(s);
+        if (activeJudges.includes(myEmail)) return true;
+        if (!hasExplicitRoundAllocations(s) && (!Array.isArray(s.allotedJudges) || s.allotedJudges.length === 0)) {
+          return Boolean(s.teamId && allotedTeamIds.includes(s.teamId));
+        }
+        return false;
       });
 
       setSubmissions(myTeams);
@@ -712,6 +717,14 @@ export const JuryzaHub = () => {
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                 {submissions.map((sub) => {
                   const isSelected = selectedSubmission?.teamId === sub.teamId;
+                  const activeStageLabel = normalizeStageLabel(sub.stage);
+                  const activeRound = getStageRoundNum(sub.stage);
+                  const myEmail = (judgeEmail || "").toLowerCase().trim();
+                  const myRoundEval = (sub.evaluations || []).find(
+                    (ev) =>
+                      (ev.judgeEmail || "").toLowerCase().trim() === myEmail &&
+                      Number(ev.round || 1) === activeRound,
+                  );
                   return (
                     <button
                       key={sub.teamId}
@@ -723,21 +736,25 @@ export const JuryzaHub = () => {
                           : "border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)]"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-mono font-bold text-[var(--accent)]">
                           {sub.teamId}
                         </span>
-                        <span className="text-[10px] uppercase font-semibold text-[var(--muted)]">
-                          {sub.category}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          myRoundEval
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        }`}>
+                          {myRoundEval ? `Scored ${myRoundEval.totalScore}/50` : "Pending"}
                         </span>
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-[var(--text)] mt-1 truncate">
                         {sub.teamName}
                       </h4>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]/50 text-[10px] text-[var(--muted)]">
-                        <span>{sub.theme}</span>
-                        <span className="capitalize font-semibold text-[var(--text)]">
-                          {sub.stage || "submitted"}
+                        <span className="truncate max-w-[140px]">{sub.theme}</span>
+                        <span className="font-bold text-[var(--primary)] shrink-0">
+                          {activeStageLabel}
                         </span>
                       </div>
                     </button>

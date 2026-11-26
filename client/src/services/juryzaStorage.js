@@ -229,6 +229,116 @@ const pickRicherMedia = (primary, secondary) => {
   return primary?.originalName || primary?.name || primary?.localPath ? primary : secondary || primary;
 };
 
+const normalizeEmailList = (arr) =>
+  Array.from(
+    new Set(
+      (Array.isArray(arr) ? arr : [])
+        .map((e) => String(e || "").toLowerCase().trim())
+        .filter((e) => Boolean(e) && e !== "unallocated"),
+    ),
+  );
+
+export const normalizeStageLabel = (stageStr) => {
+  const s = String(stageStr || "Round 1").toLowerCase().trim();
+  if (s.includes("not selected") || s.includes("not shortlisted")) return "Not Selected";
+  if (s.includes("selected") || s.includes("shortlisted") || s.includes("winner")) return "Selected";
+  if (s.includes("round 3") || /\br3\b/.test(s)) return "Round 3";
+  if (s.includes("round 2") || /\br2\b/.test(s)) return "Round 2";
+  return "Round 1";
+};
+
+export const normalizeRoundNumber = (stageOrRound) => {
+  const s = String(stageOrRound || "Round 1").toLowerCase();
+  if (s.includes("3")) return 3;
+  if (s.includes("2")) return 2;
+  return 1;
+};
+
+export const normalizeRoundKey = (roundInput, stageStr = "Round 1") => {
+  if (roundInput !== undefined && roundInput !== null && String(roundInput).trim() !== "") {
+    return `round${normalizeRoundNumber(roundInput)}`;
+  }
+  return `round${normalizeRoundNumber(stageStr)}`;
+};
+
+export const hasExplicitRoundAllocations = (sub) => {
+  if (!sub) return false;
+  if (sub.roundAllocationsConfigured) return true;
+  const ra = sub.roundAllocations || {};
+  return (
+    normalizeEmailList(ra.round1).length > 0 ||
+    normalizeEmailList(ra.round2).length > 0 ||
+    normalizeEmailList(ra.round3).length > 0
+  );
+};
+
+export const getAllocatedJudgesForRound = (sub, roundInput) => {
+  if (!sub) return [];
+  const key = normalizeRoundKey(roundInput, sub.stage);
+  const ra = sub.roundAllocations || {};
+  if (hasExplicitRoundAllocations(sub)) {
+    return normalizeEmailList(ra[key]);
+  }
+  if (key === normalizeRoundKey(null, sub.stage)) {
+    return normalizeEmailList(sub.allotedJudges);
+  }
+  return [];
+};
+
+export const getActiveAllocatedJudges = (sub) => {
+  if (!sub) return [];
+  if (!hasExplicitRoundAllocations(sub)) {
+    return normalizeEmailList(sub.allotedJudges);
+  }
+  const s = String(sub.stage || "Round 1").toLowerCase();
+  const ra = sub.roundAllocations || {};
+  if (s.includes("selected")) {
+    const r3 = normalizeEmailList(ra.round3);
+    if (r3.length > 0) return r3;
+    const r2 = normalizeEmailList(ra.round2);
+    if (r2.length > 0) return r2;
+    const r1 = normalizeEmailList(ra.round1);
+    if (r1.length > 0) return r1;
+    return normalizeEmailList(sub.allotedJudges);
+  }
+  const key = normalizeRoundKey(null, sub.stage);
+  return normalizeEmailList(ra[key]);
+};
+
+export const getAllEverAllocatedJudges = (sub) => {
+  if (!sub) return [];
+  const ra = sub.roundAllocations || {};
+  return normalizeEmailList([
+    ...(sub.allotedJudges || []),
+    ...(ra.round1 || []),
+    ...(ra.round2 || []),
+    ...(ra.round3 || []),
+  ]);
+};
+
+const syncSubmissionActiveJudges = (sub, users) => {
+  const activeEmails = getActiveAllocatedJudges(sub);
+  sub.allotedJudges = activeEmails;
+  sub.allotedJudgeNames = activeEmails.map((email) => {
+    const j = (users || []).find(
+      (u) => (u.email || "").toLowerCase().trim() === email && u.role === "judge",
+    );
+    return j ? j.name : email;
+  });
+  return activeEmails;
+};
+
+const syncUsersAllotedTeams = (subs, users) => {
+  users.forEach((u) => {
+    if (u.role === "judge") {
+      const jEmail = (u.email || "").toLowerCase().trim();
+      u.allotedTeams = subs
+        .filter((s) => getActiveAllocatedJudges(s).includes(jEmail))
+        .map((s) => s.teamId);
+    }
+  });
+};
+
 /**
  * Merge two lists of submissions, deduplicating by teamId and keeping newer or richer versions
  */
@@ -248,11 +358,14 @@ export const mergeSubmissions = (localSubs = [], remoteSubs = []) => {
       const eTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
       const winner = rTime >= eTime ? r : existing;
       const loser = rTime >= eTime ? existing : r;
+      const winnerRa = hasExplicitRoundAllocations(winner) ? winner.roundAllocations : loser.roundAllocations;
       map.set(r.teamId, {
         ...winner,
         video: pickRicherMedia(winner.video, loser.video),
         document: pickRicherMedia(winner.document, loser.document),
         plainPassword: winner.plainPassword || loser.plainPassword,
+        roundAllocations: winnerRa || { round1: [], round2: [], round3: [] },
+        roundAllocationsConfigured: Boolean(winner.roundAllocationsConfigured || loser.roundAllocationsConfigured),
         evaluations:
           Array.isArray(winner.evaluations) && winner.evaluations.length >= (loser.evaluations?.length || 0)
             ? winner.evaluations
@@ -1243,13 +1356,30 @@ export const clientRegisterSubmission = ({
  */
 export const updateStoredSubmissionStage = (teamId, newStage) => {
   const subs = getStoredSubmissions();
+  const users = getStoredUsers();
   const index = subs.findIndex((s) => s.teamId === teamId);
   if (index !== -1) {
-    subs[index].stage = newStage;
-    subs[index].updatedAt = new Date().toISOString();
+    const sub = subs[index];
+    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
+      const prevKey = normalizeRoundKey(null, sub.stage);
+      sub.roundAllocations = {
+        round1: [],
+        round2: [],
+        round3: [],
+        ...(sub.roundAllocations || {}),
+        [prevKey]: normalizeEmailList(sub.allotedJudges),
+      };
+      sub.roundAllocationsConfigured = true;
+    }
+    sub.stage = newStage;
+    sub.status = newStage;
+    sub.updatedAt = new Date().toISOString();
+    syncSubmissionActiveJudges(sub, users);
+    syncUsersAllotedTeams(subs, users);
     saveStoredSubmissions(subs);
-    pushCloudState({ submissions: subs }).catch(() => {});
-    return subs[index];
+    saveStoredUsers(users);
+    pushCloudState({ submissions: subs, users }).catch(() => {});
+    return sub;
   }
   return null;
 };
@@ -1287,36 +1417,34 @@ export const updateStoredSubmissionDetails = async (teamId, patchData) => {
     }
   }
 
-  // 2. Alloted Judge synchronization
-  if (patchData.allotedJudge !== undefined) {
+  // 2. Round-wise or single Alloted Judge synchronization
+  if (patchData.roundAllocations && typeof patchData.roundAllocations === "object") {
+    const users = getStoredUsers();
+    updated.roundAllocations = {
+      round1: normalizeEmailList(patchData.roundAllocations.round1),
+      round2: normalizeEmailList(patchData.roundAllocations.round2),
+      round3: normalizeEmailList(patchData.roundAllocations.round3),
+    };
+    updated.roundAllocationsConfigured = true;
+    syncSubmissionActiveJudges(updated, users);
+    subs[index] = updated;
+    syncUsersAllotedTeams(subs, users);
+    saveStoredUsers(users);
+  } else if (patchData.allotedJudge !== undefined) {
     const cleanJudge = (patchData.allotedJudge || "").toLowerCase().trim();
     const users = getStoredUsers();
-    if (!cleanJudge) {
-      updated.allotedJudges = [];
-      updated.allotedJudgeNames = [];
-      if (updated.stage === "allocated to a judge") updated.stage = "submitted";
-      users.forEach((u) => {
-        if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
-          u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
-        }
-      });
-    } else {
-      const targetJudge = users.find((u) => u.email === cleanJudge && u.role === "judge");
-      const jName = targetJudge ? targetJudge.name : cleanJudge;
-      updated.allotedJudges = [cleanJudge];
-      updated.allotedJudgeNames = [jName];
-      if (updated.stage === "submitted") updated.stage = "allocated to a judge";
-      users.forEach((u) => {
-        if (u.role === "judge") {
-          if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
-          if (u.email === cleanJudge) {
-            if (!u.allotedTeams.includes(teamId)) u.allotedTeams.push(teamId);
-          } else {
-            u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
-          }
-        }
-      });
-    }
+    const activeKey = normalizeRoundKey(null, updated.stage);
+    updated.roundAllocations = {
+      round1: [],
+      round2: [],
+      round3: [],
+      ...(updated.roundAllocations || {}),
+      [activeKey]: cleanJudge ? [cleanJudge] : [],
+    };
+    updated.roundAllocationsConfigured = true;
+    syncSubmissionActiveJudges(updated, users);
+    subs[index] = updated;
+    syncUsersAllotedTeams(subs, users);
     saveStoredUsers(users);
   }
 
@@ -1403,7 +1531,7 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
     judge.passwordHash = await hashPassword(patchData.password);
   }
 
-  // Handle Alloted Teams synchronization
+  // Handle Alloted Teams synchronization cleanly with active round allocations
   if (Array.isArray(patchData.allotedTeams)) {
     judge.allotedTeams = patchData.allotedTeams;
     const subs = getStoredSubmissions();
@@ -1411,29 +1539,31 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
     const jName = patchData.name || judge.name;
 
     subs.forEach((s) => {
-      if (!Array.isArray(s.allotedJudges)) s.allotedJudges = [];
-      if (!Array.isArray(s.allotedJudgeNames)) s.allotedJudgeNames = [];
-
-      const shouldBeAssigned = patchData.allotedTeams.includes(s.teamId);
-      if (shouldBeAssigned) {
-        if (!s.allotedJudges.some((e) => e.toLowerCase() === jEmail)) {
-          s.allotedJudges.push(jEmail);
-          s.allotedJudgeNames.push(jName);
-        }
-        if (s.stage === "submitted") {
-          s.stage = "allocated to a judge";
-        }
-      } else {
-        s.allotedJudges = s.allotedJudges.filter(
-          (e) => e.toLowerCase() !== jEmail && e.toLowerCase() !== oldEmail
-        );
-        s.allotedJudgeNames = s.allotedJudgeNames.filter(
-          (n) => n !== jName && n !== judge.name
-        );
-        if (s.allotedJudges.length === 0 && s.stage === "allocated to a judge") {
-          s.stage = "submitted";
-        }
+      if (!s.roundAllocations) {
+        s.roundAllocations = { round1: [], round2: [], round3: [] };
       }
+      if (!hasExplicitRoundAllocations(s) && normalizeEmailList(s.allotedJudges).length > 0) {
+        const legacyKey = normalizeRoundKey(null, s.stage);
+        s.roundAllocations[legacyKey] = normalizeEmailList(s.allotedJudges);
+      }
+
+      const activeKey = normalizeRoundKey(null, s.stage);
+      const currentRoundList = normalizeEmailList(s.roundAllocations[activeKey]);
+      const shouldBeAssigned = patchData.allotedTeams.includes(s.teamId);
+
+      if (shouldBeAssigned) {
+        if (!currentRoundList.includes(jEmail)) {
+          s.roundAllocations[activeKey] = [...currentRoundList, jEmail];
+        }
+        s.roundAllocationsConfigured = true;
+      } else if (currentRoundList.includes(jEmail) || currentRoundList.includes(oldEmail)) {
+        s.roundAllocations[activeKey] = currentRoundList.filter(
+          (e) => e !== jEmail && e !== oldEmail,
+        );
+        s.roundAllocationsConfigured = true;
+      }
+
+      syncSubmissionActiveJudges(s, [...users.filter((u) => u.email !== judge.email), { ...judge, email: jEmail, name: jName }]);
     });
     saveStoredSubmissions(subs);
   }
@@ -1465,102 +1595,126 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
 };
 
 /**
- * Client-Side Judge Allocation & Unallocation
+ * Client-Side Judge Allocation & Unallocation (Supports Round 1, Round 2, Round 3)
  */
-export const allocateStoredSubmission = (teamId, judgeEmail) => {
-  const cleanEmail = (judgeEmail || "").toLowerCase().trim();
+export const allocateStoredSubmission = (teamId, judgeEmailOrEmails, roundInput) => {
+  const rawList = Array.isArray(judgeEmailOrEmails)
+    ? judgeEmailOrEmails
+    : [judgeEmailOrEmails];
+  const cleanEmails = normalizeEmailList(rawList);
   const subs = getStoredSubmissions();
   const users = getStoredUsers();
 
   const subIndex = subs.findIndex((s) => s.teamId === teamId);
-
-  // If unallocating
-  if (!cleanEmail || cleanEmail === "unallocated") {
-    if (subIndex !== -1) {
-      subs[subIndex].allotedJudges = [];
-      subs[subIndex].allotedJudgeNames = [];
-      if (subs[subIndex].stage === "allocated to a judge") {
-        subs[subIndex].stage = "submitted";
-      }
-      saveStoredSubmissions(subs);
+  if (subIndex !== -1) {
+    const sub = subs[subIndex];
+    if (!sub.roundAllocations) {
+      sub.roundAllocations = { round1: [], round2: [], round3: [] };
+    }
+    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
+      const legacyKey = normalizeRoundKey(null, sub.stage);
+      sub.roundAllocations[legacyKey] = normalizeEmailList(sub.allotedJudges);
     }
 
-    // Remove teamId from all judges' allotedTeams
-    users.forEach((u) => {
-      if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
-        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
-      }
-    });
+    const targetKey = normalizeRoundKey(roundInput, sub.stage);
+    sub.roundAllocations[targetKey] = cleanEmails;
+    sub.roundAllocationsConfigured = true;
+    sub.updatedAt = new Date().toISOString();
+    syncSubmissionActiveJudges(sub, users);
+    syncUsersAllotedTeams(subs, users);
+
+    saveStoredSubmissions(subs);
     saveStoredUsers(users);
     pushCloudState({ submissions: subs, users }).catch(() => {});
-
-    return { success: true, teamId, unallocated: true, subs, users };
   }
 
-  // Allocating to a specific judge
-  const targetJudge = users.find((u) => u.email === cleanEmail && u.role === "judge");
-  const judgeName = targetJudge ? targetJudge.name : cleanEmail;
-
-  if (subIndex !== -1) {
-    subs[subIndex].allotedJudges = [cleanEmail];
-    subs[subIndex].allotedJudgeNames = [judgeName];
-    if (subs[subIndex].stage === "submitted") {
-      subs[subIndex].stage = "allocated to a judge";
-    }
-    saveStoredSubmissions(subs);
-  }
-
-  // Remove teamId from all other judges, and add to target judge
-  users.forEach((u) => {
-    if (u.role === "judge") {
-      if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
-      if (u.email === cleanEmail) {
-        if (!u.allotedTeams.includes(teamId)) {
-          u.allotedTeams.push(teamId);
-        }
-      } else {
-        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
-      }
-    }
-  });
-  saveStoredUsers(users);
-  pushCloudState({ submissions: subs, users }).catch(() => {});
-
-  return { success: true, teamId, judgeEmail: cleanEmail, subs, users };
+  return {
+    success: true,
+    teamId,
+    judgeEmails: cleanEmails,
+    unallocated: cleanEmails.length === 0,
+    subs,
+    users,
+  };
 };
 
 /**
- * Client-Side Auto-Allocation of All Teams
+ * Save complete Round 1 / Round 2 / Round 3 judge panel allocation for a team
  */
-export const autoAllocateStoredSubmissions = () => {
+export const saveStoredRoundAllocations = (teamId, roundAllocations) => {
+  const subs = getStoredSubmissions();
+  const users = getStoredUsers();
+  const subIndex = subs.findIndex((s) => s.teamId === teamId);
+  if (subIndex !== -1) {
+    subs[subIndex].roundAllocations = {
+      round1: normalizeEmailList(roundAllocations?.round1),
+      round2: normalizeEmailList(roundAllocations?.round2),
+      round3: normalizeEmailList(roundAllocations?.round3),
+    };
+    subs[subIndex].roundAllocationsConfigured = true;
+    subs[subIndex].updatedAt = new Date().toISOString();
+    syncSubmissionActiveJudges(subs[subIndex], users);
+    syncUsersAllotedTeams(subs, users);
+    saveStoredSubmissions(subs);
+    saveStoredUsers(users);
+    pushCloudState({ submissions: subs, users }).catch(() => {});
+  }
+  return { success: true, teamId, subs, users };
+};
+
+/**
+ * Client-Side Auto-Allocation of All Eligible Teams in a Target Round
+ */
+export const autoAllocateStoredSubmissions = (roundInput = "round1") => {
   const subs = getStoredSubmissions();
   const users = getStoredUsers();
   const judges = users.filter((u) => u.role === "judge");
 
   if (judges.length === 0) return { success: false, message: "No judges registered yet." };
 
-  // Clear previous allocations
-  judges.forEach((j) => {
-    j.allotedTeams = [];
+  const targetKey = normalizeRoundKey(roundInput, "Round 1");
+  const targetRoundNum = Number(targetKey.replace("round", ""));
+
+  const eligibleSubs = subs.filter((sub) => {
+    const s = String(sub.stage || "Round 1").toLowerCase();
+    if (s.includes("selected")) return false;
+    return normalizeRoundNumber(sub.stage) === targetRoundNum;
   });
 
-  subs.forEach((sub, idx) => {
+  if (eligibleSubs.length === 0) {
+    return {
+      success: false,
+      allocatedCount: 0,
+      message: `No teams are currently in Round ${targetRoundNum} to auto-allocate.`,
+    };
+  }
+
+  eligibleSubs.forEach((sub, idx) => {
     const judge = judges[idx % judges.length];
-    sub.allotedJudges = [judge.email];
-    sub.allotedJudgeNames = [judge.name];
-    if (sub.stage === "submitted") {
-      sub.stage = "allocated to a judge";
+    if (!sub.roundAllocations) {
+      sub.roundAllocations = { round1: [], round2: [], round3: [] };
     }
-
-    if (!judge.allotedTeams.includes(sub.teamId)) {
-      judge.allotedTeams.push(sub.teamId);
+    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0 && targetKey !== "round1") {
+      sub.roundAllocations.round1 = normalizeEmailList(sub.allotedJudges);
     }
+    sub.roundAllocations[targetKey] = [judge.email.toLowerCase().trim()];
+    sub.roundAllocationsConfigured = true;
+    sub.updatedAt = new Date().toISOString();
+    syncSubmissionActiveJudges(sub, users);
   });
 
+  syncUsersAllotedTeams(subs, users);
   saveStoredSubmissions(subs);
   saveStoredUsers(users);
   pushCloudState({ submissions: subs, users }).catch(() => {});
-  return { success: true, count: subs.length, subs, users };
+  return {
+    success: true,
+    allocatedCount: eligibleSubs.length,
+    count: eligibleSubs.length,
+    round: targetKey,
+    subs,
+    users,
+  };
 };
 
 /**

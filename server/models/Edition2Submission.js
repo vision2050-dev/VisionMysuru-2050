@@ -102,7 +102,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Alloted Judge Gmail IDs
+    // Alloted Judge Gmail IDs (tracks active round's assigned judges for compatibility)
     allotedJudges: {
       type: [String],
       default: [],
@@ -111,6 +111,16 @@ const Edition2SubmissionSchema = new mongoose.Schema(
     allotedJudgeNames: {
       type: [String],
       default: [],
+    },
+    // Round-Wise Judge Allocations managed exclusively by Admins
+    roundAllocations: {
+      round1: { type: [String], default: [] },
+      round2: { type: [String], default: [] },
+      round3: { type: [String], default: [] },
+    },
+    roundAllocationsConfigured: {
+      type: Boolean,
+      default: false,
     },
 
     // Evaluation Engine Metrics
@@ -126,6 +136,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       {
         judgeEmail: String,
         judgeName: String,
+        round: { type: Number, default: 1 },
         rubric: Object,
         totalScore: Number,
         notes: String,

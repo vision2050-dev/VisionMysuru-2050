@@ -57,7 +57,11 @@ import {
   resolveSubmissionMedia,
   sanitizeSubmissionForStorage,
   mergeSubmissions,
-  getDriveFileId,
+  saveStoredRoundAllocations,
+  getAllocatedJudgesForRound,
+  getActiveAllocatedJudges,
+  normalizeRoundNumber,
+  normalizeStageLabel,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -82,6 +86,13 @@ export const AdminJuryzaPlatform = () => {
 
   // Allocation state
   const [allocating, setAllocating] = useState(false);
+  const [autoAllocateRound, setAutoAllocateRound] = useState("round1");
+  const [allocatingTeamModal, setAllocatingTeamModal] = useState(null);
+  const [roundAllocationForm, setRoundAllocationForm] = useState({
+    round1: [],
+    round2: [],
+    round3: [],
+  });
 
   // Media Inspection Modal State
   const [previewingSubmission, setPreviewingSubmission] = useState(null);
@@ -118,6 +129,7 @@ export const AdminJuryzaPlatform = () => {
     documentFileName: "",
     documentUrl: "",
     allotedJudge: "",
+    roundAllocations: { round1: [], round2: [], round3: [] },
     createdAt: "",
   });
 
@@ -385,108 +397,161 @@ export const AdminJuryzaPlatform = () => {
     }
   };
 
-  // Status Change (Both Admin and Jury can change stage)
+  // Status Change (Admin Exclusive: manages Round 1/2/3 transitions and Selected/Not Selected)
   const handleStageChange = async (teamId, newStage) => {
     try {
       await api.patch(`/api/v2/submissions/${teamId}/status`, { stage: newStage });
       toast.success(`Submission status updated to '${newStage}'!`);
     } catch {
       console.warn("API unavailable, updating locally...");
+      toast.success(`Submission status updated to '${newStage}'.`);
     }
 
-    updateStoredSubmissionStage(teamId, newStage);
-    setSubmissions((prev) =>
-      prev.map((s) => (s.teamId === teamId ? { ...s, stage: newStage } : s)),
-    );
+    const updatedSub = updateStoredSubmissionStage(teamId, newStage);
+    const syncedSubs = getStoredSubmissions();
+    const syncedJudges = getStoredUsers().filter((u) => u.role === "judge");
+    if (syncedSubs.length > 0) {
+      setSubmissions(syncedSubs);
+    } else if (updatedSub) {
+      setSubmissions((prev) =>
+        prev.map((s) => (s.teamId === teamId ? { ...s, ...updatedSub, stage: newStage } : s)),
+      );
+    }
+    if (syncedJudges.length > 0) {
+      setJudges(syncedJudges);
+    }
   };
 
-  // Manual Allocation & Unallocation
-  const handleAllocate = async (teamId, judgeEmailToAssign) => {
-    const cleanEmail = (judgeEmailToAssign || "").toLowerCase().trim();
-    const isUnallocating = !cleanEmail;
+  // Round-Wise Judge Allocation (Supports single dropdown or panel array per round)
+  const handleAllocateRound = async (teamId, roundKey, judgeEmailOrEmails) => {
+    const rawArr = Array.isArray(judgeEmailOrEmails)
+      ? judgeEmailOrEmails
+      : [judgeEmailOrEmails];
+    const cleanEmails = Array.from(
+      new Set(
+        rawArr
+          .map((e) => String(e || "").toLowerCase().trim())
+          .filter((e) => Boolean(e) && e !== "unallocated"),
+      ),
+    );
+    const isUnallocating = cleanEmails.length === 0;
+    const roundLabel =
+      roundKey === "round3" ? "Round 3" : roundKey === "round2" ? "Round 2" : "Round 1";
 
     try {
       setAllocating(true);
       await api.post("/api/v2/admin/allocate", {
         teamId,
-        judgeEmail: cleanEmail,
-        judgeEmails: isUnallocating ? [] : [cleanEmail],
+        round: roundKey,
+        judgeEmail: cleanEmails[0] || "",
+        judgeEmails: cleanEmails,
       });
       if (isUnallocating) {
-        toast.success("Team marked as unallocated.");
+        toast.success(`${roundLabel} judge cleared for team ${teamId}.`);
       } else {
-        toast.success("Team assigned to judge successfully!");
+        toast.success(`${roundLabel} judge assignment updated!`);
       }
     } catch {
       console.warn("API unavailable, allocating locally...");
+      toast.success(
+        isUnallocating
+          ? `${roundLabel} judge cleared.`
+          : `${roundLabel} judge assignment updated!`,
+      );
     }
 
-    allocateStoredSubmission(teamId, cleanEmail);
-
-    // Update submissions state reactively
-    setSubmissions((prev) =>
-      prev.map((s) => {
-        if (s.teamId !== teamId) return s;
-        if (isUnallocating) {
-          return {
-            ...s,
-            allotedJudges: [],
-            allotedJudgeNames: [],
-            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
-          };
-        }
-        const targetJudge = judges.find((j) => j.email.toLowerCase() === cleanEmail);
-        return {
-          ...s,
-          allotedJudges: [cleanEmail],
-          allotedJudgeNames: [targetJudge?.name || cleanEmail],
-          stage: s.stage === "submitted" ? "allocated to a judge" : s.stage,
-        };
-      }),
-    );
-
-    // Update judges state as well
-    setJudges((prev) =>
-      prev.map((j) => {
-        const jEmail = (j.email || "").toLowerCase().trim();
-        const currentTeams = Array.isArray(j.allotedTeams) ? j.allotedTeams : [];
-        if (isUnallocating) {
-          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
-        }
-        if (jEmail === cleanEmail) {
-          return {
-            ...j,
-            allotedTeams: currentTeams.includes(teamId) ? currentTeams : [...currentTeams, teamId],
-          };
-        } else {
-          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
-        }
-      }),
-    );
-
-    setAllocating(false);
-  };
-
-  // Automated Round-Robin Allocation
-  const handleAutoAllocate = async () => {
-    if (judges.length === 0) {
-      toast.error("No judges available in roster to allocate teams!");
-      return;
-    }
-    try {
-      await api.post("/api/v2/admin/allocate", { mode: "auto" });
-    } catch {
-      console.warn("API unavailable, auto-allocating locally...");
-    }
-
-    const res = autoAllocateStoredSubmissions();
+    const res = allocateStoredSubmission(teamId, cleanEmails, roundKey);
     if (res?.subs) {
       setSubmissions([...res.subs]);
     }
     if (res?.users) {
       setJudges([...res.users.filter((u) => u.role === "judge")]);
     }
-    toast.success(`Allocated teams evenly across ${judges.length} judges!`);
+
+    setAllocating(false);
+  };
+
+  const handleOpenPanelAllocation = (sub) => {
+    setRoundAllocationForm({
+      round1: getAllocatedJudgesForRound(sub, 1),
+      round2: getAllocatedJudgesForRound(sub, 2),
+      round3: getAllocatedJudgesForRound(sub, 3),
+    });
+    setAllocatingTeamModal(sub);
+  };
+
+  const handleToggleRoundPanelJudge = (roundKey, judgeEmail) => {
+    const cleanEmail = (judgeEmail || "").toLowerCase().trim();
+    if (!cleanEmail) return;
+    setRoundAllocationForm((prev) => {
+      const current = Array.isArray(prev[roundKey]) ? prev[roundKey] : [];
+      const exists = current.includes(cleanEmail);
+      return {
+        ...prev,
+        [roundKey]: exists
+          ? current.filter((e) => e !== cleanEmail)
+          : [...current, cleanEmail],
+      };
+    });
+  };
+
+  const handleSavePanelAllocation = async (e) => {
+    e.preventDefault();
+    if (!allocatingTeamModal) return;
+    setAllocating(true);
+    try {
+      await api.post("/api/v2/admin/allocate", {
+        teamId: allocatingTeamModal.teamId,
+        roundAllocations: roundAllocationForm,
+      });
+    } catch {
+      console.warn("API unavailable, saving round-wise allocations locally...");
+    }
+
+    const res = saveStoredRoundAllocations(allocatingTeamModal.teamId, roundAllocationForm);
+    if (res?.subs) setSubmissions([...res.subs]);
+    if (res?.users) setJudges([...res.users.filter((u) => u.role === "judge")]);
+    toast.success(`Round-wise judge panel saved for ${allocatingTeamModal.teamName}!`);
+    setAllocatingTeamModal(null);
+    setAllocating(false);
+  };
+
+  // Automated Round-Robin Allocation for Selected Target Round
+  const handleAutoAllocate = async () => {
+    if (judges.length === 0) {
+      toast.error("No judges available in roster to allocate teams!");
+      return;
+    }
+    const targetLabel =
+      autoAllocateRound === "round3"
+        ? "Round 3"
+        : autoAllocateRound === "round2"
+          ? "Round 2"
+          : "Round 1";
+
+    try {
+      await api.post("/api/v2/admin/allocate", {
+        mode: "auto",
+        round: autoAllocateRound,
+      });
+    } catch {
+      console.warn("API unavailable, auto-allocating locally...");
+    }
+
+    const res = autoAllocateStoredSubmissions(autoAllocateRound);
+    if (!res?.success || res.allocatedCount === 0) {
+      toast.error(res?.message || `No teams found in ${targetLabel} to allocate.`);
+      return;
+    }
+    if (res?.subs) {
+      setSubmissions([...res.subs]);
+    }
+    if (res?.users) {
+      setJudges([...res.users.filter((u) => u.role === "judge")]);
+    }
+    toast.success(
+      `Allocated ${res.allocatedCount} ${targetLabel} teams evenly across ${judges.length} judges!`,
+    );
   };
 
   // Create Judge Action
@@ -611,7 +676,12 @@ export const AdminJuryzaPlatform = () => {
       videoUrl: sub.video?.url || sub.video?.webViewLink || "",
       documentFileName: sub.document?.name || sub.document?.originalName || "",
       documentUrl: sub.document?.url || sub.document?.webViewLink || "",
-      allotedJudge: (sub.allotedJudges || [])[0] || "",
+      allotedJudge: getActiveAllocatedJudges(sub)[0] || "",
+      roundAllocations: {
+        round1: getAllocatedJudgesForRound(sub, 1),
+        round2: getAllocatedJudgesForRound(sub, 2),
+        round3: getAllocatedJudgesForRound(sub, 3),
+      },
       createdAt: sub.createdAt ? new Date(sub.createdAt).toISOString().split("T")[0] : "",
     });
     setEditingSubmission(sub);
@@ -1098,18 +1168,28 @@ export const AdminJuryzaPlatform = () => {
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-sm text-[var(--text)]">Team Submissions & Allocations</h3>
-                <p className="text-xs text-[var(--muted)]">Assign judges, inspect uploads, and update competition rounds.</p>
+                <h3 className="font-bold text-sm text-[var(--text)]">Team Submissions & Round-Wise Judge Allocation</h3>
+                <p className="text-xs text-[var(--muted)]">Assign different judges per round (R1, R2, R3), inspect media, and manage round progression.</p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={autoAllocateRound}
+                  onChange={(e) => setAutoAllocateRound(e.target.value)}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-bold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none cursor-pointer"
+                  aria-label="Target Round for Auto-Allocation"
+                >
+                  <option value="round1">For Round 1</option>
+                  <option value="round2">For Round 2</option>
+                  <option value="round3">For Round 3</option>
+                </select>
                 <button
                   type="button"
                   onClick={handleAutoAllocate}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold shadow-md hover:brightness-110 transition cursor-pointer"
                 >
                   <FiUserCheck className="h-3.5 w-3.5" />
-                  <span>Auto-Allocate All Teams</span>
+                  <span>Auto-Allocate Round</span>
                 </button>
               </div>
             </div>
@@ -1122,7 +1202,7 @@ export const AdminJuryzaPlatform = () => {
                       <th className="px-4 py-3">Team Details</th>
                       <th className="px-4 py-3">Focus Area & Leader</th>
                       <th className="px-4 py-3">Compulsory Files</th>
-                      <th className="px-4 py-3">Alloted Judge</th>
+                      <th className="px-4 py-3">Round-Wise Judges (R1 / R2 / R3)</th>
                       <th className="px-4 py-3">Submission Stage</th>
                       <th className="px-4 py-3">Score</th>
                       <th className="px-4 py-3 text-right">Action</th>
@@ -1137,7 +1217,10 @@ export const AdminJuryzaPlatform = () => {
                       </tr>
                     )}
                     {submissions.map((sub) => {
-                      const alloted = (sub.allotedJudges || [])[0] || "";
+                      const activeRoundNum = normalizeRoundNumber(sub.stage);
+                      const r1Judges = getAllocatedJudgesForRound(sub, 1);
+                      const r2Judges = getAllocatedJudgesForRound(sub, 2);
+                      const r3Judges = getAllocatedJudgesForRound(sub, 3);
                       const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
                       const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
                       const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
@@ -1260,21 +1343,67 @@ export const AdminJuryzaPlatform = () => {
                             )}
                           </td>
 
-                          {/* Judge Allocation Dropdown */}
+                          {/* Round-Wise Judge Allocation Controls */}
                           <td className="px-4 py-3.5">
-                            <select
-                              value={alloted}
-                              disabled={allocating}
-                              onChange={(e) => handleAllocate(sub.teamId, e.target.value)}
-                              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer max-w-[160px]"
-                            >
-                              <option value="">Unallocated</option>
-                              {judges.map((j) => (
-                                <option key={j.email} value={j.email}>
-                                  {j.name} ({j.email})
-                                </option>
-                              ))}
-                            </select>
+                            <div className="space-y-1.5 min-w-[205px]">
+                              {[
+                                { key: "round1", num: 1, label: "R1", list: r1Judges },
+                                { key: "round2", num: 2, label: "R2", list: r2Judges },
+                                { key: "round3", num: 3, label: "R3", list: r3Judges },
+                              ].map((rMeta) => {
+                                const isActiveRound =
+                                  activeRoundNum === rMeta.num &&
+                                  !["Selected", "Not Selected"].includes(normalizeStageLabel(sub.stage));
+                                const selectVal =
+                                  rMeta.list.length > 1
+                                    ? "__MULTI__"
+                                    : rMeta.list[0] || "";
+                                return (
+                                  <div key={rMeta.key} className="flex items-center gap-1.5">
+                                    <span
+                                      className={`w-6 text-center rounded px-1 py-0.5 text-[10px] font-bold shrink-0 ${
+                                        isActiveRound
+                                          ? "bg-[var(--primary)] text-white"
+                                          : "bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--border)]"
+                                      }`}
+                                      title={isActiveRound ? `Active Round (${rMeta.label})` : `${rMeta.label} Allocation`}
+                                    >
+                                      {rMeta.label}
+                                    </span>
+                                    <select
+                                      value={selectVal}
+                                      disabled={allocating}
+                                      onChange={(e) => {
+                                        if (e.target.value !== "__MULTI__") {
+                                          handleAllocateRound(sub.teamId, rMeta.key, e.target.value);
+                                        }
+                                      }}
+                                      className="flex-1 min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
+                                    >
+                                      <option value="">Unallocated</option>
+                                      {rMeta.list.length > 1 && (
+                                        <option value="__MULTI__" disabled>
+                                          {rMeta.list.length} Judges Assigned (Panel)
+                                        </option>
+                                      )}
+                                      {judges.map((j) => (
+                                        <option key={j.email} value={(j.email || "").toLowerCase().trim()}>
+                                          {j.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPanelAllocation(sub)}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--primary)] hover:underline cursor-pointer"
+                              >
+                                <FiUsers className="h-3 w-3" />
+                                <span>Manage Multi-Judge Panel</span>
+                              </button>
+                            </div>
                           </td>
 
                           {/* Stage Dropdown */}
@@ -1402,11 +1531,11 @@ export const AdminJuryzaPlatform = () => {
                     )}
                     {judges.map((judge) => {
                       const jEmail = (judge.email || "").toLowerCase().trim();
+                      const r1Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 1).includes(jEmail)).length;
+                      const r2Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 2).includes(jEmail)).length;
+                      const r3Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 3).includes(jEmail)).length;
                       const allotedCount = submissions.filter((s) =>
-                        Array.isArray(s.allotedJudges) &&
-                        s.allotedJudges
-                          .map((e) => (e || "").toLowerCase().trim())
-                          .includes(jEmail)
+                        getActiveAllocatedJudges(s).includes(jEmail),
                       ).length;
 
                       return (
@@ -1451,9 +1580,18 @@ export const AdminJuryzaPlatform = () => {
                             {judge.specialization || "All Tracks"}
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className="font-bold text-xs font-mono bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--border)]">
-                              {allotedCount} {allotedCount === 1 ? "team" : "teams"}
-                            </span>
+                            <div className="space-y-1">
+                              <span className="font-bold text-xs font-mono bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--border)] inline-block">
+                                {allotedCount} active {allotedCount === 1 ? "team" : "teams"}
+                              </span>
+                              <div className="flex items-center gap-1 text-[10px] font-mono text-[var(--muted)]">
+                                <span>R1:{r1Count}</span>
+                                <span>|</span>
+                                <span>R2:{r2Count}</span>
+                                <span>|</span>
+                                <span>R3:{r3Count}</span>
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-3.5 text-[var(--muted)]">
                             {judge.createdAt
@@ -1838,28 +1976,8 @@ export const AdminJuryzaPlatform = () => {
                   </div>
                 </div>
 
-                {/* Alloted Judge & Registered Date */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
-                      Alloted Judge
-                    </label>
-                    <select
-                      value={submissionEditForm.allotedJudge || ""}
-                      onChange={(e) =>
-                        setSubmissionEditForm((prev) => ({ ...prev, allotedJudge: e.target.value }))
-                      }
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
-                    >
-                      <option value="">Unallocated</option>
-                      {judges.map((j) => (
-                        <option key={j.email} value={j.email}>
-                          {j.name} ({j.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
+                {/* Round-Wise Judge Allocation & Registered Date */}
+                <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-[var(--text)] mb-1">
                       Registered Date
@@ -1872,6 +1990,56 @@ export const AdminJuryzaPlatform = () => {
                       }
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
                     />
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 space-y-3">
+                    <h4 className="text-xs font-bold text-[var(--text)]">
+                      Round-Wise Judge Assignments (Rounds 1, 2 & 3)
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { key: "round1", label: "Round 1 Judges" },
+                        { key: "round2", label: "Round 2 Judges" },
+                        { key: "round3", label: "Round 3 Judges" },
+                      ].map((r) => (
+                        <div key={r.key} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 space-y-1.5 max-h-36 overflow-y-auto">
+                          <span className="text-[11px] font-bold text-[var(--primary)] block">
+                            {r.label}
+                          </span>
+                          {judges.length === 0 ? (
+                            <span className="text-[10px] text-[var(--muted)]">No judges created</span>
+                          ) : (
+                            judges.map((j) => {
+                              const jEmail = (j.email || "").toLowerCase().trim();
+                              const selected = (submissionEditForm.roundAllocations?.[r.key] || []).includes(jEmail);
+                              return (
+                                <label key={`${r.key}-${jEmail}`} className="flex items-center gap-1.5 text-[11px] text-[var(--text)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() =>
+                                      setSubmissionEditForm((prev) => {
+                                        const ra = prev.roundAllocations || { round1: [], round2: [], round3: [] };
+                                        const cur = Array.isArray(ra[r.key]) ? ra[r.key] : [];
+                                        const next = cur.includes(jEmail)
+                                          ? cur.filter((x) => x !== jEmail)
+                                          : [...cur, jEmail];
+                                        return {
+                                          ...prev,
+                                          roundAllocations: { ...ra, [r.key]: next },
+                                        };
+                                      })
+                                    }
+                                    className="rounded border-[var(--border)] text-[var(--primary)]"
+                                  />
+                                  <span className="truncate">{j.name}</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -2171,6 +2339,99 @@ export const AdminJuryzaPlatform = () => {
                     className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
                   >
                     {editLoading ? "Saving..." : "Save Judge Changes"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Round-Wise Multi-Judge Panel Modal */}
+      <AnimatePresence>
+        {allocatingTeamModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6 space-y-5"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-3">
+                <div>
+                  <span className="font-mono text-xs font-bold text-[var(--primary)]">
+                    {allocatingTeamModal.teamId}
+                  </span>
+                  <h3 className="oswald text-lg font-bold text-[var(--text)]">
+                    Round-Wise Judge Panel: {allocatingTeamModal.teamName}
+                  </h3>
+                  <p className="text-xs text-[var(--muted)]">
+                    Assign one or multiple judges specifically to Round 1, Round 2, and Round 3.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAllocatingTeamModal(null)}
+                  className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                >
+                  <FiX className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePanelAllocation} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    { key: "round1", title: "Round 1 Panel" },
+                    { key: "round2", title: "Round 2 Panel" },
+                    { key: "round3", title: "Round 3 Panel" },
+                  ].map((r) => (
+                    <div key={r.key} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5 space-y-2 max-h-60 overflow-y-auto">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-[var(--border)]">
+                        <span className="text-xs font-bold text-[var(--text)]">{r.title}</span>
+                        <span className="text-[10px] font-mono text-[var(--primary)] font-bold">
+                          {(roundAllocationForm[r.key] || []).length}
+                        </span>
+                      </div>
+                      {judges.length === 0 ? (
+                        <p className="text-[11px] text-[var(--muted)]">No judges available.</p>
+                      ) : (
+                        judges.map((j) => {
+                          const jEmail = (j.email || "").toLowerCase().trim();
+                          const isChecked = (roundAllocationForm[r.key] || []).includes(jEmail);
+                          return (
+                            <label key={`${r.key}-${jEmail}`} className="flex items-start gap-2 text-xs text-[var(--text)] cursor-pointer py-1">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleRoundPanelJudge(r.key, jEmail)}
+                                className="mt-0.5 rounded border-[var(--border)] text-[var(--primary)]"
+                              />
+                              <span className="min-w-0">
+                                <span className="font-semibold block truncate">{j.name}</span>
+                                <span className="text-[10px] font-mono text-[var(--muted)] block truncate">{j.email}</span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setAllocatingTeamModal(null)}
+                    className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={allocating}
+                    className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
+                  >
+                    {allocating ? "Saving..." : "Save Round-Wise Allocations"}
                   </button>
                 </div>
               </form>
