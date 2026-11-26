@@ -44,22 +44,6 @@ let localSubmissionsStore = [];
 // Helper to check if MongoDB is connected
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
-// Helper to build safe query by Mongo ObjectId or teamId without CastError
-const buildIdOrTeamQuery = (id) =>
-  mongoose.isValidObjectId(id) ? { $or: [{ _id: id }, { teamId: id }] } : { teamId: id };
-
-// Helper to extract Google Drive file ID cleanly
-const extractDriveFileId = (url) => {
-  if (!url || typeof url !== "string") return null;
-  const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileMatch) return fileMatch[1];
-  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idMatch) return idMatch[1];
-  const dMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (dMatch) return dMatch[1];
-  return null;
-};
-
 // Helper to trigger spreadsheet sync in background
 const triggerSpreadsheetUpdate = async () => {
   try {
@@ -578,39 +562,34 @@ export const registerEdition2Submission = async (req, res) => {
     }
 
     const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
-    const documentDriveUrl = (req.body.documentDriveUrl || req.body.documentUrl || "").trim();
 
     // Strictly disallow YouTube links
-    if (
-      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
-      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
-    ) {
+    if (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) {
       return res.status(400).json({
-        message: "YouTube links are strictly not allowed. Please upload your media to Google Drive and provide a Google Drive view link.",
+        message: "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
       });
     }
 
-    // Allow uploading both Pitch Video and Proposal Document simultaneously (at least one required)
+    // Verify mutually exclusive submission: Teams must upload either a Pitch Video OR a Proposal Document, NOT both
     const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
-    const hasDoc = Boolean(documentDriveUrl || hasDocFile);
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
 
-    if (!hasVideo && !hasDoc) {
+    if (hasVideo && hasDocFile) {
       return res.status(400).json({
-        message: "Please provide at least one submission: pitch video (Google Drive link or .mp4 <= 25 MB) and/or proposal document (Google Drive link or .pdf <= 5 MB). Submitting both is strongly recommended.",
+        message: "Teams are not allowed to submit both. Please provide either a pitch video OR a proposal document, not both.",
+      });
+    }
+
+    if (!hasVideo && !hasDocFile) {
+      return res.status(400).json({
+        message: "Please provide your submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) OR a proposal document (.pdf ≤ 5 MB).",
       });
     }
 
     if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
       return res.status(400).json({
         message: "Pitch video link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
-      });
-    }
-
-    if (documentDriveUrl && !documentDriveUrl.includes("drive.google.com")) {
-      return res.status(400).json({
-        message: "Proposal document link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
       });
     }
 
@@ -624,7 +603,7 @@ export const registerEdition2Submission = async (req, res) => {
 
     // Rename files with Team ID prefix for clean separation
     const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const videoNewName = hasVideoFile ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
+    const videoNewName = hasVideo ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
     const docNewName = hasDocFile ? `[${teamId}]_${cleanTeamName}_Proposal.pdf` : "";
 
     const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
@@ -693,18 +672,13 @@ export const registerEdition2Submission = async (req, res) => {
         webViewLink: "",
         driveFileId: null,
       },
-      document: hasDoc ? {
-        name: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
-        originalName: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
-        localPath: finalDocPath || "",
-        size: docFile ? docFile.size : 2000000,
-        url: documentDriveUrl || "",
-        webViewLink: documentDriveUrl || "",
-        driveFileId: documentDriveUrl
-          ? (documentDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
-             documentDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
-             null)
-          : null,
+      document: hasDocFile ? {
+        name: docNewName,
+        originalName: docNewName,
+        localPath: finalDocPath,
+        size: docFile ? docFile.size : 0,
+        url: "",
+        webViewLink: "",
       } : {
         name: "",
         originalName: "",
@@ -712,7 +686,6 @@ export const registerEdition2Submission = async (req, res) => {
         size: 0,
         url: "",
         webViewLink: "",
-        driveFileId: null,
       },
       members: parsedMembers,
       institution: institution || "N/A",
@@ -831,92 +804,6 @@ export const registerEdition2Submission = async (req, res) => {
  * - Admin sees ALL submissions
  * - Judges see ONLY submissions alloted to their Gmail ID
  */
-const normalizeRoundNumFromStage = (stageStr) => {
-  const s = String(stageStr || "Round 1").toLowerCase();
-  if (s.includes("round 3") || /\br3\b/.test(s)) return 3;
-  if (s.includes("round 2") || /\br2\b/.test(s)) return 2;
-  return 1;
-};
-
-const normalizeRoundKey = (roundInput, stageStr = "Round 1") => {
-  if (roundInput !== undefined && roundInput !== null && String(roundInput).trim() !== "") {
-    const str = String(roundInput).toLowerCase();
-    if (str.includes("3")) return "round3";
-    if (str.includes("2")) return "round2";
-    return "round1";
-  }
-  return `round${normalizeRoundNumFromStage(stageStr)}`;
-};
-
-const normalizeEmailList = (arr) =>
-  Array.from(
-    new Set(
-      (Array.isArray(arr) ? arr : [])
-        .map((e) => String(e || "").toLowerCase().trim())
-        .filter(Boolean),
-    ),
-  );
-
-const hasExplicitRoundAllocations = (sub) => {
-  if (!sub) return false;
-  if (sub.roundAllocationsConfigured) return true;
-  const ra = sub.roundAllocations || {};
-  return (
-    normalizeEmailList(ra.round1).length > 0 ||
-    normalizeEmailList(ra.round2).length > 0 ||
-    normalizeEmailList(ra.round3).length > 0
-  );
-};
-
-const getActiveRoundJudgesForSub = (sub) => {
-  if (!sub) return [];
-  const s = String(sub.stage || "Round 1").toLowerCase();
-  const ra = sub.roundAllocations || {};
-
-  if (!hasExplicitRoundAllocations(sub)) {
-    return normalizeEmailList(sub.allotedJudges);
-  }
-
-  if (s.includes("selected")) {
-    const r3 = normalizeEmailList(ra.round3);
-    if (r3.length > 0) return r3;
-    const r2 = normalizeEmailList(ra.round2);
-    if (r2.length > 0) return r2;
-    const r1 = normalizeEmailList(ra.round1);
-    if (r1.length > 0) return r1;
-    return normalizeEmailList(sub.allotedJudges);
-  }
-
-  const roundKey = normalizeRoundKey(null, sub.stage);
-  return normalizeEmailList(ra[roundKey]);
-};
-
-const resolveJudgeNames = (emails, judgesList) =>
-  emails.map((email) => {
-    const match = judgesList.find((j) => (j.email || "").toLowerCase().trim() === email);
-    return match ? match.name : email;
-  });
-
-const syncSubActiveAllocation = (sub, judgesList) => {
-  const activeEmails = getActiveRoundJudgesForSub(sub);
-  sub.allotedJudges = activeEmails;
-  sub.allotedJudgeNames = resolveJudgeNames(activeEmails, judgesList);
-  return activeEmails;
-};
-
-const syncJudgesAllotedTeams = async (judgesList, submissionsList) => {
-  for (const j of judgesList) {
-    const jEmail = (j.email || "").toLowerCase().trim();
-    if (!jEmail) continue;
-    j.allotedTeams = submissionsList
-      .filter((s) => getActiveRoundJudgesForSub(s).includes(jEmail))
-      .map((s) => s.teamId);
-    if (isDbConnected() && typeof j.save === "function") {
-      await j.save();
-    }
-  }
-};
-
 export const getEdition2Submissions = async (req, res) => {
   try {
     const userEmail = (
@@ -958,17 +845,16 @@ export const getEdition2Submissions = async (req, res) => {
       }
     }
 
-    // Judges MUST ONLY see submissions alloted to their account for the active round
+    // Judges MUST ONLY see submissions alloted to their account
     if (isJudge && userEmail) {
       const judgeAllotedTeams = Array.isArray(judgeUser?.allotedTeams) ? judgeUser.allotedTeams : [];
 
       const filtered = allSubs.filter((sub) => {
-        const activeJudges = getActiveRoundJudgesForSub(sub);
-        if (activeJudges.includes(userEmail)) return true;
-        if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length === 0) {
-          return Boolean(sub.teamId && judgeAllotedTeams.includes(sub.teamId));
-        }
-        return false;
+        const inSubJudges =
+          Array.isArray(sub.allotedJudges) &&
+          sub.allotedJudges.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
+        const inJudgeTeams = sub.teamId && judgeAllotedTeams.includes(sub.teamId);
+        return inSubJudges || inJudgeTeams;
       });
 
       return res.status(200).json(filtered);
@@ -1036,198 +922,6 @@ export const getParticipantSubmission = async (req, res) => {
   }
 };
 
-/**
- * Participant: Update or Attach Pitch Video and/or Proposal Document
- */
-export const updateParticipantSubmissionMedia = async (req, res) => {
-  try {
-    const rawTeamId = req.body?.teamId;
-    const email = (req.user?.email || req.body?.email || req.body?.participantEmail || "").toLowerCase().trim();
-
-    let submission = null;
-    if (isDbConnected()) {
-      if (rawTeamId) {
-        submission = await Edition2Submission.findOne({ teamId: rawTeamId });
-      }
-      if (!submission && email) {
-        submission = await Edition2Submission.findOne({
-          $or: [{ participantEmail: email }, { "members.email": email }],
-        }).sort({ createdAt: -1 });
-      }
-    } else {
-      if (rawTeamId) {
-        submission = localSubmissionsStore.find((s) => s.teamId === rawTeamId);
-      }
-      if (!submission && email) {
-        submission = localSubmissionsStore.find(
-          (s) =>
-            s.participantEmail === email ||
-            s.members?.some((m) => m.email?.toLowerCase() === email)
-        );
-      }
-    }
-
-    if (!submission) {
-      return res.status(404).json({ message: "Submission not found for this participant." });
-    }
-
-    const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
-    const documentDriveUrl = (req.body.documentDriveUrl || req.body.documentUrl || "").trim();
-
-    if (
-      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
-      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
-    ) {
-      return res.status(400).json({
-        message: "YouTube links are strictly not allowed. Please provide a Google Drive link.",
-      });
-    }
-
-    const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
-    const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
-    const videoFile = hasVideoFile ? req.files.videoFile[0] : null;
-    const docFile = hasDocFile ? req.files.documentFile[0] : null;
-
-    const teamId = submission.teamId;
-    const cleanTeamName = (submission.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const videoNewName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
-    const docNewName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
-
-    const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
-    const finalDocPath = docFile ? path.join(DOCUMENTS_SUBDIR, docNewName) : null;
-
-    try {
-      if (videoFile && fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
-        fs.renameSync(videoFile.path, finalVideoPath);
-      }
-      if (docFile && fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
-        fs.renameSync(docFile.path, finalDocPath);
-      }
-    } catch (moveErr) {
-      console.warn("Media update rename notice:", moveErr.message);
-    }
-
-    // Update Video if provided
-    if (videoDriveUrl) {
-      submission.video = {
-        originalName: "Google Drive Pitch Video",
-        localPath: "",
-        size: 15000000,
-        url: videoDriveUrl,
-        webViewLink: videoDriveUrl,
-        driveFileId:
-          videoDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
-          videoDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
-          null,
-      };
-    } else if (hasVideoFile) {
-      submission.video = {
-        originalName: videoFile.originalname || videoNewName,
-        localPath: finalVideoPath || "",
-        size: videoFile.size,
-        url: "",
-        webViewLink: "",
-        driveFileId: null,
-      };
-    }
-
-    // Update Document if provided
-    if (documentDriveUrl) {
-      submission.document = {
-        name: "Google Drive Proposal Deck",
-        originalName: "Google Drive Proposal Deck",
-        localPath: "",
-        size: 2000000,
-        url: documentDriveUrl,
-        webViewLink: documentDriveUrl,
-        driveFileId:
-          documentDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
-          documentDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
-          null,
-      };
-    } else if (hasDocFile) {
-      submission.document = {
-        name: docNewName,
-        originalName: docFile.originalname || docNewName,
-        localPath: finalDocPath || "",
-        size: docFile.size,
-        url: "",
-        webViewLink: "",
-        driveFileId: null,
-      };
-    }
-
-    if (isDbConnected()) {
-      await submission.save();
-    }
-
-    // Trigger async sync to Google Drive
-    (async () => {
-      try {
-        const uploadPromises = [];
-        if (docFile && finalDocPath) {
-          uploadPromises.push(
-            uploadToGoogleDrive({
-              filePath: finalDocPath,
-              fileName: docNewName,
-              mimeType: "application/pdf",
-              folderType: "Documents",
-              teamId,
-            }).then((res) => ({ type: "doc", res }))
-          );
-        }
-        if (videoFile && finalVideoPath) {
-          uploadPromises.push(
-            uploadToGoogleDrive({
-              filePath: finalVideoPath,
-              fileName: videoNewName,
-              mimeType: "video/mp4",
-              folderType: "Videos",
-              teamId,
-            }).then((res) => ({ type: "video", res }))
-          );
-        }
-
-        const results = await Promise.allSettled(uploadPromises);
-        let updatedInDrive = false;
-
-        for (const item of results) {
-          if (item.status === "fulfilled" && item.value?.res) {
-            const { type, res: driveResult } = item.value;
-            if (type === "doc" && driveResult.webViewLink) {
-              submission.document.url = driveResult.webViewLink;
-              submission.document.webViewLink = driveResult.webViewLink;
-              submission.document.driveFileId = driveResult.fileId;
-              updatedInDrive = true;
-            } else if (type === "video" && driveResult.webViewLink) {
-              submission.video.url = driveResult.webViewLink;
-              submission.video.webViewLink = driveResult.webViewLink;
-              submission.video.driveFileId = driveResult.fileId;
-              updatedInDrive = true;
-            }
-          }
-        }
-
-        if (updatedInDrive && isDbConnected()) {
-          await submission.save();
-        }
-
-        await updateMasterSpreadsheet(submission);
-      } catch (syncErr) {
-        console.warn("Background Drive sync for media update notice:", syncErr.message);
-      }
-    })();
-
-    return res.status(200).json({
-      message: "Submission media files updated successfully.",
-      submission,
-    });
-  } catch (error) {
-    console.error("Update participant submission media error:", error);
-    return res.status(500).json({ message: "Failed to update submission media." });
-  }
-};
-
 // ==========================================
 // 3. ADMIN PORTAL (Allocation, Status, Judges)
 // ==========================================
@@ -1251,18 +945,11 @@ export const getJudges = async (req, res) => {
 };
 
 /**
- * Admin: Allocate Submission to Judge(s) per Round (Single, Panel, or Auto-Allocate)
+ * Admin: Allocate Submission to Judge (Single or Auto-Allocate All)
  */
 export const allocateSubmission = async (req, res) => {
   try {
-    const {
-      teamId,
-      judgeEmail,
-      judgeEmails,
-      round,
-      roundAllocations,
-      mode = "single",
-    } = req.body;
+    const { teamId, judgeEmail, mode = "single" } = req.body;
 
     let submissions = isDbConnected()
       ? await Edition2Submission.find()
@@ -1279,106 +966,117 @@ export const allocateSubmission = async (req, res) => {
     }
 
     if (mode === "auto") {
-      const targetRoundKey = normalizeRoundKey(round, "Round 1");
-      const targetRoundNum = Number(targetRoundKey.replace("round", ""));
-
-      const eligibleSubs = submissions.filter((sub) => {
-        const s = String(sub.stage || "Round 1").toLowerCase();
-        if (s.includes("selected")) return false;
-        return normalizeRoundNumFromStage(sub.stage) === targetRoundNum;
-      });
-
-      if (eligibleSubs.length === 0) {
-        return res.status(200).json({
-          message: `No teams are currently in Round ${targetRoundNum} to auto-allocate.`,
-          allocatedCount: 0,
-        });
-      }
-
+      // Evenly distribute unallocated or all submissions across registered judges
       let judgeIndex = 0;
-      for (const sub of eligibleSubs) {
+      for (const sub of submissions) {
         const assignedJudge = judges[judgeIndex % judges.length];
-        const jEmail = assignedJudge.email.toLowerCase().trim();
+        const jEmail = assignedJudge.email.toLowerCase();
 
-        if (!sub.roundAllocations) {
-          sub.roundAllocations = { round1: [], round2: [], round3: [] };
-        }
-        if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0 && targetRoundKey !== "round1") {
-          sub.roundAllocations.round1 = normalizeEmailList(sub.allotedJudges);
+        sub.allotedJudges = [jEmail];
+        sub.allotedJudgeNames = [assignedJudge.name];
+        if (sub.stage === "submitted") {
+          sub.stage = "allocated to a judge";
         }
 
-        sub.roundAllocations[targetRoundKey] = [jEmail];
-        sub.roundAllocationsConfigured = true;
-        syncSubActiveAllocation(sub, judges);
+        if (!Array.isArray(assignedJudge.allotedTeams)) {
+          assignedJudge.allotedTeams = [];
+        }
+        if (!assignedJudge.allotedTeams.includes(sub.teamId)) {
+          assignedJudge.allotedTeams.push(sub.teamId);
+        }
 
         if (isDbConnected()) {
           await sub.save();
+          await assignedJudge.save();
         }
         judgeIndex++;
       }
 
-      await syncJudgesAllotedTeams(judges, submissions);
       triggerSpreadsheetUpdate();
-
       return res.status(200).json({
-        message: `Successfully auto-allocated ${eligibleSubs.length} Round ${targetRoundNum} teams across ${judges.length} judges.`,
-        allocatedCount: eligibleSubs.length,
-        round: targetRoundKey,
+        message: `Successfully auto-allocated ${submissions.length} teams across ${judges.length} judges.`,
       });
     }
+
+    // Single Allocation or Unallocation
+    const { judgeEmails } = req.body;
+    const targetEmail = (judgeEmail || (Array.isArray(judgeEmails) && judgeEmails[0]) || "").toLowerCase().trim();
 
     if (!teamId) {
       return res.status(400).json({ message: "Team ID is required." });
     }
 
-    const targetSub = submissions.find((s) => s.teamId === teamId);
+    let targetSub = submissions.find((s) => s.teamId === teamId);
     if (!targetSub) {
       return res.status(404).json({ message: "Team submission not found." });
     }
 
-    if (!targetSub.roundAllocations) {
-      targetSub.roundAllocations = { round1: [], round2: [], round3: [] };
-    }
-    // Preserve any legacy allotedJudges in round1 before transitioning to roundAllocations
-    if (!hasExplicitRoundAllocations(targetSub) && normalizeEmailList(targetSub.allotedJudges).length > 0) {
-      const legacyKey = normalizeRoundKey(null, targetSub.stage);
-      targetSub.roundAllocations[legacyKey] = normalizeEmailList(targetSub.allotedJudges);
+    // If Unallocated
+    if (!targetEmail || targetEmail === "unallocated") {
+      // Remove teamId from all judges
+      for (const j of judges) {
+        if (Array.isArray(j.allotedTeams)) {
+          j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
+          if (isDbConnected()) await j.save();
+        }
+      }
+
+      targetSub.allotedJudges = [];
+      targetSub.allotedJudgeNames = [];
+      if (targetSub.stage === "allocated to a judge") {
+        targetSub.stage = "submitted";
+      }
+
+      if (isDbConnected()) {
+        await targetSub.save();
+      }
+
+      triggerSpreadsheetUpdate();
+
+      return res.status(200).json({
+        message: `Team ${teamId} has been unallocated.`,
+        submission: targetSub,
+        unallocated: true,
+      });
     }
 
-    if (roundAllocations && typeof roundAllocations === "object") {
-      targetSub.roundAllocations = {
-        round1: normalizeEmailList(roundAllocations.round1),
-        round2: normalizeEmailList(roundAllocations.round2),
-        round3: normalizeEmailList(roundAllocations.round3),
-      };
-      targetSub.roundAllocationsConfigured = true;
-    } else {
-      const targetRoundKey = normalizeRoundKey(round, targetSub.stage);
-      const rawEmails = Array.isArray(judgeEmails)
-        ? judgeEmails
-        : judgeEmail && judgeEmail !== "unallocated"
-          ? [judgeEmail]
-          : [];
-      const cleanEmails = normalizeEmailList(rawEmails).filter((e) => e !== "unallocated");
-      targetSub.roundAllocations[targetRoundKey] = cleanEmails;
-      targetSub.roundAllocationsConfigured = true;
+    // Allocate to specific judge
+    const judge = judges.find((j) => j.email.toLowerCase() === targetEmail);
+    if (!judge) {
+      return res.status(404).json({ message: "Judge not found with this email." });
     }
 
-    const activeEmails = syncSubActiveAllocation(targetSub, judges);
+    // Remove from other judges first so team is not duplicated
+    for (const j of judges) {
+      if (j.email.toLowerCase() !== targetEmail && Array.isArray(j.allotedTeams)) {
+        j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
+        if (isDbConnected()) await j.save();
+      }
+    }
+
+    targetSub.allotedJudges = [targetEmail];
+    targetSub.allotedJudgeNames = [judge.name];
+    if (targetSub.stage === "submitted") {
+      targetSub.stage = "allocated to a judge";
+    }
+
+    if (!Array.isArray(judge.allotedTeams)) {
+      judge.allotedTeams = [];
+    }
+    if (!judge.allotedTeams.includes(teamId)) {
+      judge.allotedTeams.push(teamId);
+    }
 
     if (isDbConnected()) {
       await targetSub.save();
+      await judge.save();
     }
-    await syncJudgesAllotedTeams(judges, submissions);
+
     triggerSpreadsheetUpdate();
 
     return res.status(200).json({
-      message:
-        activeEmails.length > 0
-          ? `Team ${teamId} round judge allocation updated.`
-          : `Team ${teamId} allocation updated.`,
+      message: `Team ${teamId} successfully alloted to judge ${judge.name}.`,
       submission: targetSub,
-      unallocated: activeEmails.length === 0,
     });
   } catch (error) {
     console.error("Allocation error:", error);
@@ -1387,23 +1085,20 @@ export const allocateSubmission = async (req, res) => {
 };
 
 /**
- * Update Submission Stage (Admin Exclusive)
- * Judges are strictly restricted to evaluation and scoring.
+ * Update Submission Stage (Admin or Alloted Judge)
+ * States:
+ * - submitted
+ * - allocated to a judge
+ * - under evaluation
+ * - shortlisted to next round
+ * - not shortlisted to next round
  */
 export const updateSubmissionStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { stage } = req.body;
+    const { stage, notes } = req.body;
 
-    const actorEmail = (req.user?.email || "").toLowerCase().trim();
-    const isAdmin = req.user?.role === "admin" || actorEmail === ADMIN_EMAIL.toLowerCase();
-    if (!isAdmin) {
-      return res.status(403).json({
-        message: "Access denied. Only administrators can update round progression, selection, or rejection status.",
-      });
-    }
-
-    const adminAllowedStages = [
+    const judgeAllowedStages = [
       "Round 1",
       "Round 2",
       "Round 3",
@@ -1414,12 +1109,23 @@ export const updateSubmissionStatus = async (req, res) => {
       "round 3",
       "selected",
       "not selected",
-      "submitted",
-      "allocated to a judge",
       "under evaluation",
       "shortlisted to next round",
       "not shortlisted to next round",
     ];
+
+    const adminAllowedStages = [
+      "submitted",
+      "allocated to a judge",
+      ...judgeAllowedStages,
+    ];
+
+    const isJudge = req.user?.role === "judge";
+    if (isJudge && !judgeAllowedStages.includes(stage)) {
+      return res.status(403).json({
+        message: "Judges can change the stage to Round 1, Round 2, Round 3, Selected, or Not Selected.",
+      });
+    }
 
     if (!adminAllowedStages.includes(stage)) {
       return res.status(400).json({
@@ -1428,49 +1134,18 @@ export const updateSubmissionStatus = async (req, res) => {
     }
 
     let sub = null;
-    const judges = isDbConnected()
-      ? await JuryzaUser.find({ role: "judge" })
-      : localUsersStore.filter((u) => u.role === "judge");
-
     if (isDbConnected()) {
-      sub = await Edition2Submission.findOne(buildIdOrTeamQuery(id));
+      sub = await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] });
       if (sub) {
-        if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-          const prevKey = normalizeRoundKey(null, sub.stage);
-          sub.roundAllocations = {
-            round1: [],
-            round2: [],
-            round3: [],
-            ...(sub.roundAllocations || {}),
-            [prevKey]: normalizeEmailList(sub.allotedJudges),
-          };
-          sub.roundAllocationsConfigured = true;
-        }
         sub.stage = stage;
         sub.status = stage;
-        syncSubActiveAllocation(sub, judges);
         await sub.save();
-        const allSubs = await Edition2Submission.find();
-        await syncJudgesAllotedTeams(judges, allSubs);
       }
     } else {
       sub = localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
       if (sub) {
-        if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-          const prevKey = normalizeRoundKey(null, sub.stage);
-          sub.roundAllocations = {
-            round1: [],
-            round2: [],
-            round3: [],
-            ...(sub.roundAllocations || {}),
-            [prevKey]: normalizeEmailList(sub.allotedJudges),
-          };
-          sub.roundAllocationsConfigured = true;
-        }
         sub.stage = stage;
         sub.status = stage;
-        syncSubActiveAllocation(sub, judges);
-        await syncJudgesAllotedTeams(judges, localSubmissionsStore);
       }
     }
 
@@ -1496,8 +1171,8 @@ export const updateSubmissionStatus = async (req, res) => {
 
 export const submitRubricEvaluation = async (req, res) => {
   try {
-    const { submissionId, rubric, notes, round } = req.body;
-    const judgeEmail = (req.user?.email || "judge@sdmimd.ac.in").toLowerCase().trim();
+    const { submissionId, rubric, notes } = req.body;
+    const judgeEmail = req.user?.email || "judge@sdmimd.ac.in";
     const judgeName = req.user?.name || "Jury Member";
 
     if (!submissionId || !rubric) {
@@ -1505,17 +1180,12 @@ export const submitRubricEvaluation = async (req, res) => {
     }
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne(buildIdOrTeamQuery(submissionId))
+      ? await Edition2Submission.findOne({ $or: [{ _id: submissionId }, { teamId: submissionId }] })
       : localSubmissionsStore.find((s) => s._id === submissionId || s.teamId === submissionId);
 
     if (!sub) {
       return res.status(404).json({ message: "Submission not found." });
     }
-
-    // Determine active evaluation round from submission stage or request
-    const stageStr = String(sub.stage || "Round 1").toLowerCase();
-    const inferredRound = stageStr.includes("3") ? 3 : stageStr.includes("2") ? 2 : 1;
-    const evalRound = Number(round) || inferredRound;
 
     // Calculate total
     const totalScore = Object.values(rubric).reduce((a, b) => Number(a) + Number(b), 0);
@@ -1524,36 +1194,23 @@ export const submitRubricEvaluation = async (req, res) => {
       sub.evaluations = [];
     }
 
-    // Upsert evaluation by (judgeEmail, round) so re-scoring updates cleanly without duplicates
-    const existingIdx = sub.evaluations.findIndex(
-      (ev) =>
-        (ev.judgeEmail || "").toLowerCase().trim() === judgeEmail &&
-        Number(ev.round || 1) === evalRound,
-    );
-
-    const evalEntry = {
+    sub.evaluations.push({
       judgeEmail,
       judgeName,
-      round: evalRound,
       rubric,
       totalScore,
       notes: notes || "",
       submittedAt: new Date(),
-    };
-
-    if (existingIdx !== -1) {
-      sub.evaluations[existingIdx] = evalEntry;
-    } else {
-      sub.evaluations.push(evalEntry);
-    }
+    });
 
     sub.evaluationCount = sub.evaluations.length;
-    sub.rubricAverage = Number(
-      (
-        sub.evaluations.reduce((acc, curr) => acc + Number(curr.totalScore || 0), 0) /
-        sub.evaluations.length
-      ).toFixed(2),
-    );
+    sub.rubricAverage =
+      sub.evaluations.reduce((acc, curr) => acc + curr.totalScore, 0) / sub.evaluations.length;
+
+    // Automatically advance state to "under evaluation" if it was "allocated to a judge"
+    if (sub.stage === "allocated to a judge" || sub.stage === "submitted") {
+      sub.stage = "under evaluation";
+    }
 
     if (isDbConnected()) {
       await sub.save();
@@ -1565,7 +1222,6 @@ export const submitRubricEvaluation = async (req, res) => {
       message: "Evaluation submitted successfully!",
       rubricAverage: sub.rubricAverage,
       stage: sub.stage,
-      evaluations: sub.evaluations,
     });
   } catch (error) {
     console.error("Rubric evaluation error:", error);
@@ -1638,12 +1294,11 @@ export const getDuelPair = async (req, res) => {
       const judgeTeams = Array.isArray(judgeUser?.allotedTeams) ? judgeUser.allotedTeams : [];
 
       subs = subs.filter((s) => {
-        const activeJudges = getActiveRoundJudgesForSub(s);
-        if (activeJudges.includes(userEmail)) return true;
-        if (!hasExplicitRoundAllocations(s) && normalizeEmailList(s.allotedJudges).length === 0) {
-          return Boolean(s.teamId && judgeTeams.includes(s.teamId));
-        }
-        return false;
+        const inSubJudges =
+          Array.isArray(s.allotedJudges) &&
+          s.allotedJudges.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
+        const inJudgeTeams = s.teamId && judgeTeams.includes(s.teamId);
+        return inSubJudges || inJudgeTeams;
       });
     }
 
@@ -1714,30 +1369,30 @@ export const streamSubmissionVideo = async (req, res) => {
     const { id } = req.params;
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne(buildIdOrTeamQuery(id))
+      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    // Fallback to filename match in local disk directory if sub lookup missed (e.g. local fallback)
-    if (sub && sub.video?.localPath && fs.existsSync(sub.video.localPath)) {
+    if (!sub || !sub.video || (!sub.video.localPath && !sub.video.url && !sub.video.originalName)) {
+      return res.status(404).json({ message: "No pitch video was submitted for this team." });
+    }
+
+    if (sub.video.localPath && fs.existsSync(sub.video.localPath)) {
       return streamVideoFile(sub.video.localPath, req, res);
     }
 
-    if (fs.existsSync(VIDEOS_SUBDIR)) {
-      const videoFiles = fs.readdirSync(VIDEOS_SUBDIR);
-      const searchKey = sub?.teamId || id;
-      const matched = videoFiles.find((f) => f.includes(searchKey));
-      if (matched) {
-        const p = path.join(VIDEOS_SUBDIR, matched);
-        return streamVideoFile(p, req, res);
-      }
+    // Try finding in Videos directory by teamId
+    const videoFiles = fs.readdirSync(VIDEOS_SUBDIR);
+    const matched = videoFiles.find((f) => f.includes(sub.teamId));
+    if (matched) {
+      const p = path.join(VIDEOS_SUBDIR, matched);
+      return streamVideoFile(p, req, res);
     }
 
-    const remoteUrl = sub?.video?.url || sub?.video?.webViewLink;
-    if (remoteUrl && !remoteUrl.includes("/drive/folders/")) {
-      return res.redirect(remoteUrl);
+    if (sub.video.url) {
+      return res.redirect(sub.video.url);
     }
 
-    return res.status(404).json({ message: "Video file is not available on this server." });
+    return res.status(404).json({ message: "Video file is not available locally." });
   } catch (error) {
     console.error("Video streaming error:", error);
     return res.status(500).json({ message: "Error streaming video." });
@@ -1747,51 +1402,36 @@ export const streamSubmissionVideo = async (req, res) => {
 export const previewSubmissionDocument = async (req, res) => {
   try {
     const { id } = req.params;
-    const isDownload = req.query.download === "1" || req.query.download === "true";
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne(buildIdOrTeamQuery(id))
+      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    if (sub && sub.document?.localPath && fs.existsSync(sub.document.localPath)) {
+    if (!sub || !sub.document || (!sub.document.localPath && !sub.document.url && !sub.document.name)) {
+      return res.status(404).json({ message: "No proposal document was submitted for this team." });
+    }
+
+    if (sub.document.localPath && fs.existsSync(sub.document.localPath)) {
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader(
-        "Content-Disposition",
-        `${isDownload ? "attachment" : "inline"}; filename="${sub.document.name || "proposal.pdf"}"`,
-      );
+      res.setHeader("Content-Disposition", `inline; filename="${sub.document.name || "proposal.pdf"}"`);
       return fs.createReadStream(sub.document.localPath).pipe(res);
     }
 
-    if (fs.existsSync(DOCUMENTS_SUBDIR)) {
-      const docFiles = fs.readdirSync(DOCUMENTS_SUBDIR);
-      const searchKey = sub?.teamId || id;
-      const matched = docFiles.find((f) => f.includes(searchKey));
-      if (matched) {
-        const p = path.join(DOCUMENTS_SUBDIR, matched);
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader(
-          "Content-Disposition",
-          `${isDownload ? "attachment" : "inline"}; filename="${matched}"`,
-        );
-        return fs.createReadStream(p).pipe(res);
-      }
+    // Try finding in Documents directory by teamId
+    const docFiles = fs.readdirSync(DOCUMENTS_SUBDIR);
+    const matched = docFiles.find((f) => f.includes(sub.teamId));
+    if (matched) {
+      const p = path.join(DOCUMENTS_SUBDIR, matched);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${matched}"`);
+      return fs.createReadStream(p).pipe(res);
     }
 
-    const remoteUrl = sub?.document?.url || sub?.document?.webViewLink;
-    if (remoteUrl && !remoteUrl.includes("/drive/folders/")) {
-      const driveId = sub?.document?.driveFileId || extractDriveFileId(remoteUrl);
-      if (driveId) {
-        const redirectTarget = isDownload
-          ? `https://drive.google.com/uc?export=download&id=${driveId}`
-          : `https://drive.google.com/file/d/${driveId}/preview`;
-        return res.redirect(redirectTarget);
-      }
-      return res.redirect(remoteUrl);
+    if (sub.document.url) {
+      return res.redirect(sub.document.url);
     }
 
-    return res.status(404).json({ message: "Document file is not available on this server." });
+    return res.status(404).json({ message: "Document file is not available locally." });
   } catch (error) {
     console.error("Document preview error:", error);
     return res.status(500).json({ message: "Error previewing document." });
@@ -1843,19 +1483,10 @@ export const updateSubmissionDetails = async (req, res) => {
     const patchData = req.body;
 
     if (isDbConnected()) {
-      const sub = await Edition2Submission.findOne(buildIdOrTeamQuery(id));
-      const judges = await JuryzaUser.find({ role: "judge" });
+      const sub = await Edition2Submission.findOne({ teamId: id });
       if (sub) {
         Object.assign(sub, patchData);
-        if (patchData.roundAllocations) {
-          sub.roundAllocationsConfigured = true;
-          syncSubActiveAllocation(sub, judges);
-        }
         await sub.save();
-        if (patchData.roundAllocations || patchData.stage) {
-          const allSubs = await Edition2Submission.find();
-          await syncJudgesAllotedTeams(judges, allSubs);
-        }
       }
       if (patchData.password && patchData.participantEmail) {
         let user = await JuryzaUser.findOne({
@@ -1871,12 +1502,6 @@ export const updateSubmissionDetails = async (req, res) => {
     const idx = localSubmissionsStore.findIndex((s) => s.teamId === id);
     if (idx !== -1) {
       localSubmissionsStore[idx] = { ...localSubmissionsStore[idx], ...patchData };
-      if (patchData.roundAllocations) {
-        localSubmissionsStore[idx].roundAllocationsConfigured = true;
-        const judges = localUsersStore.filter((u) => u.role === "judge");
-        syncSubActiveAllocation(localSubmissionsStore[idx], judges);
-        await syncJudgesAllotedTeams(judges, localSubmissionsStore);
-      }
       if (patchData.password && patchData.participantEmail) {
         const cleanEmail = patchData.participantEmail.toLowerCase().trim();
         let user = localUsersStore.find((u) => u.email === cleanEmail);
@@ -1920,31 +1545,14 @@ export const updateJudgeDetails = async (req, res) => {
           judge.allotedTeams = allotedTeams;
           const judgeEmail = judge.email.toLowerCase().trim();
           const judgeName = judge.name;
-          const allSubs = await Edition2Submission.find();
-          for (const sub of allSubs) {
-            if (!sub.roundAllocations) {
-              sub.roundAllocations = { round1: [], round2: [], round3: [] };
-            }
-            if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-              const legacyKey = normalizeRoundKey(null, sub.stage);
-              sub.roundAllocations[legacyKey] = normalizeEmailList(sub.allotedJudges);
-            }
-            const activeKey = normalizeRoundKey(null, sub.stage);
-            const currentRoundList = normalizeEmailList(sub.roundAllocations[activeKey]);
-            const shouldAssign = allotedTeams.includes(sub.teamId);
-            if (shouldAssign && !currentRoundList.includes(judgeEmail)) {
-              sub.roundAllocations[activeKey] = [...currentRoundList, judgeEmail];
-              sub.roundAllocationsConfigured = true;
-              syncSubActiveAllocation(sub, [judge, { email: judgeEmail, name: judgeName }]);
-              await sub.save();
-            } else if (!shouldAssign && currentRoundList.includes(judgeEmail)) {
-              sub.roundAllocations[activeKey] = currentRoundList.filter((e) => e !== judgeEmail);
-              sub.roundAllocationsConfigured = true;
-              sub.allotedJudges = (sub.allotedJudges || []).filter((e) => e.toLowerCase() !== judgeEmail);
-              sub.allotedJudgeNames = (sub.allotedJudgeNames || []).filter((n) => n !== judgeName);
-              await sub.save();
-            }
-          }
+          await Edition2Submission.updateMany(
+            { teamId: { $in: allotedTeams }, allotedJudges: { $ne: judgeEmail } },
+            { $addToSet: { allotedJudges: judgeEmail, allotedJudgeNames: judgeName } }
+          );
+          await Edition2Submission.updateMany(
+            { teamId: { $nin: allotedTeams }, allotedJudges: judgeEmail },
+            { $pull: { allotedJudges: judgeEmail, allotedJudgeNames: judgeName } }
+          );
         }
         if (createdAt) judge.createdAt = createdAt;
         await judge.save();
@@ -1964,34 +1572,14 @@ export const updateJudgeDetails = async (req, res) => {
         const judgeEmail = targetJudge.email.toLowerCase().trim();
         const judgeName = targetJudge.name;
         localSubmissionsStore.forEach((sub) => {
-          if (!sub.roundAllocations) {
-            sub.roundAllocations = { round1: [], round2: [], round3: [] };
-          }
-          if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-            const legacyKey = normalizeRoundKey(null, sub.stage);
-            sub.roundAllocations[legacyKey] = normalizeEmailList(sub.allotedJudges);
-          }
-          const activeKey = normalizeRoundKey(null, sub.stage);
-          const currentRoundList = normalizeEmailList(sub.roundAllocations[activeKey]);
-          const shouldAssign = allotedTeams.includes(sub.teamId);
-          if (shouldAssign) {
-            if (!currentRoundList.includes(judgeEmail)) {
-              sub.roundAllocations[activeKey] = [...currentRoundList, judgeEmail];
-            }
-            sub.roundAllocationsConfigured = true;
+          if (allotedTeams.includes(sub.teamId)) {
             if (!Array.isArray(sub.allotedJudges)) sub.allotedJudges = [];
             if (!sub.allotedJudges.includes(judgeEmail)) sub.allotedJudges.push(judgeEmail);
             if (!Array.isArray(sub.allotedJudgeNames)) sub.allotedJudgeNames = [];
             if (!sub.allotedJudgeNames.includes(judgeName)) sub.allotedJudgeNames.push(judgeName);
-          } else {
-            if (currentRoundList.includes(judgeEmail)) {
-              sub.roundAllocations[activeKey] = currentRoundList.filter((e) => e !== judgeEmail);
-              sub.roundAllocationsConfigured = true;
-            }
-            if (Array.isArray(sub.allotedJudges) && sub.allotedJudges.includes(judgeEmail)) {
-              sub.allotedJudges = sub.allotedJudges.filter((e) => e !== judgeEmail);
-              sub.allotedJudgeNames = (sub.allotedJudgeNames || []).filter((n) => n !== judgeName);
-            }
+          } else if (Array.isArray(sub.allotedJudges) && sub.allotedJudges.includes(judgeEmail)) {
+            sub.allotedJudges = sub.allotedJudges.filter((e) => e !== judgeEmail);
+            sub.allotedJudgeNames = (sub.allotedJudgeNames || []).filter((n) => n !== judgeName);
           }
         });
       }

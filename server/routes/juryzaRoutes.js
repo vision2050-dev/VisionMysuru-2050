@@ -8,7 +8,6 @@ import {
   registerEdition2Submission,
   getEdition2Submissions,
   getParticipantSubmission,
-  updateParticipantSubmissionMedia,
   getJudges,
   allocateSubmission,
   updateSubmissionStatus,
@@ -66,32 +65,6 @@ router.post(
 // Participant Live Progress Tracker
 router.get("/participant/my-submission", getParticipantSubmission);
 
-// Participant Attach or Update Media Files
-router.put(
-  "/participant/submission/media",
-  (req, res, next) => {
-    const authHeader = req.headers.authorization || req.headers["x-auth-token"];
-    if (authHeader) {
-      return verifyAuthToken(req, res, next);
-    }
-    next();
-  },
-  submissionUpload,
-  updateParticipantSubmissionMedia,
-);
-router.patch(
-  "/participant/submission/media",
-  (req, res, next) => {
-    const authHeader = req.headers.authorization || req.headers["x-auth-token"];
-    if (authHeader) {
-      return verifyAuthToken(req, res, next);
-    }
-    next();
-  },
-  submissionUpload,
-  updateParticipantSubmissionMedia,
-);
-
 // ==========================================
 // 3. SUBMISSIONS & MEDIA (Judge / Admin / Public)
 // ==========================================
@@ -113,11 +86,10 @@ router.get(
 router.get("/submissions/:id/video-stream", streamSubmissionVideo);
 router.get("/submissions/:id/document-preview", previewSubmissionDocument);
 
-// Admin-only progression, selection, and round status management
+// Both Admin and Jury can change the state of the submission
 router.patch(
   "/submissions/:id/status",
   verifyAuthToken,
-  requireAdmin,
   updateSubmissionStatus,
 );
 

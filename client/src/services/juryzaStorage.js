@@ -187,22 +187,9 @@ export const getStoredSubmissions = () => {
   }
 };
 
-/**
- * Strip transient session-only blob: URLs before persisting to localStorage or pushing to Cloud
- */
-export const sanitizeSubmissionForStorage = (sub) => {
-  if (!sub || typeof sub !== "object") return sub;
-  const clean = { ...sub };
-  delete clean.videoBlobUrl;
-  delete clean.docBlobUrl;
-  delete clean._blobsVerified;
-  return clean;
-};
-
 export const saveStoredSubmissions = (subs) => {
   try {
-    const cleaned = Array.isArray(subs) ? subs.map(sanitizeSubmissionForStorage) : [];
-    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(cleaned));
+    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(subs));
   } catch (e) {
     console.warn("Storage warning:", e);
   }
@@ -217,160 +204,35 @@ export const CLOUD_SYNC_ENDPOINT = `https://api.restful-api.dev/objects/${CLOUD_
 
 let isSyncing = false;
 
-const pickRicherMedia = (primary, secondary) => {
-  const hasRealMedia = (m) =>
-    Boolean(
-      (m?.url && !String(m.url).includes("/drive/folders/")) ||
-        m?.driveFileId ||
-        (m?.webViewLink && !String(m.webViewLink).includes("/drive/folders/"))
-    );
-  if (hasRealMedia(primary)) return primary;
-  if (hasRealMedia(secondary)) return secondary;
-  return primary?.originalName || primary?.name || primary?.localPath ? primary : secondary || primary;
-};
-
-const normalizeEmailList = (arr) =>
-  Array.from(
-    new Set(
-      (Array.isArray(arr) ? arr : [])
-        .map((e) => String(e || "").toLowerCase().trim())
-        .filter((e) => Boolean(e) && e !== "unallocated"),
-    ),
-  );
-
-export const normalizeStageLabel = (stageStr) => {
-  const s = String(stageStr || "Round 1").toLowerCase().trim();
-  if (s.includes("not selected") || s.includes("not shortlisted")) return "Not Selected";
-  if (s.includes("selected") || s.includes("shortlisted") || s.includes("winner")) return "Selected";
-  if (s.includes("round 3") || /\br3\b/.test(s)) return "Round 3";
-  if (s.includes("round 2") || /\br2\b/.test(s)) return "Round 2";
-  return "Round 1";
-};
-
-export const normalizeRoundNumber = (stageOrRound) => {
-  const s = String(stageOrRound || "Round 1").toLowerCase();
-  if (s.includes("3")) return 3;
-  if (s.includes("2")) return 2;
-  return 1;
-};
-
-export const normalizeRoundKey = (roundInput, stageStr = "Round 1") => {
-  if (roundInput !== undefined && roundInput !== null && String(roundInput).trim() !== "") {
-    return `round${normalizeRoundNumber(roundInput)}`;
-  }
-  return `round${normalizeRoundNumber(stageStr)}`;
-};
-
-export const hasExplicitRoundAllocations = (sub) => {
-  if (!sub) return false;
-  if (sub.roundAllocationsConfigured) return true;
-  const ra = sub.roundAllocations || {};
-  return (
-    normalizeEmailList(ra.round1).length > 0 ||
-    normalizeEmailList(ra.round2).length > 0 ||
-    normalizeEmailList(ra.round3).length > 0
-  );
-};
-
-export const getAllocatedJudgesForRound = (sub, roundInput) => {
-  if (!sub) return [];
-  const key = normalizeRoundKey(roundInput, sub.stage);
-  const ra = sub.roundAllocations || {};
-  if (hasExplicitRoundAllocations(sub)) {
-    return normalizeEmailList(ra[key]);
-  }
-  if (key === normalizeRoundKey(null, sub.stage)) {
-    return normalizeEmailList(sub.allotedJudges);
-  }
-  return [];
-};
-
-export const getActiveAllocatedJudges = (sub) => {
-  if (!sub) return [];
-  if (!hasExplicitRoundAllocations(sub)) {
-    return normalizeEmailList(sub.allotedJudges);
-  }
-  const s = String(sub.stage || "Round 1").toLowerCase();
-  const ra = sub.roundAllocations || {};
-  if (s.includes("selected")) {
-    const r3 = normalizeEmailList(ra.round3);
-    if (r3.length > 0) return r3;
-    const r2 = normalizeEmailList(ra.round2);
-    if (r2.length > 0) return r2;
-    const r1 = normalizeEmailList(ra.round1);
-    if (r1.length > 0) return r1;
-    return normalizeEmailList(sub.allotedJudges);
-  }
-  const key = normalizeRoundKey(null, sub.stage);
-  return normalizeEmailList(ra[key]);
-};
-
-export const getAllEverAllocatedJudges = (sub) => {
-  if (!sub) return [];
-  const ra = sub.roundAllocations || {};
-  return normalizeEmailList([
-    ...(sub.allotedJudges || []),
-    ...(ra.round1 || []),
-    ...(ra.round2 || []),
-    ...(ra.round3 || []),
-  ]);
-};
-
-const syncSubmissionActiveJudges = (sub, users) => {
-  const activeEmails = getActiveAllocatedJudges(sub);
-  sub.allotedJudges = activeEmails;
-  sub.allotedJudgeNames = activeEmails.map((email) => {
-    const j = (users || []).find(
-      (u) => (u.email || "").toLowerCase().trim() === email && u.role === "judge",
-    );
-    return j ? j.name : email;
-  });
-  return activeEmails;
-};
-
-const syncUsersAllotedTeams = (subs, users) => {
-  users.forEach((u) => {
-    if (u.role === "judge") {
-      const jEmail = (u.email || "").toLowerCase().trim();
-      u.allotedTeams = subs
-        .filter((s) => getActiveAllocatedJudges(s).includes(jEmail))
-        .map((s) => s.teamId);
-    }
-  });
-};
-
 /**
  * Merge two lists of submissions, deduplicating by teamId and keeping newer or richer versions
  */
 export const mergeSubmissions = (localSubs = [], remoteSubs = []) => {
   const map = new Map();
   for (const s of localSubs) {
-    if (s && s.teamId) map.set(s.teamId, sanitizeSubmissionForStorage(s));
+    if (s && s.teamId) map.set(s.teamId, s);
   }
-  for (const rawRemote of remoteSubs) {
-    if (!rawRemote || !rawRemote.teamId) continue;
-    const r = sanitizeSubmissionForStorage(rawRemote);
+  for (const r of remoteSubs) {
+    if (!r || !r.teamId) continue;
     if (!map.has(r.teamId)) {
       map.set(r.teamId, r);
     } else {
       const existing = map.get(r.teamId);
       const rTime = new Date(r.updatedAt || r.createdAt || 0).getTime();
       const eTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-      const winner = rTime >= eTime ? r : existing;
-      const loser = rTime >= eTime ? existing : r;
-      const winnerRa = hasExplicitRoundAllocations(winner) ? winner.roundAllocations : loser.roundAllocations;
-      map.set(r.teamId, {
-        ...winner,
-        video: pickRicherMedia(winner.video, loser.video),
-        document: pickRicherMedia(winner.document, loser.document),
-        plainPassword: winner.plainPassword || loser.plainPassword,
-        roundAllocations: winnerRa || { round1: [], round2: [], round3: [] },
-        roundAllocationsConfigured: Boolean(winner.roundAllocationsConfigured || loser.roundAllocationsConfigured),
-        evaluations:
-          Array.isArray(winner.evaluations) && winner.evaluations.length >= (loser.evaluations?.length || 0)
-            ? winner.evaluations
-            : loser.evaluations || [],
-      });
+      if (rTime >= eTime) {
+        map.set(r.teamId, {
+          ...r,
+          videoBlobUrl: existing.videoBlobUrl || r.videoBlobUrl,
+          docBlobUrl: existing.docBlobUrl || r.docBlobUrl,
+          plainPassword: r.plainPassword || existing.plainPassword,
+        });
+      } else {
+        map.set(r.teamId, {
+          ...existing,
+          plainPassword: existing.plainPassword || r.plainPassword,
+        });
+      }
     }
   }
   return Array.from(map.values()).sort(
@@ -469,19 +331,17 @@ export const parseSubmissionsFromRows = (rows) => {
       shortDescription: solutionName,
       detailedProposal: solutionName,
       video: {
-        originalName: videoUrl ? `${teamName}_Video.mp4` : "",
-        size: videoUrl ? 15000000 : 0,
+        originalName: `${teamName}_Video.mp4`,
+        size: 15000000,
         url: videoUrl,
         webViewLink: videoUrl,
-        driveFileId: getDriveFileId(videoUrl),
       },
       document: {
-        name: docUrl ? `${teamName}_Proposal.pdf` : "",
-        originalName: docUrl ? `${teamName}_Proposal.pdf` : "",
-        size: docUrl ? 2000000 : 0,
+        name: `${teamName}_Proposal.pdf`,
+        originalName: `${teamName}_Proposal.pdf`,
+        size: 2000000,
         url: docUrl,
         webViewLink: docUrl,
-        driveFileId: getDriveFileId(docUrl),
       },
       members: [
         {
@@ -663,7 +523,7 @@ export const pushCloudState = async ({ submissions, users, isReset = false } = {
       }
     }
 
-    currentSubs = isReset ? [] : (currentSubs || getStoredSubmissions()).map(sanitizeSubmissionForStorage);
+    currentSubs = isReset ? [] : (currentSubs || getStoredSubmissions());
     currentUsers = currentUsers || getStoredUsers();
 
     const payload = {
@@ -1270,7 +1130,6 @@ export const clientRegisterSubmission = ({
   videoBlobUrl,
   docBlobUrl,
   videoDriveUrl,
-  documentDriveUrl,
 }) => {
   const subs = getStoredSubmissions();
   const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
@@ -1283,10 +1142,8 @@ export const clientRegisterSubmission = ({
   const docName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
   const cleanDriveUrl = (videoDriveUrl || "").trim();
   const driveVidId = getDriveFileId(cleanDriveUrl);
-  const cleanDocDriveUrl = (documentDriveUrl || "").trim();
-  const driveDocId = getDriveFileId(cleanDocDriveUrl);
   const hasVideo = Boolean(cleanDriveUrl || videoBlobUrl || videoFileName);
-  const hasDoc = Boolean(cleanDocDriveUrl || documentFileName || docBlobUrl);
+  const hasDoc = Boolean(documentFileName || docBlobUrl);
 
   const newSub = {
     _id: `sub-${Date.now()}`,
@@ -1313,19 +1170,17 @@ export const clientRegisterSubmission = ({
       driveFileId: null,
     },
     document: hasDoc ? {
-      name: cleanDocDriveUrl ? (documentFileName || "Google Drive Proposal Deck") : (documentFileName || docName),
-      originalName: cleanDocDriveUrl ? (documentFileName || "Google Drive Proposal Deck") : (documentFileName || docName),
+      name: documentFileName || docName,
+      originalName: documentFileName || docName,
       size: 2000000,
-      url: cleanDocDriveUrl || "",
-      webViewLink: cleanDocDriveUrl || "",
-      driveFileId: driveDocId || null,
+      url: "",
+      webViewLink: "",
     } : {
       name: "",
       originalName: "",
       size: 0,
       url: "",
       webViewLink: "",
-      driveFileId: null,
     },
     videoBlobUrl: videoBlobUrl || null,
     docBlobUrl: docBlobUrl || null,
@@ -1348,43 +1203,23 @@ export const clientRegisterSubmission = ({
     createdAt: new Date().toISOString(),
   };
 
-  subs.unshift(sanitizeSubmissionForStorage(newSub));
+  subs.unshift(newSub);
   saveStoredSubmissions(subs);
-  return {
-    ...newSub,
-    _blobsVerified: Boolean(videoBlobUrl || docBlobUrl),
-  };
+  return newSub;
 };
 
 /**
- * Client-Side Stage Updater (Admin Exclusive - round progression and selection decisions)
+ * Client-Side Stage Updater (Both Admin and Jury can change stage)
  */
 export const updateStoredSubmissionStage = (teamId, newStage) => {
   const subs = getStoredSubmissions();
-  const users = getStoredUsers();
   const index = subs.findIndex((s) => s.teamId === teamId);
   if (index !== -1) {
-    const sub = subs[index];
-    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-      const prevKey = normalizeRoundKey(null, sub.stage);
-      sub.roundAllocations = {
-        round1: [],
-        round2: [],
-        round3: [],
-        ...(sub.roundAllocations || {}),
-        [prevKey]: normalizeEmailList(sub.allotedJudges),
-      };
-      sub.roundAllocationsConfigured = true;
-    }
-    sub.stage = newStage;
-    sub.status = newStage;
-    sub.updatedAt = new Date().toISOString();
-    syncSubmissionActiveJudges(sub, users);
-    syncUsersAllotedTeams(subs, users);
+    subs[index].stage = newStage;
+    subs[index].updatedAt = new Date().toISOString();
     saveStoredSubmissions(subs);
-    saveStoredUsers(users);
-    pushCloudState({ submissions: subs, users }).catch(() => {});
-    return sub;
+    pushCloudState({ submissions: subs }).catch(() => {});
+    return subs[index];
   }
   return null;
 };
@@ -1422,34 +1257,36 @@ export const updateStoredSubmissionDetails = async (teamId, patchData) => {
     }
   }
 
-  // 2. Round-wise or single Alloted Judge synchronization
-  if (patchData.roundAllocations && typeof patchData.roundAllocations === "object") {
-    const users = getStoredUsers();
-    updated.roundAllocations = {
-      round1: normalizeEmailList(patchData.roundAllocations.round1),
-      round2: normalizeEmailList(patchData.roundAllocations.round2),
-      round3: normalizeEmailList(patchData.roundAllocations.round3),
-    };
-    updated.roundAllocationsConfigured = true;
-    syncSubmissionActiveJudges(updated, users);
-    subs[index] = updated;
-    syncUsersAllotedTeams(subs, users);
-    saveStoredUsers(users);
-  } else if (patchData.allotedJudge !== undefined) {
+  // 2. Alloted Judge synchronization
+  if (patchData.allotedJudge !== undefined) {
     const cleanJudge = (patchData.allotedJudge || "").toLowerCase().trim();
     const users = getStoredUsers();
-    const activeKey = normalizeRoundKey(null, updated.stage);
-    updated.roundAllocations = {
-      round1: [],
-      round2: [],
-      round3: [],
-      ...(updated.roundAllocations || {}),
-      [activeKey]: cleanJudge ? [cleanJudge] : [],
-    };
-    updated.roundAllocationsConfigured = true;
-    syncSubmissionActiveJudges(updated, users);
-    subs[index] = updated;
-    syncUsersAllotedTeams(subs, users);
+    if (!cleanJudge) {
+      updated.allotedJudges = [];
+      updated.allotedJudgeNames = [];
+      if (updated.stage === "allocated to a judge") updated.stage = "submitted";
+      users.forEach((u) => {
+        if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
+          u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+        }
+      });
+    } else {
+      const targetJudge = users.find((u) => u.email === cleanJudge && u.role === "judge");
+      const jName = targetJudge ? targetJudge.name : cleanJudge;
+      updated.allotedJudges = [cleanJudge];
+      updated.allotedJudgeNames = [jName];
+      if (updated.stage === "submitted") updated.stage = "allocated to a judge";
+      users.forEach((u) => {
+        if (u.role === "judge") {
+          if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
+          if (u.email === cleanJudge) {
+            if (!u.allotedTeams.includes(teamId)) u.allotedTeams.push(teamId);
+          } else {
+            u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+          }
+        }
+      });
+    }
     saveStoredUsers(users);
   }
 
@@ -1536,7 +1373,7 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
     judge.passwordHash = await hashPassword(patchData.password);
   }
 
-  // Handle Alloted Teams synchronization cleanly with active round allocations
+  // Handle Alloted Teams synchronization
   if (Array.isArray(patchData.allotedTeams)) {
     judge.allotedTeams = patchData.allotedTeams;
     const subs = getStoredSubmissions();
@@ -1544,31 +1381,29 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
     const jName = patchData.name || judge.name;
 
     subs.forEach((s) => {
-      if (!s.roundAllocations) {
-        s.roundAllocations = { round1: [], round2: [], round3: [] };
-      }
-      if (!hasExplicitRoundAllocations(s) && normalizeEmailList(s.allotedJudges).length > 0) {
-        const legacyKey = normalizeRoundKey(null, s.stage);
-        s.roundAllocations[legacyKey] = normalizeEmailList(s.allotedJudges);
-      }
+      if (!Array.isArray(s.allotedJudges)) s.allotedJudges = [];
+      if (!Array.isArray(s.allotedJudgeNames)) s.allotedJudgeNames = [];
 
-      const activeKey = normalizeRoundKey(null, s.stage);
-      const currentRoundList = normalizeEmailList(s.roundAllocations[activeKey]);
       const shouldBeAssigned = patchData.allotedTeams.includes(s.teamId);
-
       if (shouldBeAssigned) {
-        if (!currentRoundList.includes(jEmail)) {
-          s.roundAllocations[activeKey] = [...currentRoundList, jEmail];
+        if (!s.allotedJudges.some((e) => e.toLowerCase() === jEmail)) {
+          s.allotedJudges.push(jEmail);
+          s.allotedJudgeNames.push(jName);
         }
-        s.roundAllocationsConfigured = true;
-      } else if (currentRoundList.includes(jEmail) || currentRoundList.includes(oldEmail)) {
-        s.roundAllocations[activeKey] = currentRoundList.filter(
-          (e) => e !== jEmail && e !== oldEmail,
+        if (s.stage === "submitted") {
+          s.stage = "allocated to a judge";
+        }
+      } else {
+        s.allotedJudges = s.allotedJudges.filter(
+          (e) => e.toLowerCase() !== jEmail && e.toLowerCase() !== oldEmail
         );
-        s.roundAllocationsConfigured = true;
+        s.allotedJudgeNames = s.allotedJudgeNames.filter(
+          (n) => n !== jName && n !== judge.name
+        );
+        if (s.allotedJudges.length === 0 && s.stage === "allocated to a judge") {
+          s.stage = "submitted";
+        }
       }
-
-      syncSubmissionActiveJudges(s, [...users.filter((u) => u.email !== judge.email), { ...judge, email: jEmail, name: jName }]);
     });
     saveStoredSubmissions(subs);
   }
@@ -1600,182 +1435,114 @@ export const updateStoredJudgeDetails = async (judgeEmailOrId, patchData) => {
 };
 
 /**
- * Client-Side Judge Allocation & Unallocation (Supports Round 1, Round 2, Round 3)
+ * Client-Side Judge Allocation & Unallocation
  */
-export const allocateStoredSubmission = (teamId, judgeEmailOrEmails, roundInput) => {
-  const rawList = Array.isArray(judgeEmailOrEmails)
-    ? judgeEmailOrEmails
-    : [judgeEmailOrEmails];
-  const cleanEmails = normalizeEmailList(rawList);
+export const allocateStoredSubmission = (teamId, judgeEmail) => {
+  const cleanEmail = (judgeEmail || "").toLowerCase().trim();
   const subs = getStoredSubmissions();
   const users = getStoredUsers();
 
   const subIndex = subs.findIndex((s) => s.teamId === teamId);
-  if (subIndex !== -1) {
-    const sub = subs[subIndex];
-    if (!sub.roundAllocations) {
-      sub.roundAllocations = { round1: [], round2: [], round3: [] };
-    }
-    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0) {
-      const legacyKey = normalizeRoundKey(null, sub.stage);
-      sub.roundAllocations[legacyKey] = normalizeEmailList(sub.allotedJudges);
+
+  // If unallocating
+  if (!cleanEmail || cleanEmail === "unallocated") {
+    if (subIndex !== -1) {
+      subs[subIndex].allotedJudges = [];
+      subs[subIndex].allotedJudgeNames = [];
+      if (subs[subIndex].stage === "allocated to a judge") {
+        subs[subIndex].stage = "submitted";
+      }
+      saveStoredSubmissions(subs);
     }
 
-    const targetKey = normalizeRoundKey(roundInput, sub.stage);
-    sub.roundAllocations[targetKey] = cleanEmails;
-    sub.roundAllocationsConfigured = true;
-    sub.updatedAt = new Date().toISOString();
-    syncSubmissionActiveJudges(sub, users);
-    syncUsersAllotedTeams(subs, users);
-
-    saveStoredSubmissions(subs);
+    // Remove teamId from all judges' allotedTeams
+    users.forEach((u) => {
+      if (u.role === "judge" && Array.isArray(u.allotedTeams)) {
+        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+      }
+    });
     saveStoredUsers(users);
     pushCloudState({ submissions: subs, users }).catch(() => {});
+
+    return { success: true, teamId, unallocated: true, subs, users };
   }
 
-  return {
-    success: true,
-    teamId,
-    judgeEmails: cleanEmails,
-    unallocated: cleanEmails.length === 0,
-    subs,
-    users,
-  };
+  // Allocating to a specific judge
+  const targetJudge = users.find((u) => u.email === cleanEmail && u.role === "judge");
+  const judgeName = targetJudge ? targetJudge.name : cleanEmail;
+
+  if (subIndex !== -1) {
+    subs[subIndex].allotedJudges = [cleanEmail];
+    subs[subIndex].allotedJudgeNames = [judgeName];
+    if (subs[subIndex].stage === "submitted") {
+      subs[subIndex].stage = "allocated to a judge";
+    }
+    saveStoredSubmissions(subs);
+  }
+
+  // Remove teamId from all other judges, and add to target judge
+  users.forEach((u) => {
+    if (u.role === "judge") {
+      if (!Array.isArray(u.allotedTeams)) u.allotedTeams = [];
+      if (u.email === cleanEmail) {
+        if (!u.allotedTeams.includes(teamId)) {
+          u.allotedTeams.push(teamId);
+        }
+      } else {
+        u.allotedTeams = u.allotedTeams.filter((id) => id !== teamId);
+      }
+    }
+  });
+  saveStoredUsers(users);
+  pushCloudState({ submissions: subs, users }).catch(() => {});
+
+  return { success: true, teamId, judgeEmail: cleanEmail, subs, users };
 };
 
 /**
- * Save complete Round 1 / Round 2 / Round 3 judge panel allocation for a team
+ * Client-Side Auto-Allocation of All Teams
  */
-export const saveStoredRoundAllocations = (teamId, roundAllocations) => {
-  const subs = getStoredSubmissions();
-  const users = getStoredUsers();
-  const subIndex = subs.findIndex((s) => s.teamId === teamId);
-  if (subIndex !== -1) {
-    subs[subIndex].roundAllocations = {
-      round1: normalizeEmailList(roundAllocations?.round1),
-      round2: normalizeEmailList(roundAllocations?.round2),
-      round3: normalizeEmailList(roundAllocations?.round3),
-    };
-    subs[subIndex].roundAllocationsConfigured = true;
-    subs[subIndex].updatedAt = new Date().toISOString();
-    syncSubmissionActiveJudges(subs[subIndex], users);
-    syncUsersAllotedTeams(subs, users);
-    saveStoredSubmissions(subs);
-    saveStoredUsers(users);
-    pushCloudState({ submissions: subs, users }).catch(() => {});
-  }
-  return { success: true, teamId, subs, users };
-};
-
-/**
- * Client-Side Auto-Allocation of All Eligible Teams in a Target Round
- */
-export const autoAllocateStoredSubmissions = (roundInput = "round1") => {
+export const autoAllocateStoredSubmissions = () => {
   const subs = getStoredSubmissions();
   const users = getStoredUsers();
   const judges = users.filter((u) => u.role === "judge");
 
   if (judges.length === 0) return { success: false, message: "No judges registered yet." };
 
-  const targetKey = normalizeRoundKey(roundInput, "Round 1");
-  const targetRoundNum = Number(targetKey.replace("round", ""));
-
-  const eligibleSubs = subs.filter((sub) => {
-    const s = String(sub.stage || "Round 1").toLowerCase();
-    if (s.includes("selected")) return false;
-    return normalizeRoundNumber(sub.stage) === targetRoundNum;
+  // Clear previous allocations
+  judges.forEach((j) => {
+    j.allotedTeams = [];
   });
 
-  if (eligibleSubs.length === 0) {
-    return {
-      success: false,
-      allocatedCount: 0,
-      message: `No teams are currently in Round ${targetRoundNum} to auto-allocate.`,
-    };
-  }
-
-  eligibleSubs.forEach((sub, idx) => {
+  subs.forEach((sub, idx) => {
     const judge = judges[idx % judges.length];
-    if (!sub.roundAllocations) {
-      sub.roundAllocations = { round1: [], round2: [], round3: [] };
+    sub.allotedJudges = [judge.email];
+    sub.allotedJudgeNames = [judge.name];
+    if (sub.stage === "submitted") {
+      sub.stage = "allocated to a judge";
     }
-    if (!hasExplicitRoundAllocations(sub) && normalizeEmailList(sub.allotedJudges).length > 0 && targetKey !== "round1") {
-      sub.roundAllocations.round1 = normalizeEmailList(sub.allotedJudges);
+
+    if (!judge.allotedTeams.includes(sub.teamId)) {
+      judge.allotedTeams.push(sub.teamId);
     }
-    sub.roundAllocations[targetKey] = [judge.email.toLowerCase().trim()];
-    sub.roundAllocationsConfigured = true;
-    sub.updatedAt = new Date().toISOString();
-    syncSubmissionActiveJudges(sub, users);
   });
 
-  syncUsersAllotedTeams(subs, users);
   saveStoredSubmissions(subs);
   saveStoredUsers(users);
   pushCloudState({ submissions: subs, users }).catch(() => {});
-  return {
-    success: true,
-    allocatedCount: eligibleSubs.length,
-    count: eligibleSubs.length,
-    round: targetKey,
-    subs,
-    users,
-  };
+  return { success: true, count: subs.length, subs, users };
 };
 
 /**
- * Client-Side Rubric Score Submission (Preserves admin-controlled stage/round)
+ * Client-Side Rubric Score Submission
  */
-export const submitStoredRubricScore = ({
-  teamId,
-  judgeEmail,
-  judgeName = "",
-  round,
-  rubric,
-  totalScore,
-  feedback,
-}) => {
+export const submitStoredRubricScore = ({ teamId, judgeEmail, totalScore, feedback }) => {
   const subs = getStoredSubmissions();
   const index = subs.findIndex((s) => s.teamId === teamId);
   if (index !== -1) {
-    const cleanEmail = (judgeEmail || "").toLowerCase().trim();
-    const stageStr = String(subs[index].stage || "Round 1").toLowerCase();
-    const evalRound = Number(round) || (stageStr.includes("3") ? 3 : stageStr.includes("2") ? 2 : 1);
-    const existingEvals = Array.isArray(subs[index].evaluations)
-      ? [...subs[index].evaluations]
-      : [];
-
-    const entry = {
-      judgeEmail: cleanEmail,
-      judgeName: judgeName || cleanEmail || "Jury Member",
-      round: evalRound,
-      rubric: rubric || {},
-      totalScore: Number(totalScore) || 0,
-      notes: feedback || "",
-      submittedAt: new Date().toISOString(),
-    };
-
-    const existingIdx = existingEvals.findIndex(
-      (ev) =>
-        (ev.judgeEmail || "").toLowerCase().trim() === cleanEmail &&
-        Number(ev.round || 1) === evalRound,
-    );
-    if (existingIdx !== -1) {
-      existingEvals[existingIdx] = entry;
-    } else {
-      existingEvals.push(entry);
-    }
-
-    subs[index].evaluations = existingEvals;
-    subs[index].evaluationCount = existingEvals.length;
-    subs[index].rubricAverage = Number(
-      (
-        existingEvals.reduce((sum, ev) => sum + Number(ev.totalScore || 0), 0) /
-        existingEvals.length
-      ).toFixed(2),
-    );
-    subs[index].judgeFeedback = feedback || "";
-    subs[index].updatedAt = new Date().toISOString();
-
+    subs[index].rubricAverage = totalScore;
+    subs[index].stage = "under evaluation";
+    subs[index].judgeFeedback = feedback;
     saveStoredSubmissions(subs);
     pushCloudState({ submissions: subs }).catch(() => {});
     return subs[index];
@@ -1803,195 +1570,6 @@ export const getDrivePreviewUrl = (url) => {
     return `https://drive.google.com/file/d/${fileId}/preview`;
   }
   return url || "";
-};
-
-/**
- * Shared media resolver used across Participant Portal, Jury Hub, and Admin Portal.
- * Ignores dead persisted blob: URLs from old sessions and prioritizes verified blobs,
- * Google Drive preview embeds, direct .mp4/.pdf links, and backend streaming endpoints.
- */
-export const resolveSubmissionMedia = (sub, apiBaseUrl = "") => {
-  if (!sub) {
-    return {
-      video: {
-        hasVideo: false,
-        type: "none",
-        embedUrl: "",
-        directUrl: "",
-        downloadUrl: "",
-        fileName: "Not Provided",
-      },
-      document: {
-        hasDoc: false,
-        type: "none",
-        embedUrl: "",
-        directUrl: "",
-        downloadUrl: "",
-        fileName: "Not Provided",
-      },
-    };
-  }
-
-  const cleanBase =
-    apiBaseUrl && apiBaseUrl !== "undefined" ? apiBaseUrl.replace(/\/$/, "") : "";
-  const isLiveBlob = (u) =>
-    typeof u === "string" && u.startsWith("blob:") && Boolean(sub._blobsVerified);
-
-  // --- VIDEO RESOLUTION ---
-  const rawVidUrl =
-    sub.video?.url && !String(sub.video.url).includes("/drive/folders/")
-      ? sub.video.url
-      : "";
-  const rawVidLink =
-    sub.video?.webViewLink && !String(sub.video.webViewLink).includes("/drive/folders/")
-      ? sub.video.webViewLink
-      : "";
-  const videoUrlCandidate =
-    rawVidUrl ||
-    rawVidLink ||
-    (sub.videoUrl && !String(sub.videoUrl).includes("/drive/folders/") ? sub.videoUrl : "");
-  const videoDriveId = sub.video?.driveFileId || getDriveFileId(videoUrlCandidate);
-  const videoOrigName = sub.video?.originalName || sub.videoFileName || "";
-  const hasBackendVideoFile = Boolean(
-    sub.teamId &&
-      (sub.video?.localPath ||
-        (videoOrigName &&
-          videoOrigName !== "Not Provided" &&
-          videoOrigName !== "Google Drive Pitch Video"))
-  );
-
-  let videoInfo = {
-    hasVideo: false,
-    type: "none",
-    embedUrl: "",
-    directUrl: "",
-    downloadUrl: "",
-    fileName: videoOrigName || "Not Provided",
-  };
-
-  if (isLiveBlob(sub.videoBlobUrl)) {
-    videoInfo = {
-      hasVideo: true,
-      type: "blob",
-      embedUrl: sub.videoBlobUrl,
-      directUrl: sub.videoBlobUrl,
-      downloadUrl: sub.videoBlobUrl,
-      fileName: videoOrigName || "Pitch Video (.mp4)",
-    };
-  } else if (videoDriveId) {
-    videoInfo = {
-      hasVideo: true,
-      type: "drive",
-      embedUrl: `https://drive.google.com/file/d/${videoDriveId}/preview`,
-      directUrl: `https://drive.google.com/file/d/${videoDriveId}/view`,
-      downloadUrl: `https://drive.google.com/uc?export=download&id=${videoDriveId}`,
-      fileName: videoOrigName || "Google Drive Pitch Video",
-    };
-  } else if (
-    videoUrlCandidate &&
-    (videoUrlCandidate.toLowerCase().includes(".mp4") ||
-      videoUrlCandidate.startsWith("http") ||
-      videoUrlCandidate.startsWith("/"))
-  ) {
-    videoInfo = {
-      hasVideo: true,
-      type: videoUrlCandidate.toLowerCase().includes(".mp4") ? "mp4" : "external",
-      embedUrl: videoUrlCandidate,
-      directUrl: videoUrlCandidate,
-      downloadUrl: videoUrlCandidate,
-      fileName: videoOrigName || "Pitch Video",
-    };
-  } else if (hasBackendVideoFile) {
-    const streamEndpoint = `${cleanBase}/api/v2/submissions/${encodeURIComponent(sub.teamId)}/video-stream`;
-    videoInfo = {
-      hasVideo: true,
-      type: "mp4",
-      embedUrl: streamEndpoint,
-      directUrl: streamEndpoint,
-      downloadUrl: streamEndpoint,
-      fileName: videoOrigName || "Pitch Video (.mp4)",
-    };
-  }
-
-  // --- DOCUMENT (PDF) RESOLUTION ---
-  const rawDocUrl =
-    sub.document?.url && !String(sub.document.url).includes("/drive/folders/")
-      ? sub.document.url
-      : "";
-  const rawDocLink =
-    sub.document?.webViewLink &&
-    !String(sub.document.webViewLink).includes("/drive/folders/")
-      ? sub.document.webViewLink
-      : "";
-  const docUrlCandidate =
-    rawDocUrl ||
-    rawDocLink ||
-    (sub.documentUrl && !String(sub.documentUrl).includes("/drive/folders/")
-      ? sub.documentUrl
-      : "");
-  const docDriveId = sub.document?.driveFileId || getDriveFileId(docUrlCandidate);
-  const docOrigName =
-    sub.document?.name || sub.document?.originalName || sub.documentFileName || "";
-  const hasBackendDocFile = Boolean(
-    sub.teamId &&
-      (sub.document?.localPath ||
-        (docOrigName &&
-          docOrigName !== "Not Provided" &&
-          docOrigName.toLowerCase().endsWith(".pdf")))
-  );
-
-  let docInfo = {
-    hasDoc: false,
-    type: "none",
-    embedUrl: "",
-    directUrl: "",
-    downloadUrl: "",
-    fileName: docOrigName || "Not Provided",
-  };
-
-  if (isLiveBlob(sub.docBlobUrl)) {
-    docInfo = {
-      hasDoc: true,
-      type: "blob",
-      embedUrl: sub.docBlobUrl,
-      directUrl: sub.docBlobUrl,
-      downloadUrl: sub.docBlobUrl,
-      fileName: docOrigName || "Proposal.pdf",
-    };
-  } else if (docDriveId) {
-    docInfo = {
-      hasDoc: true,
-      type: "drive",
-      embedUrl: `https://drive.google.com/file/d/${docDriveId}/preview`,
-      directUrl: `https://drive.google.com/file/d/${docDriveId}/view`,
-      downloadUrl: `https://drive.google.com/uc?export=download&id=${docDriveId}`,
-      fileName: docOrigName || "Proposal.pdf",
-    };
-  } else if (
-    docUrlCandidate &&
-    (docUrlCandidate.startsWith("http") || docUrlCandidate.startsWith("/"))
-  ) {
-    docInfo = {
-      hasDoc: true,
-      type: docUrlCandidate.toLowerCase().includes(".pdf") ? "pdf" : "external",
-      embedUrl: docUrlCandidate,
-      directUrl: docUrlCandidate,
-      downloadUrl: docUrlCandidate,
-      fileName: docOrigName || "Proposal.pdf",
-    };
-  } else if (hasBackendDocFile) {
-    const previewEndpoint = `${cleanBase}/api/v2/submissions/${encodeURIComponent(sub.teamId)}/document-preview`;
-    docInfo = {
-      hasDoc: true,
-      type: "pdf",
-      embedUrl: previewEndpoint,
-      directUrl: previewEndpoint,
-      downloadUrl: `${previewEndpoint}?download=1`,
-      fileName: docOrigName || "Proposal.pdf",
-    };
-  }
-
-  return { video: videoInfo, document: docInfo };
 };
 
 export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => {
@@ -2208,10 +1786,6 @@ export const syncSubmissionFilesToCloudDrive = async ({
 
   // 1 & 2. Upload Document and Video SIMULTANEOUSLY in parallel
   const uploadDocPromise = (async () => {
-    // If the submission already has a valid Google Drive document URL, skip uploading document file
-    if (submission.document?.url && submission.document.url.includes("drive.google.com")) {
-      return { webViewLink: submission.document.url, fileId: submission.document.driveFileId };
-    }
     if (!documentFile) return null;
     try {
       const data = await uploadFileToAppsScript({
@@ -2221,18 +1795,12 @@ export const syncSubmissionFilesToCloudDrive = async ({
         folderType: "Documents",
         teamId: submission.teamId,
       });
-      const resolvedDocId = data?.fileId || data?.id || getDriveFileId(data?.webViewLink || data?.url);
-      if (resolvedDocId || data?.webViewLink || data?.url) {
+      if (data?.fileId || data?.webViewLink) {
         if (!submission.document) submission.document = {};
-        const docUrl =
-          data.webViewLink ||
-          data.url ||
-          `https://drive.google.com/file/d/${resolvedDocId}/view?usp=drivesdk`;
-        submission.document.url = docUrl;
-        submission.document.webViewLink = docUrl;
-        if (resolvedDocId) submission.document.driveFileId = resolvedDocId;
-        submission.document.name = documentFile.name || docName;
-        submission.document.originalName = documentFile.name || docName;
+        submission.document.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
+        submission.document.webViewLink = submission.document.url;
+        submission.document.driveFileId = data.fileId;
+        submission.document.name = docName;
       }
       return data;
     } catch (e) {
@@ -2272,16 +1840,11 @@ export const syncSubmissionFilesToCloudDrive = async ({
         });
       }
 
-      const resolvedVidId = data?.fileId || data?.id || getDriveFileId(data?.webViewLink || data?.url);
-      if (resolvedVidId || data?.webViewLink || data?.url) {
+      if (data?.fileId || data?.webViewLink) {
         if (!submission.video) submission.video = {};
-        const vidUrl =
-          data.webViewLink ||
-          data.url ||
-          `https://drive.google.com/file/d/${resolvedVidId}/view?usp=drivesdk`;
-        submission.video.url = vidUrl;
-        submission.video.webViewLink = vidUrl;
-        if (resolvedVidId) submission.video.driveFileId = resolvedVidId;
+        submission.video.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
+        submission.video.webViewLink = submission.video.url;
+        submission.video.driveFileId = data.fileId;
         submission.video.originalName = videoFile.name || videoName;
       }
       return data;
@@ -2298,12 +1861,11 @@ export const syncSubmissionFilesToCloudDrive = async ({
     onStatusUpdate("Finalizing submission...");
   }
 
-  // Save updated file URLs in local client state immediately (strip dead blob URLs)
-  const sanitizedSub = sanitizeSubmissionForStorage(submission);
+  // Save updated file URLs in local client state immediately
   const allSubs = getStoredSubmissions();
-  const idx = allSubs.findIndex((s) => s.teamId === sanitizedSub.teamId);
+  const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
   if (idx !== -1) {
-    allSubs[idx] = { ...allSubs[idx], ...sanitizedSub };
+    allSubs[idx] = { ...allSubs[idx], ...submission };
     saveStoredSubmissions(allSubs);
   }
 
@@ -2312,7 +1874,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   try {
     const allUsers = getStoredUsers();
     const currentUser = allUsers.find(
-      (u) => u.email?.toLowerCase() === sanitizedSub.participantEmail?.toLowerCase()
+      (u) => u.email?.toLowerCase() === submission.participantEmail?.toLowerCase()
     );
 
     const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
@@ -2320,7 +1882,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         action: "register_submission",
-        submission: sanitizedSub,
+        submission,
         user: currentUser || null,
       }),
     });
@@ -2337,122 +1899,6 @@ export const syncSubmissionFilesToCloudDrive = async ({
   await pushCloudState({ submissions: allSubs }).catch(() => {});
 
   return submission;
-};
-
-/**
- * Client-Side Participant Media Updater
- * Updates pitch video and/or proposal deck for an existing submission,
- * stores raw files in IndexedDB, triggers background Google Drive sync,
- * and pushes updated state to cloud KV / remote store.
- */
-export const clientUpdateSubmissionMedia = async ({
-  teamId,
-  userEmail,
-  videoDriveUrl,
-  videoFile,
-  documentDriveUrl,
-  documentFile,
-}) => {
-  const subs = getStoredSubmissions();
-  const cleanEmail = (userEmail || "").toLowerCase().trim();
-  const idx = subs.findIndex(
-    (s) =>
-      (teamId && s.teamId === teamId) ||
-      (cleanEmail &&
-        (s.participantEmail?.toLowerCase() === cleanEmail ||
-          s.members?.some((m) => m.email?.toLowerCase() === cleanEmail)))
-  );
-
-  if (idx === -1) {
-    throw new Error("Submission not found in local storage.");
-  }
-
-  const existing = subs[idx];
-  const targetTeamId = existing.teamId;
-  const cleanTeamName = (existing.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
-  const videoNewName = `[${targetTeamId}]_${cleanTeamName}_Video.mp4`;
-  const docNewName = `[${targetTeamId}]_${cleanTeamName}_Proposal.pdf`;
-
-  const cleanVideoDrive = (videoDriveUrl || "").trim();
-  const driveVidId = getDriveFileId(cleanVideoDrive);
-  const cleanDocDrive = (documentDriveUrl || "").trim();
-  const driveDocId = getDriveFileId(cleanDocDrive);
-
-  let localVideoBlob = existing.videoBlobUrl || null;
-  let localDocBlob = existing.docBlobUrl || null;
-
-  const updatedSub = {
-    ...existing,
-    video: { ...(existing.video || {}) },
-    document: { ...(existing.document || {}) },
-  };
-
-  // Video Update
-  if (cleanVideoDrive) {
-    updatedSub.video = {
-      originalName: "Google Drive Pitch Video",
-      size: 15000000,
-      url: cleanVideoDrive,
-      webViewLink: cleanVideoDrive,
-      driveFileId: driveVidId || null,
-    };
-    updatedSub.videoBlobUrl = null;
-  } else if (videoFile) {
-    localVideoBlob = URL.createObjectURL(videoFile);
-    updatedSub.videoBlobUrl = localVideoBlob;
-    updatedSub.video = {
-      originalName: videoFile.name || videoNewName,
-      size: videoFile.size,
-      url: "",
-      webViewLink: "",
-      driveFileId: null,
-    };
-    await storeMediaBlob(`video_${targetTeamId}`, videoFile);
-    if (cleanEmail) {
-      await storeMediaBlob(`participant_video_${cleanEmail}`, videoFile);
-    }
-  }
-
-  // Document Update
-  if (cleanDocDrive) {
-    updatedSub.document = {
-      name: "Google Drive Proposal Deck",
-      originalName: "Google Drive Proposal Deck",
-      size: 2000000,
-      url: cleanDocDrive,
-      webViewLink: cleanDocDrive,
-      driveFileId: driveDocId || null,
-    };
-    updatedSub.docBlobUrl = null;
-  } else if (documentFile) {
-    localDocBlob = URL.createObjectURL(documentFile);
-    updatedSub.docBlobUrl = localDocBlob;
-    updatedSub.document = {
-      name: documentFile.name || docNewName,
-      originalName: documentFile.name || docNewName,
-      size: documentFile.size,
-      url: "",
-      webViewLink: "",
-      driveFileId: null,
-    };
-    await storeMediaBlob(`doc_${targetTeamId}`, documentFile);
-    if (cleanEmail) {
-      await storeMediaBlob(`participant_doc_${cleanEmail}`, documentFile);
-    }
-  }
-
-  updatedSub._blobsVerified = Boolean(updatedSub.videoBlobUrl || updatedSub.docBlobUrl);
-  subs[idx] = sanitizeSubmissionForStorage(updatedSub);
-  saveStoredSubmissions(subs);
-
-  // Background sync to Google Drive
-  syncSubmissionFilesToCloudDrive({
-    submission: updatedSub,
-    videoFile: videoFile || null,
-    documentFile: documentFile || null,
-  }).catch((e) => console.warn("Background media update sync:", e));
-
-  return updatedSub;
 };
 
 /**

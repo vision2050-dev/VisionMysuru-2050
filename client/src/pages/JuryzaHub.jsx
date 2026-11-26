@@ -28,13 +28,9 @@ import {
   getStoredSubmissions,
   getStoredUsers,
   submitStoredRubricScore,
+  updateStoredSubmissionStage,
   clientSignIn,
-  resolveSubmissionMedia,
-  sanitizeSubmissionForStorage,
-  mergeSubmissions,
-  getActiveAllocatedJudges,
-  hasExplicitRoundAllocations,
-  normalizeStageLabel,
+  getDriveFileId,
   getMediaBlobUrl,
   syncCloudPortalState,
 } from "../services/juryzaStorage";
@@ -69,6 +65,9 @@ export const JuryzaHub = () => {
   });
   const [feedback, setFeedback] = useState("");
   const [submittingScore, setSubmittingScore] = useState(false);
+
+  // Status changer state
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Duel State
   const [duelPair, setDuelPair] = useState(null);
@@ -208,24 +207,7 @@ export const JuryzaHub = () => {
       const res = await api.get("/api/v2/submissions", {
         params: { judgeEmail: myEmail },
       });
-      const rawList = Array.isArray(res.data) ? res.data : null;
-      let list = rawList ? rawList.map(sanitizeSubmissionForStorage) : [];
-
-      // If backend returned non-array (SPA fallback) or empty, merge cloud/local submissions
-      if (!rawList || list.length === 0) {
-        const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
-        let cloudSubs = [];
-        try {
-          const synced = await syncCloudPortalState();
-          cloudSubs = synced?.submissions || [];
-        } catch (e) {
-          console.warn("Cloud sync on judge load note:", e);
-        }
-        list = mergeSubmissions(localClean, cloudSubs);
-      } else {
-        const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
-        list = mergeSubmissions(localClean, list);
-      }
+      const list = Array.isArray(res.data) ? res.data : [];
 
       // Check stored users to see which teams are alloted to this judge
       const storedUsers = getStoredUsers();
@@ -235,40 +217,35 @@ export const JuryzaHub = () => {
       const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
 
       // STRICT JUDGE FILTER:
-      // Only include submissions strictly alloted to this judge for their active round!
+      // Only include submissions strictly alloted to this judge!
       const judgeOnlyList = list.filter((sub) => {
-        const activeJudges = getActiveAllocatedJudges(sub);
-        if (activeJudges.includes(myEmail)) return true;
-        if (!hasExplicitRoundAllocations(sub) && (!Array.isArray(sub.allotedJudges) || sub.allotedJudges.length === 0)) {
-          return Boolean(sub.teamId && allotedTeamIds.includes(sub.teamId));
-        }
-        return false;
+        const inJudges =
+          Array.isArray(sub.allotedJudges) &&
+          sub.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
+        const inJudgeTeams = sub.teamId && allotedTeamIds.includes(sub.teamId);
+        return inJudges || inJudgeTeams;
       });
 
       setSubmissions(judgeOnlyList);
       if (judgeOnlyList.length > 0) {
         setSelectedSubmission((prev) => {
-          if (prev) {
-            const updated = judgeOnlyList.find((s) => s.teamId === prev.teamId);
-            if (updated) return updated;
-          }
+          if (prev && judgeOnlyList.some((s) => s.teamId === prev.teamId)) return prev;
           return judgeOnlyList[0];
         });
       } else {
         setSelectedSubmission(null);
       }
     } catch {
-      // Local fallback with Cloud State sync - always sync cloud so cross-device Drive links stay fresh
-      const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
-      let cloudSubs = [];
-      try {
-        const synced = await syncCloudPortalState();
-        cloudSubs = synced?.submissions || [];
-      } catch (e) {
-        console.warn("Cloud sync on judge load note:", e);
+      // Local fallback with Cloud State sync
+      let stored = getStoredSubmissions();
+      if (!stored || stored.length === 0) {
+        try {
+          const synced = await syncCloudPortalState();
+          stored = synced.submissions || [];
+        } catch (e) {
+          console.warn("Cloud sync on judge load note:", e);
+        }
       }
-      const stored = mergeSubmissions(localClean, cloudSubs);
-
       const myEmail = (
         overrideEmail ||
         judgeEmail ||
@@ -284,23 +261,19 @@ export const JuryzaHub = () => {
       const allotedTeamIds = Array.isArray(currentJudge?.allotedTeams) ? currentJudge.allotedTeams : [];
 
       // STRICT JUDGE FILTER:
-      // ONLY teams specifically alloted to this judge in their active round!
+      // ONLY teams specifically alloted to this judge! NEVER fallback to all stored teams or unalloted teams!
       const myTeams = stored.filter((s) => {
-        const activeJudges = getActiveAllocatedJudges(s);
-        if (activeJudges.includes(myEmail)) return true;
-        if (!hasExplicitRoundAllocations(s) && (!Array.isArray(s.allotedJudges) || s.allotedJudges.length === 0)) {
-          return Boolean(s.teamId && allotedTeamIds.includes(s.teamId));
-        }
-        return false;
+        const inJudges =
+          Array.isArray(s.allotedJudges) &&
+          s.allotedJudges.map((j) => String(j).toLowerCase().trim()).includes(myEmail);
+        const inJudgeTeams = s.teamId && allotedTeamIds.includes(s.teamId);
+        return inJudges || inJudgeTeams;
       });
 
       setSubmissions(myTeams);
       if (myTeams.length > 0) {
         setSelectedSubmission((prev) => {
-          if (prev) {
-            const updated = myTeams.find((s) => s.teamId === prev.teamId);
-            if (updated) return updated;
-          }
+          if (prev && myTeams.some((s) => s.teamId === prev.teamId)) return prev;
           return myTeams[0];
         });
       } else {
@@ -345,97 +318,59 @@ export const JuryzaHub = () => {
     setScores((prev) => ({ ...prev, [criteria]: Number(val) }));
   };
 
-  const getStageRoundNum = (stageStr) => {
-    const s = String(stageStr || "Round 1").toLowerCase();
-    if (s.includes("3")) return 3;
-    if (s.includes("2")) return 2;
-    return 1;
-  };
-
-  useEffect(() => {
-    if (!selectedSubmission) return;
-    const myEmail = (
-      judgeEmail ||
-      localStorage.getItem("juryzaJudgeEmail") ||
-      localStorage.getItem("juryzaEmail") ||
-      ""
-    ).toLowerCase().trim();
-    const activeRound = getStageRoundNum(selectedSubmission.stage);
-    const evs = Array.isArray(selectedSubmission.evaluations) ? selectedSubmission.evaluations : [];
-    const existing =
-      evs.find(
-        (ev) =>
-          (ev.judgeEmail || "").toLowerCase().trim() === myEmail &&
-          Number(ev.round || 1) === activeRound,
-      ) ||
-      evs.find((ev) => (ev.judgeEmail || "").toLowerCase().trim() === myEmail);
-
-    if (existing?.rubric) {
-      setScores({
-        problemClarity: Number(existing.rubric.problemClarity ?? 8),
-        innovationImpact: Number(existing.rubric.innovationImpact ?? 8),
-        feasibilityScalability: Number(existing.rubric.feasibilityScalability ?? 7),
-        technicalDepth: Number(existing.rubric.technicalDepth ?? 8),
-        videoPitchDelivery: Number(existing.rubric.videoPitchDelivery ?? 8),
-      });
-      setFeedback(existing.notes || "");
-    } else {
-      setScores({
-        problemClarity: 8,
-        innovationImpact: 8,
-        feasibilityScalability: 7,
-        technicalDepth: 8,
-        videoPitchDelivery: 8,
-      });
-      setFeedback("");
-    }
-  }, [selectedSubmission?.teamId, judgeEmail]);
-
   const submitEvaluation = async () => {
     if (!selectedSubmission) return;
     setSubmittingScore(true);
-
-    const activeRound = getStageRoundNum(selectedSubmission.stage);
 
     try {
       await api.post("/api/v2/jury/rubric", {
         submissionId: selectedSubmission.teamId || selectedSubmission._id,
         rubric: scores,
         notes: feedback,
-        round: activeRound,
       });
     } catch (err) {
       console.warn("Backend evaluation post failed, applying local fallback:", err.message);
     }
 
-    // Record locally while strictly preserving admin-controlled round/selection stage
-    const updatedSub = submitStoredRubricScore({
+    // Always record locally
+    submitStoredRubricScore({
       teamId: selectedSubmission.teamId,
       judgeEmail,
-      judgeName,
-      round: activeRound,
-      rubric: scores,
       totalScore,
       feedback,
     });
 
     toast.success(
-      `Evaluation recorded for ${selectedSubmission.teamName} (Round ${activeRound})! Total Score: ${totalScore}/50`,
+      `Evaluation recorded for ${selectedSubmission.teamName}! Total Score: ${totalScore}/50`,
     );
-    if (updatedSub) {
-      setSelectedSubmission((prev) =>
-        prev && prev.teamId === updatedSub.teamId
-          ? {
-              ...updatedSub,
-              videoBlobUrl: prev.videoBlobUrl,
-              docBlobUrl: prev.docBlobUrl,
-              _blobsVerified: prev._blobsVerified,
-            }
-          : prev,
-      );
-    }
+    setFeedback("");
+    setSelectedSubmission((prev) => ({
+      ...prev,
+      rubricAverage: totalScore,
+      stage: "under evaluation",
+    }));
     fetchSubmissions();
     setSubmittingScore(false);
+  };
+
+  const handleStatusChange = async (newStage) => {
+    if (!selectedSubmission) return;
+    setUpdatingStatus(true);
+
+    try {
+      await api.patch(`/api/v2/submissions/${selectedSubmission.teamId}/status`, {
+        stage: newStage,
+      });
+    } catch (err) {
+      console.warn("Backend status patch failed, applying local fallback:", err.message);
+    }
+
+    // Always update locally
+    updateStoredSubmissionStage(selectedSubmission.teamId, newStage);
+    toast.success(`Team stage updated to '${newStage}'!`);
+    setSelectedSubmission((prev) => ({ ...prev, stage: newStage }));
+    fetchSubmissions();
+    setUpdatingStatus(false);
   };
 
   const voteDuel = async (winnerId, loserId) => {
@@ -454,12 +389,12 @@ export const JuryzaHub = () => {
 
   useEffect(() => {
     if (selectedSubmission?.teamId) {
-      // Always look up fresh IndexedDB blobs for the selected team on this browser
+      // Always look up fresh IndexedDB blobs for the selected team
       getMediaBlobUrl(`video_${selectedSubmission.teamId}`).then((blobUrl) => {
         if (blobUrl) {
           setSelectedSubmission((prev) =>
             prev && prev.teamId === selectedSubmission.teamId
-              ? { ...prev, videoBlobUrl: blobUrl, _blobsVerified: true }
+              ? { ...prev, videoBlobUrl: blobUrl }
               : prev,
           );
         }
@@ -468,13 +403,37 @@ export const JuryzaHub = () => {
         if (blobUrl) {
           setSelectedSubmission((prev) =>
             prev && prev.teamId === selectedSubmission.teamId
-              ? { ...prev, docBlobUrl: blobUrl, _blobsVerified: true }
+              ? { ...prev, docBlobUrl: blobUrl }
               : prev,
           );
         }
       });
     }
   }, [selectedSubmission?.teamId]);
+
+  const getVideoSrc = (sub) => {
+    if (!sub) return "/speech.mp4";
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
+    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    }
+    return "/speech.mp4";
+  };
+
+  const getDocHref = (sub) => {
+    if (!sub) return "/sample_proposal.pdf";
+    if (sub.docBlobUrl) return sub.docBlobUrl;
+    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
+    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+    }
+    return "/sample_proposal.pdf";
+  };
 
   if (!isAuthenticated) {
     return (
@@ -717,14 +676,6 @@ export const JuryzaHub = () => {
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                 {submissions.map((sub) => {
                   const isSelected = selectedSubmission?.teamId === sub.teamId;
-                  const activeStageLabel = normalizeStageLabel(sub.stage);
-                  const activeRound = getStageRoundNum(sub.stage);
-                  const myEmail = (judgeEmail || "").toLowerCase().trim();
-                  const myRoundEval = (sub.evaluations || []).find(
-                    (ev) =>
-                      (ev.judgeEmail || "").toLowerCase().trim() === myEmail &&
-                      Number(ev.round || 1) === activeRound,
-                  );
                   return (
                     <button
                       key={sub.teamId}
@@ -736,25 +687,21 @@ export const JuryzaHub = () => {
                           : "border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)]"
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-[10px] font-mono font-bold text-[var(--accent)]">
                           {sub.teamId}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          myRoundEval
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                        }`}>
-                          {myRoundEval ? `Scored ${myRoundEval.totalScore}/50` : "Pending"}
+                        <span className="text-[10px] uppercase font-semibold text-[var(--muted)]">
+                          {sub.category}
                         </span>
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-[var(--text)] mt-1 truncate">
                         {sub.teamName}
                       </h4>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]/50 text-[10px] text-[var(--muted)]">
-                        <span className="truncate max-w-[140px]">{sub.theme}</span>
-                        <span className="font-bold text-[var(--primary)] shrink-0">
-                          {activeStageLabel}
+                        <span>{sub.theme}</span>
+                        <span className="capitalize font-semibold text-[var(--text)]">
+                          {sub.stage || "submitted"}
                         </span>
                       </div>
                     </button>
@@ -787,171 +734,174 @@ export const JuryzaHub = () => {
                         </p>
                       </div>
 
-                      {/* Read-Only Stage Badge (Progression & Selection are Admin-Exclusive) */}
-                      <div className="flex flex-col items-end gap-1">
+                      {/* Judge Stage Selector: Round 1, Round 2, Round 3, followed by Selected / Not Selected */}
+                      <div className="flex flex-col items-end gap-1.5">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">
-                          Current Round / Status (Admin Managed):
+                          Judge Decision / Stage:
                         </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--primary)]/40 bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)]">
-                          {selectedSubmission.stage || "Round 1"}
-                        </span>
+                        <select
+                          disabled={updatingStatus}
+                          value={selectedSubmission.stage || "Round 1"}
+                          onChange={(e) => handleStatusChange(e.target.value)}
+                          className="rounded-xl border border-[var(--primary)]/50 bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] focus:outline-none cursor-pointer"
+                        >
+                          <option value="Round 1">Round 1</option>
+                          <option value="Round 2">Round 2</option>
+                          <option value="Round 3">Round 3</option>
+                          <option value="Selected">Selected</option>
+                          <option value="Not Selected">Not Selected</option>
+                        </select>
                       </div>
                     </div>
                   </div>
 
-                  {/* Pitch Video & Proposal Deck using Shared Visibility Resolver */}
+                  {/* Pitch Video (.mp4) Player */}
                   {(() => {
-                    const resolvedMedia = resolveSubmissionMedia(
-                      selectedSubmission,
-                      api.defaults.baseURL,
+                    const driveVidId =
+                      selectedSubmission.video?.driveFileId ||
+                      getDriveFileId(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink);
+                    const activeVideoBlob = selectedSubmission.videoBlobUrl;
+                    const isDirectMp4 =
+                      (selectedSubmission.video?.url && selectedSubmission.video.url.toLowerCase().endsWith(".mp4")) ||
+                      (selectedSubmission.video?.webViewLink && selectedSubmission.video.webViewLink.toLowerCase().endsWith(".mp4"));
+                    const directMp4Url = isDirectMp4
+                      ? selectedSubmission.video.url || selectedSubmission.video.webViewLink
+                      : null;
+                    const hasValidVideo = Boolean(
+                      driveVidId ||
+                      activeVideoBlob ||
+                      directMp4Url ||
+                      (selectedSubmission.video?.url && !selectedSubmission.video.url.includes("/drive/folders/"))
                     );
-                    const vid = resolvedMedia.video;
-                    const doc = resolvedMedia.document;
+
+                    if (!hasValidVideo) {
+                      return (
+                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)] mb-3">
+                            <FiVideo className="h-4 w-4 text-[var(--muted)] opacity-50" />
+                            <span>Pitch Video (.mp4)</span>
+                          </div>
+                          <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                            <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                            <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
+                            <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                              This team chose to submit only a Proposal Document (.pdf).
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
-                      <>
-                        {/* Pitch Video (.mp4 / Google Drive) Player */}
-                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
-                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                              <FiVideo className={`h-4 w-4 ${vid.hasVideo ? "text-[var(--primary)]" : "text-[var(--muted)] opacity-50"}`} />
-                              <span>Pitch Video (.mp4 / Drive Link)</span>
-                            </div>
-                            {vid.hasVideo && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-[var(--muted)] font-mono truncate max-w-[150px]">
-                                  {vid.fileName}
-                                </span>
-                                {vid.directUrl && (
-                                  <a
-                                    href={vid.directUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--primary)] hover:border-[var(--primary)] transition"
-                                  >
-                                    <span>Open Video</span>
-                                    <FiExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                              </div>
-                            )}
+                      <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                            <FiVideo className="h-4 w-4 text-[var(--primary)]" />
+                            <span>Pitch Video (.mp4)</span>
                           </div>
-
-                          {!vid.hasVideo ? (
-                            <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                              <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
-                              <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
-                              <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                                This team submitted a Proposal Document (.pdf) without a Pitch Video.
-                              </p>
-                            </div>
-                          ) : vid.type === "blob" || vid.type === "mp4" ? (
-                            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
-                              <video
-                                key={`video-${selectedSubmission.teamId}-${vid.embedUrl}`}
-                                src={vid.embedUrl}
-                                className="h-full w-full object-contain bg-black"
-                                controls
-                                preload="metadata"
-                                playsInline
-                              />
-                            </div>
-                          ) : vid.type === "drive" && vid.embedUrl ? (
-                            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
-                              <iframe
-                                key={`drive-${selectedSubmission.teamId}-${vid.embedUrl}`}
-                                src={vid.embedUrl}
-                                title="Team Pitch Video"
-                                className="h-full w-full border-0 rounded-2xl"
-                                allow="autoplay; fullscreen"
-                              />
-                            </div>
-                          ) : (
-                            <div className="aspect-video w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center gap-3">
-                              <FiVideo className="h-8 w-8 text-[var(--primary)]" />
-                              <p className="text-xs font-semibold text-[var(--text)]">
-                                External Video Resource Linked
-                              </p>
-                              <a
-                                href={vid.directUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold transition shadow-sm"
-                              >
-                                <span>Watch Video in New Tab</span>
-                                <FiExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-[var(--muted)] font-mono truncate max-w-[150px]">
+                              {selectedSubmission.video?.originalName || "Team Pitch Video"}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Proposal Deck & Proposal Abstract */}
-                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
-                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                              <FiFileText className="h-4 w-4 text-[var(--accent)]" />
-                              <span>Proposal Document (.pdf) & Abstract</span>
-                            </div>
-                            {doc.hasDoc && (
-                              <div className="flex items-center gap-2">
-                                {doc.downloadUrl && (
-                                  <a
-                                    href={doc.downloadUrl}
-                                    download={doc.fileName}
-                                    target={doc.type === "blob" ? undefined : "_blank"}
-                                    rel={doc.type === "blob" ? undefined : "noopener noreferrer"}
-                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
-                                  >
-                                    <FiDownload className="h-3 w-3" />
-                                    <span>Download</span>
-                                  </a>
-                                )}
-                                {(doc.directUrl || doc.embedUrl) && (
-                                  <a
-                                    href={doc.directUrl || doc.embedUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
-                                  >
-                                    <span>Fullscreen PDF</span>
-                                    <FiExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <p className="text-xs sm:text-sm text-[var(--text)] leading-relaxed bg-[var(--surface-2)] p-4 rounded-2xl border border-[var(--border)] mb-4">
-                            {selectedSubmission.shortDescription}
-                          </p>
-
-                          {/* Embedded Interactive PDF Viewer */}
-                          {doc.hasDoc ? (
-                            <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
-                              <iframe
-                                key={`doc-${selectedSubmission.teamId}-${doc.embedUrl}`}
-                                src={
-                                  doc.type === "blob" || doc.type === "pdf"
-                                    ? `${doc.embedUrl}#toolbar=0&navpanes=0`
-                                    : doc.embedUrl
-                                }
-                                title="Proposal PDF Document"
-                                className="h-full w-full border-0 rounded-2xl"
-                              />
-                            </div>
+                        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                          {activeVideoBlob ? (
+                            <video
+                              key={`blob-${selectedSubmission.teamId}-${activeVideoBlob}`}
+                              src={activeVideoBlob}
+                              className="h-full w-full object-cover"
+                              controls
+                              preload="metadata"
+                              playsInline
+                            />
+                          ) : driveVidId ? (
+                            <iframe
+                              key={`drive-${selectedSubmission.teamId}-${driveVidId}`}
+                              src={`https://drive.google.com/file/d/${driveVidId}/preview`}
+                              title="Team Pitch Video"
+                              className="h-full w-full border-0 rounded-2xl"
+                              allow="autoplay; fullscreen"
+                            />
+                          ) : directMp4Url ? (
+                            <video
+                              key={`mp4-${selectedSubmission.teamId}-${directMp4Url}`}
+                              src={directMp4Url}
+                              className="h-full w-full object-cover"
+                              controls
+                              preload="metadata"
+                              playsInline
+                            />
                           ) : (
-                            <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                              <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
-                              <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
-                              <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                                This team submitted a Pitch Video without a Proposal Document (.pdf).
-                              </p>
-                            </div>
+                            <video
+                              key={`fallback-${selectedSubmission.teamId}`}
+                              src="/speech.mp4"
+                              className="h-full w-full object-cover"
+                              controls
+                              preload="metadata"
+                              playsInline
+                            />
                           )}
                         </div>
-                      </>
+                      </div>
                     );
                   })()}
+
+                  {/* Proposal Deck & Proposal Abstract */}
+                  <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                        <FiFileText className="h-4 w-4 text-[var(--accent)]" />
+                        <span>Proposal Document (.pdf) & Abstract</span>
+                      </div>
+                      {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) && (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getDocHref(selectedSubmission)}
+                            download={selectedSubmission.document?.name || "Proposal.pdf"}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
+                          >
+                            <FiDownload className="h-3 w-3" />
+                            <span>Download</span>
+                          </a>
+                          <a
+                            href={getDocHref(selectedSubmission)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
+                          >
+                            <span>Fullscreen PDF</span>
+                            <FiExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-[var(--text)] leading-relaxed bg-[var(--surface-2)] p-4 rounded-2xl border border-[var(--border)] mb-4">
+                      {selectedSubmission.shortDescription}
+                    </p>
+
+                    {/* Embedded Interactive PDF Viewer */}
+                    {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) ? (
+                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
+                        <iframe
+                          key={selectedSubmission.teamId}
+                          src={`${getDocHref(selectedSubmission)}#toolbar=0&navpanes=0`}
+                          title="Proposal PDF Document"
+                          className="h-full w-full border-0 rounded-2xl"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                        <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                        <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
+                        <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                          This team chose to submit only a Pitch Video.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Rubric Evaluation Form */}
                   <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">

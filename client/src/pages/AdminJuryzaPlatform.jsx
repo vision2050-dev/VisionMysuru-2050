@@ -29,10 +29,6 @@ import {
   FiEdit2,
   FiKey,
   FiUpload,
-  FiFilter,
-  FiSearch,
-  FiBarChart2,
-  FiLayers,
 } from "react-icons/fi";
 import api from "../utils/api";
 import {
@@ -58,15 +54,6 @@ import {
   fetchDriveMasterState,
   importSubmissionsFromFile,
   getMasterSpreadsheetUrl,
-  resolveSubmissionMedia,
-  sanitizeSubmissionForStorage,
-  mergeSubmissions,
-  saveStoredRoundAllocations,
-  getAllocatedJudgesForRound,
-  getActiveAllocatedJudges,
-  getAllEverAllocatedJudges,
-  normalizeRoundNumber,
-  normalizeStageLabel,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -87,34 +74,10 @@ export const AdminJuryzaPlatform = () => {
   const [submissions, setSubmissions] = useState([]);
   const [judges, setJudges] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("submissions"); // "submissions" | "judges" | "results"
-
-  // Master Table Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [roundFilter, setRoundFilter] = useState("ALL");
-  const [judgeFilter, setJudgeFilter] = useState("ALL");
-  const [evalStatusFilter, setEvalStatusFilter] = useState("ALL");
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
-
-  // Evaluation Results & Round Status Tab States
-  const [resultsSubView, setResultsSubView] = useState("judgeWise"); // "judgeWise" | "roundWise"
-  const [resultsJudgeEmail, setResultsJudgeEmail] = useState("ALL");
-  const [resultsRoundScope, setResultsRoundScope] = useState("ALL");
-  const [resultsEvalFilter, setResultsEvalFilter] = useState("ALL");
-  const [roundStatusFilter, setRoundStatusFilter] = useState("ALL");
+  const [activeTab, setActiveTab] = useState("submissions"); // "submissions" | "judges"
 
   // Allocation state
   const [allocating, setAllocating] = useState(false);
-  const [autoAllocateRound, setAutoAllocateRound] = useState("round1");
-  const [allocatingTeamModal, setAllocatingTeamModal] = useState(null);
-  const [roundAllocationForm, setRoundAllocationForm] = useState({
-    round1: [],
-    round2: [],
-    round3: [],
-  });
-
-  // Media Inspection Modal State
-  const [previewingSubmission, setPreviewingSubmission] = useState(null);
 
   // Add Judge Modal States
   const [showAddJudgeModal, setShowAddJudgeModal] = useState(false);
@@ -148,7 +111,6 @@ export const AdminJuryzaPlatform = () => {
     documentFileName: "",
     documentUrl: "",
     allotedJudge: "",
-    roundAllocations: { round1: [], round2: [], round3: [] },
     createdAt: "",
   });
 
@@ -200,12 +162,7 @@ export const AdminJuryzaPlatform = () => {
       syncCloudPortalState()
         .then((synced) => {
           if (synced?.submissions && synced.submissions.length > 0) {
-            setSubmissions((prev) =>
-              mergeSubmissions(
-                prev.map(sanitizeSubmissionForStorage),
-                synced.submissions,
-              ),
-            );
+            setSubmissions(synced.submissions);
             if (synced.judges && synced.judges.length > 0) {
               setJudges(synced.judges);
             }
@@ -333,44 +290,6 @@ export const AdminJuryzaPlatform = () => {
     }
   };
 
-  const hydrateSubmissionMediaBlobs = (list = []) => {
-    for (const s of list) {
-      if (!s?.teamId) continue;
-      getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
-        if (url) {
-          setSubmissions((prev) =>
-            prev.map((sub) =>
-              sub.teamId === s.teamId
-                ? { ...sub, docBlobUrl: url, _blobsVerified: true }
-                : sub,
-            ),
-          );
-          setPreviewingSubmission((prev) =>
-            prev && prev.teamId === s.teamId
-              ? { ...prev, docBlobUrl: url, _blobsVerified: true }
-              : prev,
-          );
-        }
-      });
-      getMediaBlobUrl(`video_${s.teamId}`).then((url) => {
-        if (url) {
-          setSubmissions((prev) =>
-            prev.map((sub) =>
-              sub.teamId === s.teamId
-                ? { ...sub, videoBlobUrl: url, _blobsVerified: true }
-                : sub,
-            ),
-          );
-          setPreviewingSubmission((prev) =>
-            prev && prev.teamId === s.teamId
-              ? { ...prev, videoBlobUrl: url, _blobsVerified: true }
-              : prev,
-          );
-        }
-      });
-    }
-  };
-
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -379,198 +298,160 @@ export const AdminJuryzaPlatform = () => {
         api.get("/api/v2/admin/judges"),
       ]);
 
-      const rawSubs = Array.isArray(subRes.data) ? subRes.data : [];
+      const subList = Array.isArray(subRes.data) ? subRes.data : [];
       const judgeList = Array.isArray(judgeRes.data) ? judgeRes.data : [];
-      const cleanBackendSubs = rawSubs.map(sanitizeSubmissionForStorage);
 
-      const synced = await syncCloudPortalState().catch(() => null);
-      const cloudSubs = synced?.submissions || [];
-      const mergedSubs = mergeSubmissions(
-        getStoredSubmissions().map(sanitizeSubmissionForStorage),
-        mergeSubmissions(cloudSubs, cleanBackendSubs),
-      );
-      const mergedJudges = judgeList.length > 0 ? judgeList : synced?.judges || [];
-
-      setSubmissions(mergedSubs);
-      setJudges(mergedJudges);
-
-      saveStoredSubmissions(mergedSubs);
-      if (mergedJudges.length > 0) {
-        const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
-        saveStoredUsers([...otherUsers, ...mergedJudges]);
+      if (subList.length === 0) {
+        const synced = await syncCloudPortalState();
+        if (synced.submissions && synced.submissions.length > 0) {
+          setSubmissions(synced.submissions);
+          setJudges(synced.judges || judgeList);
+          return;
+        }
       }
-      hydrateSubmissionMediaBlobs(mergedSubs);
+
+      setSubmissions(subList);
+      setJudges(judgeList);
+
+      saveStoredSubmissions(subList);
+      const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
+      saveStoredUsers([...otherUsers, ...judgeList]);
     } catch (err) {
       console.warn("Backend API unreachable, synchronizing with cloud state:", err.message);
       const synced = await syncCloudPortalState();
-      const activeSubs = mergeSubmissions(
-        getStoredSubmissions().map(sanitizeSubmissionForStorage),
-        synced.submissions || [],
-      );
+      const activeSubs = synced.submissions || [];
       const activeJudges = synced.judges || [];
       setSubmissions(activeSubs);
       setJudges(activeJudges);
-      hydrateSubmissionMediaBlobs(activeSubs);
+
+      // Enrich with local IndexedDB media if available
+      for (const s of activeSubs) {
+        if (!s.docBlobUrl) {
+          getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
+            if (url) {
+              setSubmissions((prev) =>
+                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, docBlobUrl: url } : sub)),
+              );
+            }
+          });
+        }
+        if (!s.videoBlobUrl) {
+          getMediaBlobUrl(`video_${s.teamId}`).then((url) => {
+            if (url) {
+              setSubmissions((prev) =>
+                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, videoBlobUrl: url } : sub)),
+              );
+            }
+          });
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Status Change (Admin Exclusive: manages Round 1/2/3 transitions and Selected/Not Selected)
+  // Status Change (Both Admin and Jury can change stage)
   const handleStageChange = async (teamId, newStage) => {
     try {
       await api.patch(`/api/v2/submissions/${teamId}/status`, { stage: newStage });
       toast.success(`Submission status updated to '${newStage}'!`);
     } catch {
       console.warn("API unavailable, updating locally...");
-      toast.success(`Submission status updated to '${newStage}'.`);
     }
 
-    const updatedSub = updateStoredSubmissionStage(teamId, newStage);
-    const syncedSubs = getStoredSubmissions();
-    const syncedJudges = getStoredUsers().filter((u) => u.role === "judge");
-    if (syncedSubs.length > 0) {
-      setSubmissions(syncedSubs);
-    } else if (updatedSub) {
-      setSubmissions((prev) =>
-        prev.map((s) => (s.teamId === teamId ? { ...s, ...updatedSub, stage: newStage } : s)),
-      );
-    }
-    if (syncedJudges.length > 0) {
-      setJudges(syncedJudges);
-    }
+    updateStoredSubmissionStage(teamId, newStage);
+    setSubmissions((prev) =>
+      prev.map((s) => (s.teamId === teamId ? { ...s, stage: newStage } : s)),
+    );
   };
 
-  // Round-Wise Judge Allocation (Supports single dropdown or panel array per round)
-  const handleAllocateRound = async (teamId, roundKey, judgeEmailOrEmails) => {
-    const rawArr = Array.isArray(judgeEmailOrEmails)
-      ? judgeEmailOrEmails
-      : [judgeEmailOrEmails];
-    const cleanEmails = Array.from(
-      new Set(
-        rawArr
-          .map((e) => String(e || "").toLowerCase().trim())
-          .filter((e) => Boolean(e) && e !== "unallocated"),
-      ),
-    );
-    const isUnallocating = cleanEmails.length === 0;
-    const roundLabel =
-      roundKey === "round3" ? "Round 3" : roundKey === "round2" ? "Round 2" : "Round 1";
+  // Manual Allocation & Unallocation
+  const handleAllocate = async (teamId, judgeEmailToAssign) => {
+    const cleanEmail = (judgeEmailToAssign || "").toLowerCase().trim();
+    const isUnallocating = !cleanEmail;
 
     try {
       setAllocating(true);
       await api.post("/api/v2/admin/allocate", {
         teamId,
-        round: roundKey,
-        judgeEmail: cleanEmails[0] || "",
-        judgeEmails: cleanEmails,
+        judgeEmail: cleanEmail,
+        judgeEmails: isUnallocating ? [] : [cleanEmail],
       });
       if (isUnallocating) {
-        toast.success(`${roundLabel} judge cleared for team ${teamId}.`);
+        toast.success("Team marked as unallocated.");
       } else {
-        toast.success(`${roundLabel} judge assignment updated!`);
+        toast.success("Team assigned to judge successfully!");
       }
     } catch {
       console.warn("API unavailable, allocating locally...");
-      toast.success(
-        isUnallocating
-          ? `${roundLabel} judge cleared.`
-          : `${roundLabel} judge assignment updated!`,
-      );
     }
 
-    const res = allocateStoredSubmission(teamId, cleanEmails, roundKey);
-    if (res?.subs) {
-      setSubmissions([...res.subs]);
-    }
-    if (res?.users) {
-      setJudges([...res.users.filter((u) => u.role === "judge")]);
-    }
+    allocateStoredSubmission(teamId, cleanEmail);
+
+    // Update submissions state reactively
+    setSubmissions((prev) =>
+      prev.map((s) => {
+        if (s.teamId !== teamId) return s;
+        if (isUnallocating) {
+          return {
+            ...s,
+            allotedJudges: [],
+            allotedJudgeNames: [],
+            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
+          };
+        }
+        const targetJudge = judges.find((j) => j.email.toLowerCase() === cleanEmail);
+        return {
+          ...s,
+          allotedJudges: [cleanEmail],
+          allotedJudgeNames: [targetJudge?.name || cleanEmail],
+          stage: s.stage === "submitted" ? "allocated to a judge" : s.stage,
+        };
+      }),
+    );
+
+    // Update judges state as well
+    setJudges((prev) =>
+      prev.map((j) => {
+        const jEmail = (j.email || "").toLowerCase().trim();
+        const currentTeams = Array.isArray(j.allotedTeams) ? j.allotedTeams : [];
+        if (isUnallocating) {
+          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
+        }
+        if (jEmail === cleanEmail) {
+          return {
+            ...j,
+            allotedTeams: currentTeams.includes(teamId) ? currentTeams : [...currentTeams, teamId],
+          };
+        } else {
+          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
+        }
+      }),
+    );
 
     setAllocating(false);
   };
 
-  const handleOpenPanelAllocation = (sub) => {
-    setRoundAllocationForm({
-      round1: getAllocatedJudgesForRound(sub, 1),
-      round2: getAllocatedJudgesForRound(sub, 2),
-      round3: getAllocatedJudgesForRound(sub, 3),
-    });
-    setAllocatingTeamModal(sub);
-  };
-
-  const handleToggleRoundPanelJudge = (roundKey, judgeEmail) => {
-    const cleanEmail = (judgeEmail || "").toLowerCase().trim();
-    if (!cleanEmail) return;
-    setRoundAllocationForm((prev) => {
-      const current = Array.isArray(prev[roundKey]) ? prev[roundKey] : [];
-      const exists = current.includes(cleanEmail);
-      return {
-        ...prev,
-        [roundKey]: exists
-          ? current.filter((e) => e !== cleanEmail)
-          : [...current, cleanEmail],
-      };
-    });
-  };
-
-  const handleSavePanelAllocation = async (e) => {
-    e.preventDefault();
-    if (!allocatingTeamModal) return;
-    setAllocating(true);
-    try {
-      await api.post("/api/v2/admin/allocate", {
-        teamId: allocatingTeamModal.teamId,
-        roundAllocations: roundAllocationForm,
-      });
-    } catch {
-      console.warn("API unavailable, saving round-wise allocations locally...");
-    }
-
-    const res = saveStoredRoundAllocations(allocatingTeamModal.teamId, roundAllocationForm);
-    if (res?.subs) setSubmissions([...res.subs]);
-    if (res?.users) setJudges([...res.users.filter((u) => u.role === "judge")]);
-    toast.success(`Round-wise judge panel saved for ${allocatingTeamModal.teamName}!`);
-    setAllocatingTeamModal(null);
-    setAllocating(false);
-  };
-
-  // Automated Round-Robin Allocation for Selected Target Round
+  // Automated Round-Robin Allocation
   const handleAutoAllocate = async () => {
     if (judges.length === 0) {
       toast.error("No judges available in roster to allocate teams!");
       return;
     }
-    const targetLabel =
-      autoAllocateRound === "round3"
-        ? "Round 3"
-        : autoAllocateRound === "round2"
-          ? "Round 2"
-          : "Round 1";
-
     try {
-      await api.post("/api/v2/admin/allocate", {
-        mode: "auto",
-        round: autoAllocateRound,
-      });
+      await api.post("/api/v2/admin/allocate", { mode: "auto" });
     } catch {
       console.warn("API unavailable, auto-allocating locally...");
     }
 
-    const res = autoAllocateStoredSubmissions(autoAllocateRound);
-    if (!res?.success || res.allocatedCount === 0) {
-      toast.error(res?.message || `No teams found in ${targetLabel} to allocate.`);
-      return;
-    }
+    const res = autoAllocateStoredSubmissions();
     if (res?.subs) {
       setSubmissions([...res.subs]);
     }
     if (res?.users) {
       setJudges([...res.users.filter((u) => u.role === "judge")]);
     }
-    toast.success(
-      `Allocated ${res.allocatedCount} ${targetLabel} teams evenly across ${judges.length} judges!`,
-    );
+    toast.success(`Allocated teams evenly across ${judges.length} judges!`);
   };
 
   // Create Judge Action
@@ -695,12 +576,7 @@ export const AdminJuryzaPlatform = () => {
       videoUrl: sub.video?.url || sub.video?.webViewLink || "",
       documentFileName: sub.document?.name || sub.document?.originalName || "",
       documentUrl: sub.document?.url || sub.document?.webViewLink || "",
-      allotedJudge: getActiveAllocatedJudges(sub)[0] || "",
-      roundAllocations: {
-        round1: getAllocatedJudgesForRound(sub, 1),
-        round2: getAllocatedJudgesForRound(sub, 2),
-        round3: getAllocatedJudgesForRound(sub, 3),
-      },
+      allotedJudge: (sub.allotedJudges || [])[0] || "",
       createdAt: sub.createdAt ? new Date(sub.createdAt).toISOString().split("T")[0] : "",
     });
     setEditingSubmission(sub);
@@ -846,13 +722,27 @@ export const AdminJuryzaPlatform = () => {
   };
 
   const getDocHref = (sub) => {
-    const { document: doc } = resolveSubmissionMedia(sub, api.defaults.baseURL);
-    return doc.directUrl || doc.embedUrl || doc.downloadUrl || "";
+    if (!sub) return "/sample_proposal.pdf";
+    if (sub.docBlobUrl) return sub.docBlobUrl;
+    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
+    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
+    }
+    return "/sample_proposal.pdf";
   };
 
   const getVideoHref = (sub) => {
-    const { video: vid } = resolveSubmissionMedia(sub, api.defaults.baseURL);
-    return vid.directUrl || vid.embedUrl || vid.downloadUrl || "";
+    if (!sub) return "/speech.mp4";
+    if (sub.videoBlobUrl) return sub.videoBlobUrl;
+    if (sub.video?.url) return sub.video.url;
+    if (sub.video?.webViewLink) return sub.video.webViewLink;
+    const base = api.defaults.baseURL || "";
+    if (base && sub.teamId) {
+      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
+    }
+    return "/speech.mp4";
   };
 
   // Render Login Card if not authenticated as Admin
@@ -956,183 +846,6 @@ export const AdminJuryzaPlatform = () => {
       </div>
     );
   }
-
-  // Derived datasets for Filters, Judge-Wise Results, and Round-Wise Status
-  const uniqueCategories = Array.from(
-    new Set(submissions.map((s) => (s.category || "").trim()).filter(Boolean)),
-  );
-
-  const isSubmissionEvaluated = (sub) => {
-    const hasEvals = Array.isArray(sub?.evaluations) && sub.evaluations.length > 0;
-    const hasScore = typeof sub?.rubricAverage === "number" && sub.rubricAverage > 0;
-    return hasEvals || hasScore;
-  };
-
-  const filteredSubmissions = submissions.filter((sub) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
-      const searchable = [
-        sub.teamId,
-        sub.teamName,
-        sub.solutionName,
-        leader.name || sub.leadName,
-        leader.email || sub.leadEmail || sub.participantEmail,
-        sub.theme,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!searchable.includes(q)) return false;
-    }
-
-    if (roundFilter !== "ALL" && normalizeStageLabel(sub.stage) !== roundFilter) {
-      return false;
-    }
-
-    if (judgeFilter === "UNALLOCATED") {
-      if (getActiveAllocatedJudges(sub).length > 0) return false;
-    } else if (judgeFilter !== "ALL") {
-      if (!getAllEverAllocatedJudges(sub).includes(judgeFilter)) return false;
-    }
-
-    if (evalStatusFilter === "EVALUATED" && !isSubmissionEvaluated(sub)) {
-      return false;
-    }
-    if (evalStatusFilter === "PENDING" && isSubmissionEvaluated(sub)) {
-      return false;
-    }
-
-    if (
-      categoryFilter !== "ALL" &&
-      (sub.category || "").trim().toLowerCase() !== categoryFilter.toLowerCase()
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const roundBuckets = ["Round 1", "Round 2", "Round 3", "Selected", "Not Selected"];
-  const roundStatusCounts = roundBuckets.reduce((acc, label) => {
-    acc[label] = submissions.filter((s) => normalizeStageLabel(s.stage) === label).length;
-    return acc;
-  }, {});
-
-  // Build Judge-Wise Evaluation Summary & Detailed Rows
-  const judgeNameByEmail = judges.reduce((map, j) => {
-    const email = (j.email || "").toLowerCase().trim();
-    if (email) map[email] = j.name || email;
-    return map;
-  }, {});
-
-  const targetRoundsList =
-    resultsRoundScope === "ALL" ? [1, 2, 3] : [Number(resultsRoundScope)];
-
-  const allJudgeEvalRecords = [];
-  const seenJudgeEvalKeys = new Set();
-
-  // 1. Add all explicitly recorded rubric evaluations across rounds
-  submissions.forEach((sub) => {
-    const evs = Array.isArray(sub.evaluations) ? sub.evaluations : [];
-    evs.forEach((ev) => {
-      const jEmail = (ev.judgeEmail || "").toLowerCase().trim();
-      const roundNum = Number(ev.round || 1);
-      if (!jEmail || !targetRoundsList.includes(roundNum)) return;
-      const key = `${sub.teamId}::${jEmail}::R${roundNum}`;
-      seenJudgeEvalKeys.add(key);
-      allJudgeEvalRecords.push({
-        key,
-        teamId: sub.teamId,
-        teamName: sub.teamName,
-        theme: sub.theme,
-        stage: normalizeStageLabel(sub.stage),
-        roundNum,
-        judgeEmail: jEmail,
-        judgeName: ev.judgeName || judgeNameByEmail[jEmail] || jEmail,
-        status: "Evaluated",
-        totalScore: Number(ev.totalScore || 0),
-        rubric: ev.rubric || {},
-        notes: ev.notes || "",
-        submittedAt: ev.submittedAt || null,
-        submission: sub,
-      });
-    });
-  });
-
-  // 2. Add assigned but not-yet-evaluated judge-round slots
-  submissions.forEach((sub) => {
-    targetRoundsList.forEach((roundNum) => {
-      const assignedJudges = getAllocatedJudgesForRound(sub, roundNum);
-      assignedJudges.forEach((jEmail) => {
-        const key = `${sub.teamId}::${jEmail}::R${roundNum}`;
-        if (!seenJudgeEvalKeys.has(key)) {
-          seenJudgeEvalKeys.add(key);
-          allJudgeEvalRecords.push({
-            key,
-            teamId: sub.teamId,
-            teamName: sub.teamName,
-            theme: sub.theme,
-            stage: normalizeStageLabel(sub.stage),
-            roundNum,
-            judgeEmail: jEmail,
-            judgeName: judgeNameByEmail[jEmail] || jEmail,
-            status: "Pending",
-            totalScore: null,
-            rubric: null,
-            notes: "",
-            submittedAt: null,
-            submission: sub,
-          });
-        }
-      });
-    });
-  });
-
-  const filteredJudgeEvalRows = allJudgeEvalRecords
-    .filter((row) => {
-      if (resultsJudgeEmail !== "ALL" && row.judgeEmail !== resultsJudgeEmail) return false;
-      if (resultsEvalFilter === "EVALUATED" && row.status !== "Evaluated") return false;
-      if (resultsEvalFilter === "PENDING" && row.status !== "Pending") return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (a.status !== b.status) return a.status === "Evaluated" ? -1 : 1;
-      return (b.totalScore || 0) - (a.totalScore || 0);
-    });
-
-  const judgeSummaries = judges.map((judge) => {
-    const jEmail = (judge.email || "").toLowerCase().trim();
-    const rows = allJudgeEvalRecords.filter((r) => r.judgeEmail === jEmail);
-    const evaluated = rows.filter((r) => r.status === "Evaluated");
-    const pending = rows.filter((r) => r.status === "Pending");
-    const avg =
-      evaluated.length > 0
-        ? evaluated.reduce((sum, r) => sum + Number(r.totalScore || 0), 0) / evaluated.length
-        : 0;
-    return {
-      email: jEmail,
-      name: judge.name || jEmail,
-      specialization: judge.specialization || "All Tracks",
-      totalSlots: rows.length,
-      evaluatedCount: evaluated.length,
-      pendingCount: pending.length,
-      avgScore: avg,
-    };
-  });
-
-  const roundStatusRows = submissions.filter((sub) => {
-    if (roundStatusFilter === "ALL") return true;
-    return normalizeStageLabel(sub.stage) === roundStatusFilter;
-  });
-
-  const resetMasterFilters = () => {
-    setSearchQuery("");
-    setRoundFilter("ALL");
-    setJudgeFilter("ALL");
-    setEvalStatusFilter("ALL");
-    setCategoryFilter("ALL");
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] dm-sans selection:bg-[var(--accent)] selection:text-white">
@@ -1333,7 +1046,7 @@ export const AdminJuryzaPlatform = () => {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex flex-wrap border-b border-[var(--border)] gap-6">
+        <div className="flex border-b border-[var(--border)] gap-6">
           <button
             type="button"
             onClick={() => setActiveTab("submissions")}
@@ -1357,19 +1070,6 @@ export const AdminJuryzaPlatform = () => {
           >
             Judges Roster & Generation ({judges.length})
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("results")}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition cursor-pointer inline-flex items-center gap-1.5 ${
-              activeTab === "results"
-                ? "border-[var(--primary)] text-[var(--text)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"
-            }`}
-          >
-            <FiBarChart2 className="h-4 w-4 text-[var(--primary)]" />
-            <span>Evaluation Results & Round Status</span>
-          </button>
         </div>
 
         {/* Tab 1: Master Submissions Table */}
@@ -1377,121 +1077,19 @@ export const AdminJuryzaPlatform = () => {
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-sm text-[var(--text)]">Team Submissions & Round-Wise Judge Allocation</h3>
-                <p className="text-xs text-[var(--muted)]">Assign different judges per round (R1, R2, R3), inspect media, and manage round progression.</p>
+                <h3 className="font-bold text-sm text-[var(--text)]">Team Submissions & Allocations</h3>
+                <p className="text-xs text-[var(--muted)]">Assign judges, inspect uploads, and update competition rounds.</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={autoAllocateRound}
-                  onChange={(e) => setAutoAllocateRound(e.target.value)}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-bold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none cursor-pointer"
-                  aria-label="Target Round for Auto-Allocation"
-                >
-                  <option value="round1">For Round 1</option>
-                  <option value="round2">For Round 2</option>
-                  <option value="round3">For Round 3</option>
-                </select>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleAutoAllocate}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold shadow-md hover:brightness-110 transition cursor-pointer"
                 >
                   <FiUserCheck className="h-3.5 w-3.5" />
-                  <span>Auto-Allocate Round</span>
+                  <span>Auto-Allocate All Teams</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Master Table Interactive Filter Bar */}
-            <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text)]">
-                  <FiFilter className="h-3.5 w-3.5 text-[var(--primary)]" />
-                  <span>Filter Submissions</span>
-                  <span className="ml-1 font-mono text-[11px] text-[var(--muted)]">
-                    ({filteredSubmissions.length} of {submissions.length} shown)
-                  </span>
-                </div>
-                {(searchQuery || roundFilter !== "ALL" || judgeFilter !== "ALL" || evalStatusFilter !== "ALL" || categoryFilter !== "ALL") && (
-                  <button
-                    type="button"
-                    onClick={resetMasterFilters}
-                    className="text-[11px] font-bold text-[var(--primary)] hover:underline cursor-pointer"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-                <div className="relative">
-                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--muted)]" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search team ID, name, leader..."
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] pl-8 pr-3 py-1.5 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
-                  />
-                </div>
-
-                <select
-                  value={roundFilter}
-                  onChange={(e) => setRoundFilter(e.target.value)}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                  aria-label="Filter by Round Status"
-                >
-                  <option value="ALL">All Rounds & Statuses</option>
-                  {roundBuckets.map((r) => (
-                    <option key={r} value={r}>
-                      {r} ({roundStatusCounts[r] || 0})
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={judgeFilter}
-                  onChange={(e) => setJudgeFilter(e.target.value)}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                  aria-label="Filter by Judge"
-                >
-                  <option value="ALL">All Judges</option>
-                  <option value="UNALLOCATED">Unallocated in Active Round</option>
-                  {judges.map((j) => {
-                    const jEmail = (j.email || "").toLowerCase().trim();
-                    return (
-                      <option key={jEmail} value={jEmail}>
-                        Judge: {j.name}
-                      </option>
-                    );
-                  })}
-                </select>
-
-                <select
-                  value={evalStatusFilter}
-                  onChange={(e) => setEvalStatusFilter(e.target.value)}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                  aria-label="Filter by Evaluation Status"
-                >
-                  <option value="ALL">All Evaluation States</option>
-                  <option value="EVALUATED">Evaluated / Scored</option>
-                  <option value="PENDING">Pending Evaluation</option>
-                </select>
-
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                  aria-label="Filter by Category"
-                >
-                  <option value="ALL">All Categories</option>
-                  {uniqueCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      Category: {cat}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
@@ -1503,38 +1101,30 @@ export const AdminJuryzaPlatform = () => {
                       <th className="px-4 py-3">Team Details</th>
                       <th className="px-4 py-3">Focus Area & Leader</th>
                       <th className="px-4 py-3">Compulsory Files</th>
-                      <th className="px-4 py-3">Round-Wise Judges (R1 / R2 / R3)</th>
+                      <th className="px-4 py-3">Alloted Judge</th>
                       <th className="px-4 py-3">Submission Stage</th>
                       <th className="px-4 py-3">Score</th>
                       <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
-                    {filteredSubmissions.length === 0 && (
+                    {submissions.length === 0 && (
                       <tr>
                         <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
-                          {submissions.length === 0
-                            ? "No team submissions registered yet."
-                            : "No team submissions match the active filters."}
+                          No team submissions registered yet.
                         </td>
                       </tr>
                     )}
-                    {filteredSubmissions.map((sub) => {
-                      const activeRoundNum = normalizeRoundNumber(sub.stage);
-                      const r1Judges = getAllocatedJudgesForRound(sub, 1);
-                      const r2Judges = getAllocatedJudgesForRound(sub, 2);
-                      const r3Judges = getAllocatedJudgesForRound(sub, 3);
+                    {submissions.map((sub) => {
+                      const alloted = (sub.allotedJudges || [])[0] || "";
                       const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
                       const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
                       const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
                       const focusArea = sub.theme || sub.thematicArea || "Focus Area";
-                      const resolvedMedia = resolveSubmissionMedia(sub, api.defaults.baseURL);
-                      const hasSubVideo = resolvedMedia.video.hasVideo;
-                      const hasSubDoc = resolvedMedia.document.hasDoc;
-                      const videoName = resolvedMedia.video.fileName;
-                      const docName = resolvedMedia.document.fileName;
-                      const videoHref = resolvedMedia.video.directUrl || resolvedMedia.video.embedUrl;
-                      const docHref = resolvedMedia.document.directUrl || resolvedMedia.document.embedUrl;
+                      const hasSubVideo = Boolean(sub.videoBlobUrl || sub.video?.url || (sub.video?.originalName && sub.video.originalName !== "Not Provided"));
+                      const hasSubDoc = Boolean(sub.document?.url || (sub.document?.name && sub.document.name !== "Not Provided" && sub.document.name.endsWith(".pdf")));
+                      const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
+                      const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
 
                       return (
                         <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
@@ -1596,7 +1186,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
                                 <a
-                                  href={videoHref}
+                                  href={getVideoHref(sub)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1609,7 +1199,7 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiVideo className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">No video uploaded</span>
+                                <span className="italic">PDF only</span>
                               </div>
                             )}
 
@@ -1617,7 +1207,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
                                 <a
-                                  href={docHref}
+                                  href={getDocHref(sub)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1630,83 +1220,26 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiFileText className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">No PDF uploaded</span>
+                                <span className="italic">Video only</span>
                               </div>
-                            )}
-
-                            {(hasSubVideo || hasSubDoc) && (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewingSubmission(sub)}
-                                className="mt-1 inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px] font-bold text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition cursor-pointer"
-                              >
-                                <FiEye className="h-3 w-3" />
-                                <span>Preview Media</span>
-                              </button>
                             )}
                           </td>
 
-                          {/* Round-Wise Judge Allocation Controls */}
+                          {/* Judge Allocation Dropdown */}
                           <td className="px-4 py-3.5">
-                            <div className="space-y-1.5 min-w-[205px]">
-                              {[
-                                { key: "round1", num: 1, label: "R1", list: r1Judges },
-                                { key: "round2", num: 2, label: "R2", list: r2Judges },
-                                { key: "round3", num: 3, label: "R3", list: r3Judges },
-                              ].map((rMeta) => {
-                                const isActiveRound =
-                                  activeRoundNum === rMeta.num &&
-                                  !["Selected", "Not Selected"].includes(normalizeStageLabel(sub.stage));
-                                const selectVal =
-                                  rMeta.list.length > 1
-                                    ? "__MULTI__"
-                                    : rMeta.list[0] || "";
-                                return (
-                                  <div key={rMeta.key} className="flex items-center gap-1.5">
-                                    <span
-                                      className={`w-6 text-center rounded px-1 py-0.5 text-[10px] font-bold shrink-0 ${
-                                        isActiveRound
-                                          ? "bg-[var(--primary)] text-white"
-                                          : "bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--border)]"
-                                      }`}
-                                      title={isActiveRound ? `Active Round (${rMeta.label})` : `${rMeta.label} Allocation`}
-                                    >
-                                      {rMeta.label}
-                                    </span>
-                                    <select
-                                      value={selectVal}
-                                      disabled={allocating}
-                                      onChange={(e) => {
-                                        if (e.target.value !== "__MULTI__") {
-                                          handleAllocateRound(sub.teamId, rMeta.key, e.target.value);
-                                        }
-                                      }}
-                                      className="flex-1 min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
-                                    >
-                                      <option value="">Unallocated</option>
-                                      {rMeta.list.length > 1 && (
-                                        <option value="__MULTI__" disabled>
-                                          {rMeta.list.length} Judges Assigned (Panel)
-                                        </option>
-                                      )}
-                                      {judges.map((j) => (
-                                        <option key={j.email} value={(j.email || "").toLowerCase().trim()}>
-                                          {j.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                );
-                              })}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPanelAllocation(sub)}
-                                className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--primary)] hover:underline cursor-pointer"
-                              >
-                                <FiUsers className="h-3 w-3" />
-                                <span>Manage Multi-Judge Panel</span>
-                              </button>
-                            </div>
+                            <select
+                              value={alloted}
+                              disabled={allocating}
+                              onChange={(e) => handleAllocate(sub.teamId, e.target.value)}
+                              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer max-w-[160px]"
+                            >
+                              <option value="">Unallocated</option>
+                              {judges.map((j) => (
+                                <option key={j.email} value={j.email}>
+                                  {j.name} ({j.email})
+                                </option>
+                              ))}
+                            </select>
                           </td>
 
                           {/* Stage Dropdown */}
@@ -1768,7 +1301,7 @@ export const AdminJuryzaPlatform = () => {
               </div>
             </div>
           </div>
-        ) : activeTab === "judges" ? (
+        ) : (
           /* Tab 2: Registered Judges Roster */
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1834,11 +1367,11 @@ export const AdminJuryzaPlatform = () => {
                     )}
                     {judges.map((judge) => {
                       const jEmail = (judge.email || "").toLowerCase().trim();
-                      const r1Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 1).includes(jEmail)).length;
-                      const r2Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 2).includes(jEmail)).length;
-                      const r3Count = submissions.filter((s) => getAllocatedJudgesForRound(s, 3).includes(jEmail)).length;
                       const allotedCount = submissions.filter((s) =>
-                        getActiveAllocatedJudges(s).includes(jEmail),
+                        Array.isArray(s.allotedJudges) &&
+                        s.allotedJudges
+                          .map((e) => (e || "").toLowerCase().trim())
+                          .includes(jEmail)
                       ).length;
 
                       return (
@@ -1883,18 +1416,9 @@ export const AdminJuryzaPlatform = () => {
                             {judge.specialization || "All Tracks"}
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="space-y-1">
-                              <span className="font-bold text-xs font-mono bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--border)] inline-block">
-                                {allotedCount} active {allotedCount === 1 ? "team" : "teams"}
-                              </span>
-                              <div className="flex items-center gap-1 text-[10px] font-mono text-[var(--muted)]">
-                                <span>R1:{r1Count}</span>
-                                <span>|</span>
-                                <span>R2:{r2Count}</span>
-                                <span>|</span>
-                                <span>R3:{r3Count}</span>
-                              </div>
-                            </div>
+                            <span className="font-bold text-xs font-mono bg-[var(--surface-2)] px-2 py-0.5 rounded border border-[var(--border)]">
+                              {allotedCount} {allotedCount === 1 ? "team" : "teams"}
+                            </span>
                           </td>
                           <td className="px-4 py-3.5 text-[var(--muted)]">
                             {judge.createdAt
@@ -1929,385 +1453,6 @@ export const AdminJuryzaPlatform = () => {
                 </table>
               </div>
             </div>
-          </div>
-        ) : (
-          /* Tab 3: Judge-Wise Evaluation Results & Round-Wise Submission Status */
-          <div className="space-y-6">
-            {/* Sub-View Switcher */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-sm text-[var(--text)]">
-                  Evaluation Results & Competition Round Tracking
-                </h3>
-                <p className="text-xs text-[var(--muted)]">
-                  Inspect judge-by-judge scoring progress or review round-wise submission statuses and promote teams.
-                </p>
-              </div>
-
-              <div className="inline-flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
-                <button
-                  type="button"
-                  onClick={() => setResultsSubView("judgeWise")}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                    resultsSubView === "judgeWise"
-                      ? "bg-[var(--primary)] text-white shadow-xs"
-                      : "text-[var(--muted)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  <FiUserCheck className="h-3.5 w-3.5" />
-                  <span>Judge-Wise Evaluation Results</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResultsSubView("roundWise")}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                    resultsSubView === "roundWise"
-                      ? "bg-[var(--primary)] text-white shadow-xs"
-                      : "text-[var(--muted)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  <FiLayers className="h-3.5 w-3.5" />
-                  <span>Round-Wise Submission Status</span>
-                </button>
-              </div>
-            </div>
-
-            {resultsSubView === "judgeWise" ? (
-              <div className="space-y-5">
-                {/* Judge-Wise Filter Controls */}
-                <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-1">
-                      Select Judge
-                    </label>
-                    <select
-                      value={resultsJudgeEmail}
-                      onChange={(e) => setResultsJudgeEmail(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Registered Judges ({judges.length})</option>
-                      {judges.map((j) => {
-                        const jEmail = (j.email || "").toLowerCase().trim();
-                        return (
-                          <option key={jEmail} value={jEmail}>
-                            {j.name} ({jEmail})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-1">
-                      Evaluation Round
-                    </label>
-                    <select
-                      value={resultsRoundScope}
-                      onChange={(e) => setResultsRoundScope(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Rounds (R1, R2, R3)</option>
-                      <option value="1">Round 1 Evaluations</option>
-                      <option value="2">Round 2 Evaluations</option>
-                      <option value="3">Round 3 Evaluations</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-1">
-                      Completion Filter
-                    </label>
-                    <select
-                      value={resultsEvalFilter}
-                      onChange={(e) => setResultsEvalFilter(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Assigned & Evaluated</option>
-                      <option value="EVALUATED">Evaluated Only</option>
-                      <option value="PENDING">Pending Evaluation Only</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Per-Judge Performance Summary Cards */}
-                {judgeSummaries.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {judgeSummaries.map((js) => {
-                      const isSelected = resultsJudgeEmail === js.email;
-                      return (
-                        <button
-                          key={js.email}
-                          type="button"
-                          onClick={() =>
-                            setResultsJudgeEmail(isSelected ? "ALL" : js.email)
-                          }
-                          className={`text-left p-4 rounded-2xl border transition cursor-pointer ${
-                            isSelected
-                              ? "border-[var(--primary)] bg-[var(--primary)]/5 shadow-sm"
-                              : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]/50"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h4 className="font-bold text-sm text-[var(--text)]">{js.name}</h4>
-                              <p className="text-[11px] font-mono text-[var(--muted)] truncate">
-                                {js.email}
-                              </p>
-                            </div>
-                            <span className="font-mono text-xs font-extrabold text-[var(--primary)] bg-[var(--surface-2)] px-2.5 py-1 rounded-lg border border-[var(--border)]">
-                              Avg {js.evaluatedCount > 0 ? js.avgScore.toFixed(1) : "0.0"}/50
-                            </span>
-                          </div>
-                          <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-[11px]">
-                            <span className="text-[var(--muted)]">
-                              Total Slots: <strong className="text-[var(--text)]">{js.totalSlots}</strong>
-                            </span>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              Evaluated: {js.evaluatedCount}
-                            </span>
-                            <span className="text-amber-600 dark:text-amber-400 font-bold">
-                              Pending: {js.pendingCount}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Detailed Judge-Wise Results Table */}
-                <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[var(--surface-2)] text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
-                        <tr>
-                          <th className="px-4 py-3">Judge</th>
-                          <th className="px-4 py-3">Team</th>
-                          <th className="px-4 py-3">Eval Round</th>
-                          <th className="px-4 py-3">Current Status</th>
-                          <th className="px-4 py-3">Rubric Breakdown (out of 10)</th>
-                          <th className="px-4 py-3">Total Score</th>
-                          <th className="px-4 py-3">Judge Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {filteredJudgeEvalRows.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
-                              No judge evaluations or assignments match the selected filters.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredJudgeEvalRows.map((row) => (
-                            <tr key={row.key} className="hover:bg-[var(--surface-2)]/50 transition">
-                              <td className="px-4 py-3.5">
-                                <div className="font-bold text-[var(--text)]">{row.judgeName}</div>
-                                <div className="font-mono text-[10px] text-[var(--muted)]">
-                                  {row.judgeEmail}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <div className="font-bold text-[var(--text)]">{row.teamName}</div>
-                                <div className="font-mono text-[10px] text-[var(--muted)]">
-                                  {row.teamId}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5 font-bold text-[var(--primary)]">
-                                Round {row.roundNum}
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    row.status === "Evaluated"
-                                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                      : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                  }`}
-                                >
-                                  {row.status}
-                                </span>
-                                <div className="text-[10px] text-[var(--muted)] mt-1">
-                                  Team Stage: {row.stage}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5 font-mono text-[11px] text-[var(--muted)]">
-                                {row.rubric ? (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    <span>Clarity:{row.rubric.problemClarity ?? "-"}</span>
-                                    <span>Innov:{row.rubric.innovationImpact ?? "-"}</span>
-                                    <span>Feas:{row.rubric.feasibilityScalability ?? "-"}</span>
-                                    <span>Tech:{row.rubric.technicalDepth ?? "-"}</span>
-                                    <span>Pitch:{row.rubric.videoPitchDelivery ?? "-"}</span>
-                                  </div>
-                                ) : (
-                                  <span className="italic">Awaiting score</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3.5 font-mono font-extrabold text-sm text-[var(--text)]">
-                                {row.totalScore !== null ? `${row.totalScore}/50` : "Pending"}
-                              </td>
-                              <td className="px-4 py-3.5 max-w-[220px] text-[11px] text-[var(--muted)]">
-                                {row.notes || "-"}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Sub-View B: Round-Wise Submission Status */
-              <div className="space-y-5">
-                {/* Round Stage Pills + Summary Breakdown */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRoundStatusFilter("ALL")}
-                    className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
-                      roundStatusFilter === "ALL"
-                        ? "border-[var(--primary)] bg-[var(--primary)]/10"
-                        : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]/50"
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                      All Teams
-                    </span>
-                    <div className="oswald text-2xl font-extrabold text-[var(--text)] mt-0.5">
-                      {submissions.length}
-                    </div>
-                  </button>
-                  {roundBuckets.map((bucket) => {
-                    const count = roundStatusCounts[bucket] || 0;
-                    const isActive = roundStatusFilter === bucket;
-                    return (
-                      <button
-                        key={bucket}
-                        type="button"
-                        onClick={() => setRoundStatusFilter(bucket)}
-                        className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
-                          isActive
-                            ? "border-[var(--primary)] bg-[var(--primary)]/10"
-                            : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]/50"
-                        }`}
-                      >
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                          {bucket}
-                        </span>
-                        <div className="oswald text-2xl font-extrabold text-[var(--text)] mt-0.5">
-                          {count}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Round-Wise Status Table */}
-                <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[var(--surface-2)] text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
-                        <tr>
-                          <th className="px-4 py-3">Team</th>
-                          <th className="px-4 py-3">Round 1 (Judges & Score)</th>
-                          <th className="px-4 py-3">Round 2 (Judges & Score)</th>
-                          <th className="px-4 py-3">Round 3 (Judges & Score)</th>
-                          <th className="px-4 py-3">Overall Avg</th>
-                          <th className="px-4 py-3">Admin Decision / Stage</th>
-                          <th className="px-4 py-3 text-right">Files</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {roundStatusRows.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="text-center py-12 text-[var(--muted)]">
-                              No teams currently in {roundStatusFilter}.
-                            </td>
-                          </tr>
-                        ) : (
-                          roundStatusRows.map((sub) => {
-                            const normalizedStage = normalizeStageLabel(sub.stage);
-                            const renderRoundCell = (rNum) => {
-                              const rJudges = getAllocatedJudgesForRound(sub, rNum);
-                              const rEvals = (sub.evaluations || []).filter(
-                                (ev) => Number(ev.round || 1) === rNum,
-                              );
-                              const rAvg =
-                                rEvals.length > 0
-                                  ? (
-                                      rEvals.reduce((acc, ev) => acc + Number(ev.totalScore || 0), 0) /
-                                      rEvals.length
-                                    ).toFixed(1)
-                                  : null;
-                              return (
-                                <div className="space-y-1 min-w-[140px]">
-                                  <div className="text-[11px] font-semibold text-[var(--text)] truncate">
-                                    {rJudges.length > 0
-                                      ? rJudges.map((e) => judgeNameByEmail[e] || e).join(", ")
-                                      : "Unallocated"}
-                                  </div>
-                                  <span
-                                    className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                      rAvg !== null
-                                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                        : "bg-[var(--surface-2)] text-[var(--muted)]"
-                                    }`}
-                                  >
-                                    {rAvg !== null ? `Score: ${rAvg}/50 (${rEvals.length})` : "Pending"}
-                                  </span>
-                                </div>
-                              );
-                            };
-
-                            return (
-                              <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
-                                <td className="px-4 py-3.5">
-                                  <div className="font-bold text-[var(--text)]">{sub.teamName}</div>
-                                  <div className="font-mono text-[10px] text-[var(--muted)]">
-                                    {sub.teamId} • {sub.category}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3.5">{renderRoundCell(1)}</td>
-                                <td className="px-4 py-3.5">{renderRoundCell(2)}</td>
-                                <td className="px-4 py-3.5">{renderRoundCell(3)}</td>
-                                <td className="px-4 py-3.5 font-mono font-bold text-[var(--text)]">
-                                  {typeof sub.rubricAverage === "number" && sub.rubricAverage > 0
-                                    ? `${sub.rubricAverage.toFixed(1)}/50`
-                                    : "Pending"}
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <select
-                                    value={normalizedStage}
-                                    onChange={(e) => handleStageChange(sub.teamId, e.target.value)}
-                                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text)] focus:border-[var(--primary)] focus:outline-none cursor-pointer"
-                                  >
-                                    <option value="Round 1">Round 1</option>
-                                    <option value="Round 2">Round 2</option>
-                                    <option value="Round 3">Round 3</option>
-                                    <option value="Selected">Selected</option>
-                                    <option value="Not Selected">Not Selected</option>
-                                  </select>
-                                </td>
-                                <td className="px-4 py-3.5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => setPreviewingSubmission(sub)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)] cursor-pointer"
-                                  >
-                                    <FiEye className="h-3 w-3" />
-                                    <span>Preview</span>
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </main>
@@ -2658,8 +1803,28 @@ export const AdminJuryzaPlatform = () => {
                   </div>
                 </div>
 
-                {/* Round-Wise Judge Allocation & Registered Date */}
-                <div className="space-y-3">
+                {/* Alloted Judge & Registered Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+                      Alloted Judge
+                    </label>
+                    <select
+                      value={submissionEditForm.allotedJudge || ""}
+                      onChange={(e) =>
+                        setSubmissionEditForm((prev) => ({ ...prev, allotedJudge: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer"
+                    >
+                      <option value="">Unallocated</option>
+                      {judges.map((j) => (
+                        <option key={j.email} value={j.email}>
+                          {j.name} ({j.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-[var(--text)] mb-1">
                       Registered Date
@@ -2672,56 +1837,6 @@ export const AdminJuryzaPlatform = () => {
                       }
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition"
                     />
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 space-y-3">
-                    <h4 className="text-xs font-bold text-[var(--text)]">
-                      Round-Wise Judge Assignments (Rounds 1, 2 & 3)
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {[
-                        { key: "round1", label: "Round 1 Judges" },
-                        { key: "round2", label: "Round 2 Judges" },
-                        { key: "round3", label: "Round 3 Judges" },
-                      ].map((r) => (
-                        <div key={r.key} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 space-y-1.5 max-h-36 overflow-y-auto">
-                          <span className="text-[11px] font-bold text-[var(--primary)] block">
-                            {r.label}
-                          </span>
-                          {judges.length === 0 ? (
-                            <span className="text-[10px] text-[var(--muted)]">No judges created</span>
-                          ) : (
-                            judges.map((j) => {
-                              const jEmail = (j.email || "").toLowerCase().trim();
-                              const selected = (submissionEditForm.roundAllocations?.[r.key] || []).includes(jEmail);
-                              return (
-                                <label key={`${r.key}-${jEmail}`} className="flex items-center gap-1.5 text-[11px] text-[var(--text)] cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={selected}
-                                    onChange={() =>
-                                      setSubmissionEditForm((prev) => {
-                                        const ra = prev.roundAllocations || { round1: [], round2: [], round3: [] };
-                                        const cur = Array.isArray(ra[r.key]) ? ra[r.key] : [];
-                                        const next = cur.includes(jEmail)
-                                          ? cur.filter((x) => x !== jEmail)
-                                          : [...cur, jEmail];
-                                        return {
-                                          ...prev,
-                                          roundAllocations: { ...ra, [r.key]: next },
-                                        };
-                                      })
-                                    }
-                                    className="rounded border-[var(--border)] text-[var(--primary)]"
-                                  />
-                                  <span className="truncate">{j.name}</span>
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
 
@@ -3024,259 +2139,6 @@ export const AdminJuryzaPlatform = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Round-Wise Multi-Judge Panel Modal */}
-      <AnimatePresence>
-        {allocatingTeamModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6 space-y-5"
-            >
-              <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-3">
-                <div>
-                  <span className="font-mono text-xs font-bold text-[var(--primary)]">
-                    {allocatingTeamModal.teamId}
-                  </span>
-                  <h3 className="oswald text-lg font-bold text-[var(--text)]">
-                    Round-Wise Judge Panel: {allocatingTeamModal.teamName}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)]">
-                    Assign one or multiple judges specifically to Round 1, Round 2, and Round 3.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAllocatingTeamModal(null)}
-                  className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
-                >
-                  <FiX className="h-4 w-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSavePanelAllocation} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {[
-                    { key: "round1", title: "Round 1 Panel" },
-                    { key: "round2", title: "Round 2 Panel" },
-                    { key: "round3", title: "Round 3 Panel" },
-                  ].map((r) => (
-                    <div key={r.key} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3.5 space-y-2 max-h-60 overflow-y-auto">
-                      <div className="flex items-center justify-between pb-1.5 border-b border-[var(--border)]">
-                        <span className="text-xs font-bold text-[var(--text)]">{r.title}</span>
-                        <span className="text-[10px] font-mono text-[var(--primary)] font-bold">
-                          {(roundAllocationForm[r.key] || []).length}
-                        </span>
-                      </div>
-                      {judges.length === 0 ? (
-                        <p className="text-[11px] text-[var(--muted)]">No judges available.</p>
-                      ) : (
-                        judges.map((j) => {
-                          const jEmail = (j.email || "").toLowerCase().trim();
-                          const isChecked = (roundAllocationForm[r.key] || []).includes(jEmail);
-                          return (
-                            <label key={`${r.key}-${jEmail}`} className="flex items-start gap-2 text-xs text-[var(--text)] cursor-pointer py-1">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleRoundPanelJudge(r.key, jEmail)}
-                                className="mt-0.5 rounded border-[var(--border)] text-[var(--primary)]"
-                              />
-                              <span className="min-w-0">
-                                <span className="font-semibold block truncate">{j.name}</span>
-                                <span className="text-[10px] font-mono text-[var(--muted)] block truncate">{j.email}</span>
-                              </span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
-                  <button
-                    type="button"
-                    onClick={() => setAllocatingTeamModal(null)}
-                    className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={allocating}
-                    className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-60"
-                  >
-                    {allocating ? "Saving..." : "Save Round-Wise Allocations"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Admin Media Inspection Modal */}
-      <AnimatePresence>
-        {previewingSubmission && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6 space-y-5"
-            >
-              {(() => {
-                const media = resolveSubmissionMedia(previewingSubmission, api.defaults.baseURL);
-                const vid = media.video;
-                const doc = media.document;
-                return (
-                  <>
-                    <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-4">
-                      <div>
-                        <span className="font-mono text-xs font-bold text-[var(--primary)]">
-                          {previewingSubmission.teamId}
-                        </span>
-                        <h3 className="oswald text-xl font-bold text-[var(--text)]">
-                          {previewingSubmission.teamName} - {previewingSubmission.solutionName}
-                        </h3>
-                        <p className="text-xs text-[var(--muted)] mt-1">
-                          {previewingSubmission.shortDescription}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewingSubmission(null)}
-                        className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
-                      >
-                        <FiX className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                      {/* Pitch Video Preview */}
-                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                            <FiVideo className="h-4 w-4 text-red-500" />
-                            <span className="truncate max-w-[200px]">{vid.fileName}</span>
-                          </div>
-                          {vid.hasVideo && (vid.directUrl || vid.embedUrl) && (
-                            <a
-                              href={vid.directUrl || vid.embedUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--primary)] hover:underline"
-                            >
-                              <span>Open Tab</span>
-                              <FiExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-
-                        {!vid.hasVideo ? (
-                          <div className="aspect-video rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] flex items-center justify-center text-xs text-[var(--muted)]">
-                            No Pitch Video Uploaded
-                          </div>
-                        ) : vid.type === "blob" || vid.type === "mp4" ? (
-                          <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                            <video
-                              src={vid.embedUrl}
-                              controls
-                              preload="metadata"
-                              playsInline
-                              className="h-full w-full object-contain"
-                            />
-                          </div>
-                        ) : vid.type === "drive" && vid.embedUrl ? (
-                          <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                            <iframe
-                              src={vid.embedUrl}
-                              title="Admin Pitch Video Preview"
-                              className="h-full w-full border-0"
-                              allow="autoplay; fullscreen"
-                            />
-                          </div>
-                        ) : (
-                          <div className="aspect-video rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-2 p-4 text-center">
-                            <p className="text-xs text-[var(--muted)]">External Video Link</p>
-                            <a
-                              href={vid.directUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold"
-                            >
-                              <span>Open Video</span>
-                              <FiExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Proposal PDF Preview */}
-                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                            <FiFileText className="h-4 w-4 text-amber-500" />
-                            <span className="truncate max-w-[180px]">{doc.fileName}</span>
-                          </div>
-                          {doc.hasDoc && (
-                            <div className="flex items-center gap-2">
-                              {doc.downloadUrl && (
-                                <a
-                                  href={doc.downloadUrl}
-                                  download={doc.fileName}
-                                  target={doc.type === "blob" ? undefined : "_blank"}
-                                  rel={doc.type === "blob" ? undefined : "noopener noreferrer"}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--text)] hover:text-[var(--primary)]"
-                                >
-                                  <FiDownload className="h-3 w-3" />
-                                  <span>Download</span>
-                                </a>
-                              )}
-                              {(doc.directUrl || doc.embedUrl) && (
-                                <a
-                                  href={doc.directUrl || doc.embedUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] hover:underline"
-                                >
-                                  <span>Open PDF</span>
-                                  <FiExternalLink className="h-3 w-3" />
-                                </a>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {!doc.hasDoc ? (
-                          <div className="aspect-[4/3] rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] flex items-center justify-center text-xs text-[var(--muted)]">
-                            No Proposal Document Uploaded
-                          </div>
-                        ) : (
-                          <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)]">
-                            <iframe
-                              src={
-                                doc.type === "blob" || doc.type === "pdf"
-                                  ? `${doc.embedUrl}#toolbar=0&navpanes=0`
-                                  : doc.embedUrl
-                              }
-                              title="Admin Proposal PDF Preview"
-                              className="h-full w-full border-0"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
             </motion.div>
           </div>
         )}
