@@ -80,9 +80,8 @@ const multerUploader = multer({
 
 /**
  * Middleware wrapper enforcing:
- * 1. Mutually exclusive submission: Teams must upload either a Pitch Video
- *    (Google Drive link or .mp4 ≤ 25 MB) OR a Proposal Deck (.pdf ≤ 5 MB).
- *    Submitting both is strictly disallowed.
+ * 1. Participants can submit both a Pitch Video (Google Drive link or .mp4 <= 25 MB)
+ *    and a Proposal Deck (.pdf <= 5 MB). Submitting both is encouraged, and at least one is required.
  * 2. YouTube links are strictly disallowed for pitch videos.
  */
 export const submissionUpload = (req, res, next) => {
@@ -109,35 +108,23 @@ export const submissionUpload = (req, res, next) => {
       videoDriveUrl &&
       (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))
     ) {
+      if (hasVideoFile) {
+        try { fs.unlinkSync(req.files.videoFile[0].path); } catch {}
+      }
+      if (hasDocumentFile) {
+        try { fs.unlinkSync(req.files.documentFile[0].path); } catch {}
+      }
       return res.status(400).json({
         message:
           "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
       });
     }
 
-    // Teams are NOT allowed to submit both formats
-    if (hasVideo && hasDocumentFile) {
-      if (hasVideoFile) {
-        try {
-          fs.unlinkSync(req.files.videoFile[0].path);
-        } catch {}
-      }
-      if (hasDocumentFile) {
-        try {
-          fs.unlinkSync(req.files.documentFile[0].path);
-        } catch {}
-      }
-      return res.status(400).json({
-        message:
-          "Teams are not allowed to submit both. Please provide either a pitch video OR a proposal document, not both.",
-      });
-    }
-
-    // Exactly one submission format (video OR PDF) is required
+    // At least one submission format (video or PDF, preferably both) is required
     if (!hasVideo && !hasDocumentFile) {
       return res.status(400).json({
         message:
-          "Please provide your submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) OR a proposal document (.pdf ≤ 5 MB).",
+          "Please provide your pitch video (Google Drive link or .mp4 ≤ 25 MB) and/or proposal document (.pdf ≤ 5 MB). Submitting both is strongly recommended.",
       });
     }
 
