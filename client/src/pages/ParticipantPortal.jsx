@@ -266,7 +266,19 @@ export const ParticipantPortal = () => {
       setHasRegistered(true);
       const hydrated = await hydrateSubmissionBlobs(mySub, clean);
       setMySubmission(hydrated);
-      autoRecoverDriveMedia(hydrated, clean).catch(() => {});
+      autoRecoverDriveMedia(hydrated, clean).then(async () => {
+        // Re-read after sync to ensure any populated Drive URLs are immediately reflected
+        const freshSubs = getStoredSubmissions();
+        const fresh = freshSubs.find(
+          (s) =>
+            (s.participantEmail || "").toLowerCase() === clean ||
+            (s.members || []).some((m) => (m.email || "").toLowerCase() === clean)
+        );
+        if (fresh) {
+          const freshHydrated = await hydrateSubmissionBlobs(fresh, clean);
+          setMySubmission(freshHydrated);
+        }
+      }).catch(() => {});
     } else {
       setHasRegistered(false);
     }
@@ -489,10 +501,11 @@ export const ParticipantPortal = () => {
     const trimmedVideoUrl = updateVideoDriveUrl.trim();
     const trimmedDocUrl = updateDocDriveUrl.trim();
 
-    const hasNewVideoLink = updateVideoType === "link" && Boolean(trimmedVideoUrl);
-    const hasNewVideoFile = updateVideoType === "file" && Boolean(updateVideoFile);
-    const hasNewDocLink = updateDocType === "link" && Boolean(trimmedDocUrl);
-    const hasNewDocFile = updateDocType === "file" && Boolean(updateDocFile);
+    const hasNewVideoFile = updateVideoType === "file" ? Boolean(updateVideoFile) : Boolean(updateVideoFile) && !trimmedVideoUrl;
+    const hasNewVideoLink = !hasNewVideoFile && Boolean(trimmedVideoUrl);
+
+    const hasNewDocFile = updateDocType === "file" ? Boolean(updateDocFile) : Boolean(updateDocFile) && !trimmedDocUrl;
+    const hasNewDocLink = !hasNewDocFile && Boolean(trimmedDocUrl);
 
     if (hasNewVideoLink) {
       if (/youtube\.com/i.test(trimmedVideoUrl) || /youtu\.be/i.test(trimmedVideoUrl)) {
@@ -646,13 +659,17 @@ export const ParticipantPortal = () => {
       return;
     }
 
-    // Allow uploading both Pitch Video and Proposal Deck without one replacing the other (at least one required)
+    // Robust dual-media resolution: prioritize user selection but never discard attached materials
     const trimmedVideoUrl = videoDriveUrl.trim();
     const trimmedDocUrl = docDriveUrl.trim();
-    const useDriveLink = videoSubmissionType === "link" && Boolean(trimmedVideoUrl);
-    const useVideoFile = videoSubmissionType === "file" && Boolean(videoFile);
-    const useDocDriveLink = docSubmissionType === "link" && Boolean(trimmedDocUrl);
-    const useDocFile = docSubmissionType === "file" && Boolean(documentFile);
+
+    // Video: if user selected file or uploaded a file, use it; otherwise use drive link if entered
+    const useVideoFile = videoSubmissionType === "file" ? Boolean(videoFile) : Boolean(videoFile) && !trimmedVideoUrl;
+    const useDriveLink = !useVideoFile && Boolean(trimmedVideoUrl);
+
+    // Document: if user selected file or uploaded a file, use it; otherwise use drive link if entered
+    const useDocFile = docSubmissionType === "file" ? Boolean(documentFile) : Boolean(documentFile) && !trimmedDocUrl;
+    const useDocDriveLink = !useDocFile && Boolean(trimmedDocUrl);
 
     const hasVideo = useDriveLink || useVideoFile;
     const hasDocument = useDocDriveLink || useDocFile;
@@ -1244,7 +1261,7 @@ export const ParticipantPortal = () => {
                               <FiExternalLink className="h-3.5 w-3.5" />
                             </a>
                           </div>
-                        ) : (
+                        ) : resolvedVideo.type === "blob" ? (
                           <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
                             <video
                               key={`vid-${mySubmission.teamId}-${resolvedVideo.embedUrl}`}
@@ -1254,6 +1271,33 @@ export const ParticipantPortal = () => {
                               preload="metadata"
                               playsInline
                             />
+                          </div>
+                        ) : resolvedVideo.embedUrl && !resolvedVideo.embedUrl.includes("/api/v2/submissions") ? (
+                          <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                            <video
+                              key={`vid-${mySubmission.teamId}-${resolvedVideo.embedUrl}`}
+                              src={resolvedVideo.embedUrl}
+                              className="h-full w-full object-cover"
+                              controls
+                              preload="metadata"
+                              playsInline
+                            />
+                          </div>
+                        ) : (
+                          <div className="aspect-video w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center gap-2">
+                            <FiVideo className="h-8 w-8 text-emerald-500 animate-pulse" />
+                            <p className="text-xs font-bold text-[var(--text)]">Pitch Video Attached & Syncing</p>
+                            <p className="text-[11px] text-[var(--muted)] max-w-xs">
+                              {resolvedVideo.fileName || "Pitch Video (.mp4)"} is securely registered. Syncing to Google Drive for jury review.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => openMediaUpdateModal("video")}
+                              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-[var(--text)] hover:border-[var(--accent)] cursor-pointer transition shadow-sm"
+                            >
+                              <FiUploadCloud className="h-3.5 w-3.5" />
+                              <span>Replace / Update Video</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1295,14 +1339,32 @@ export const ParticipantPortal = () => {
 
                         {resolvedDoc.hasDoc ? (
                           <>
-                            <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
-                              <iframe
-                                key={`doc-${mySubmission.teamId}-${docFrameSrc}`}
-                                src={docFrameSrc}
-                                title="Proposal PDF Document"
-                                className="h-full w-full border-0 rounded-2xl"
-                              />
-                            </div>
+                            {resolvedDoc.embedUrl && !resolvedDoc.embedUrl.includes("/api/v2/submissions") ? (
+                              <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
+                                <iframe
+                                  key={`doc-${mySubmission.teamId}-${docFrameSrc}`}
+                                  src={docFrameSrc}
+                                  title="Proposal PDF Document"
+                                  className="h-full w-full border-0 rounded-2xl"
+                                />
+                              </div>
+                            ) : (
+                              <div className="aspect-[4/3] w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center gap-2">
+                                <FiFileText className="h-8 w-8 text-emerald-500 animate-pulse" />
+                                <p className="text-xs font-bold text-[var(--text)]">Proposal Deck Attached & Syncing</p>
+                                <p className="text-[11px] text-[var(--muted)] max-w-xs">
+                                  {resolvedDoc.fileName || "Proposal Deck (.pdf)"} is securely registered. Syncing to Google Drive for jury review.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => openMediaUpdateModal("doc")}
+                                  className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-[var(--text)] hover:border-[var(--primary)] cursor-pointer transition shadow-sm"
+                                >
+                                  <FiUploadCloud className="h-3.5 w-3.5" />
+                                  <span>Replace / Update Deck</span>
+                                </button>
+                              </div>
+                            )}
 
                             <div className="mt-3 flex items-center justify-between">
                               <p className="text-xs text-[var(--muted)] truncate max-w-[180px] sm:max-w-xs">
@@ -1514,23 +1576,23 @@ export const ParticipantPortal = () => {
                   <div className="flex items-center gap-2 text-[11px] font-semibold">
                     <span
                       className={`px-2 py-0.5 rounded-full border ${
-                        (videoSubmissionType === "link" ? Boolean(videoDriveUrl.trim()) : Boolean(videoFile))
+                        (Boolean(videoFile) || Boolean(videoDriveUrl.trim()))
                           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                           : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--border)]"
                       }`}
                     >
-                      {(videoSubmissionType === "link" ? Boolean(videoDriveUrl.trim()) : Boolean(videoFile))
+                      {(Boolean(videoFile) || Boolean(videoDriveUrl.trim()))
                         ? "Video Attached"
                         : "Video Optional"}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full border ${
-                        (docSubmissionType === "link" ? Boolean(docDriveUrl.trim()) : Boolean(documentFile))
+                        (Boolean(documentFile) || Boolean(docDriveUrl.trim()))
                           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                           : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--border)]"
                       }`}
                     >
-                      {(docSubmissionType === "link" ? Boolean(docDriveUrl.trim()) : Boolean(documentFile))
+                      {(Boolean(documentFile) || Boolean(docDriveUrl.trim()))
                         ? "PDF Attached"
                         : "PDF Optional"}
                     </span>
@@ -1561,14 +1623,7 @@ export const ParticipantPortal = () => {
                     <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] mb-3">
                       <button
                         type="button"
-                        onClick={() => {
-                          setVideoSubmissionType("link");
-                          setVideoFile(null);
-                          if (videoLocalPreview) {
-                            URL.revokeObjectURL(videoLocalPreview);
-                            setVideoLocalPreview(null);
-                          }
-                        }}
+                        onClick={() => setVideoSubmissionType("link")}
                         className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                           videoSubmissionType === "link"
                             ? "bg-[var(--accent)] text-white shadow-sm"
@@ -1576,18 +1631,16 @@ export const ParticipantPortal = () => {
                         }`}
                       >
                         <span>Drive Link</span>
-                        <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">
-                          Recommended
-                        </span>
+                        {videoDriveUrl.trim() ? (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Attached</span>
+                        ) : (
+                          <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Recommended</span>
+                        )}
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setVideoSubmissionType("file");
-                          setVideoDriveUrl("");
-                          setVideoDriveError("");
-                        }}
+                        onClick={() => setVideoSubmissionType("file")}
                         className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                           videoSubmissionType === "file"
                             ? "bg-[var(--accent)] text-white shadow-sm"
@@ -1595,13 +1648,38 @@ export const ParticipantPortal = () => {
                         }`}
                       >
                         <span>Upload File</span>
-                        <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                        {videoFile ? (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Attached</span>
+                        ) : (
+                          <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                        )}
                       </button>
                     </div>
 
                     {videoSubmissionType === "link" ? (
                       /* Google Drive Link */
                       <div className="space-y-2 text-left">
+                        {videoFile && (
+                          <div className="p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 truncate">
+                              <FiCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">Attached File: {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVideoFile(null);
+                                if (videoLocalPreview) {
+                                  URL.revokeObjectURL(videoLocalPreview);
+                                  setVideoLocalPreview(null);
+                                }
+                              }}
+                              className="text-[10px] text-red-500 hover:underline shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
                         <label className="block text-[11px] font-semibold text-[var(--muted)]">
                           Paste Public Google Drive Link
                         </label>
@@ -1662,6 +1740,24 @@ export const ParticipantPortal = () => {
                     ) : (
                       /* Upload .mp4 File (Max 25 MB) */
                       <div className="text-center py-4 border-2 border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface)]">
+                        {videoDriveUrl.trim() && (
+                          <div className="mb-3 mx-4 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2 text-left">
+                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 truncate">
+                              <FiCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">Attached Drive Link: {videoDriveUrl.trim()}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVideoDriveUrl("");
+                                setVideoDriveError("");
+                              }}
+                              className="text-[10px] text-red-500 hover:underline shrink-0 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
                         <p className="text-[11px] text-[var(--muted)]">Strictly .mp4 • Maximum 25 MB</p>
 
                         <input
@@ -1733,11 +1829,7 @@ export const ParticipantPortal = () => {
                     <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] mb-3">
                       <button
                         type="button"
-                        onClick={() => {
-                          setDocSubmissionType("file");
-                          setDocDriveUrl("");
-                          setDocDriveError("");
-                        }}
+                        onClick={() => setDocSubmissionType("file")}
                         className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                           docSubmissionType === "file"
                             ? "bg-[var(--primary)] text-white shadow-sm"
@@ -1745,19 +1837,16 @@ export const ParticipantPortal = () => {
                         }`}
                       >
                         <span>Upload File</span>
-                        <span className="text-[9px] opacity-75 font-normal">≤ 5 MB</span>
+                        {documentFile ? (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Attached</span>
+                        ) : (
+                          <span className="text-[9px] opacity-75 font-normal">≤ 5 MB</span>
+                        )}
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setDocSubmissionType("link");
-                          setDocumentFile(null);
-                          if (documentLocalPreview) {
-                            URL.revokeObjectURL(documentLocalPreview);
-                            setDocumentLocalPreview(null);
-                          }
-                        }}
+                        onClick={() => setDocSubmissionType("link")}
                         className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                           docSubmissionType === "link"
                             ? "bg-[var(--primary)] text-white shadow-sm"
@@ -1765,15 +1854,38 @@ export const ParticipantPortal = () => {
                         }`}
                       >
                         <span>Drive Link</span>
-                        <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">
-                          Any size
-                        </span>
+                        {docDriveUrl.trim() ? (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Attached</span>
+                        ) : (
+                          <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Any size</span>
+                        )}
                       </button>
                     </div>
 
                     {docSubmissionType === "link" ? (
                       /* Google Drive Link for Proposal Deck */
                       <div className="space-y-2 text-left">
+                        {documentFile && (
+                          <div className="p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 truncate">
+                              <FiCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">Attached File: {documentFile.name} ({(documentFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDocumentFile(null);
+                                if (documentLocalPreview) {
+                                  URL.revokeObjectURL(documentLocalPreview);
+                                  setDocumentLocalPreview(null);
+                                }
+                              }}
+                              className="text-[10px] text-red-500 hover:underline shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
                         <label className="block text-[11px] font-semibold text-[var(--muted)]">
                           Paste Public Google Drive Link
                         </label>
@@ -1829,6 +1941,24 @@ export const ParticipantPortal = () => {
                     ) : (
                       /* Upload .pdf File (Max 5 MB) */
                       <div className="rounded-2xl border-2 border-dashed border-[var(--border)] p-6 text-center hover:border-[var(--primary)] transition bg-[var(--surface)]">
+                        {docDriveUrl.trim() && (
+                          <div className="mb-3 mx-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-2 text-left">
+                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 truncate">
+                              <FiCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">Attached Drive Link: {docDriveUrl.trim()}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDocDriveUrl("");
+                                setDocDriveError("");
+                              }}
+                              className="text-[10px] text-red-500 hover:underline shrink-0 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
                         <p className="text-xs font-medium text-[var(--text)]">Upload your team proposal deck</p>
                         <p className="text-[11px] text-[var(--muted)] mt-0.5">Strictly .pdf • Maximum 5 MB</p>
 
@@ -2261,14 +2391,7 @@ export const ParticipantPortal = () => {
                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                     <button
                       type="button"
-                      onClick={() => {
-                        setUpdateVideoType("link");
-                        setUpdateVideoFile(null);
-                        if (updateVideoLocalPreview) {
-                          URL.revokeObjectURL(updateVideoLocalPreview);
-                          setUpdateVideoLocalPreview(null);
-                        }
-                      }}
+                      onClick={() => setUpdateVideoType("link")}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         updateVideoType === "link"
                           ? "bg-[var(--accent)] text-white shadow-sm"
@@ -2276,15 +2399,15 @@ export const ParticipantPortal = () => {
                       }`}
                     >
                       <span>Drive Link</span>
-                      <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Recommended</span>
+                      {updateVideoDriveUrl.trim() ? (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Selected</span>
+                      ) : (
+                        <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Recommended</span>
+                      )}
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setUpdateVideoType("file");
-                        setUpdateVideoDriveUrl("");
-                        setUpdateVideoDriveError("");
-                      }}
+                      onClick={() => setUpdateVideoType("file")}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         updateVideoType === "file"
                           ? "bg-[var(--accent)] text-white shadow-sm"
@@ -2292,7 +2415,11 @@ export const ParticipantPortal = () => {
                       }`}
                     >
                       <span>Upload .mp4</span>
-                      <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                      {updateVideoFile ? (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Selected</span>
+                      ) : (
+                        <span className="text-[9px] opacity-75 font-normal">≤ 25 MB</span>
+                      )}
                     </button>
                   </div>
 
@@ -2428,11 +2555,7 @@ export const ParticipantPortal = () => {
                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                     <button
                       type="button"
-                      onClick={() => {
-                        setUpdateDocType("file");
-                        setUpdateDocDriveUrl("");
-                        setUpdateDocDriveError("");
-                      }}
+                      onClick={() => setUpdateDocType("file")}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         updateDocType === "file"
                           ? "bg-[var(--primary)] text-white shadow-sm"
@@ -2440,18 +2563,15 @@ export const ParticipantPortal = () => {
                       }`}
                     >
                       <span>Upload .pdf</span>
-                      <span className="text-[9px] opacity-75 font-normal">≤ 5 MB</span>
+                      {updateDocFile ? (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Selected</span>
+                      ) : (
+                        <span className="text-[9px] opacity-75 font-normal">≤ 5 MB</span>
+                      )}
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setUpdateDocType("link");
-                        setUpdateDocFile(null);
-                        if (updateDocLocalPreview) {
-                          URL.revokeObjectURL(updateDocLocalPreview);
-                          setUpdateDocLocalPreview(null);
-                        }
-                      }}
+                      onClick={() => setUpdateDocType("link")}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         updateDocType === "link"
                           ? "bg-[var(--primary)] text-white shadow-sm"
@@ -2459,7 +2579,11 @@ export const ParticipantPortal = () => {
                       }`}
                     >
                       <span>Drive Link</span>
-                      <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Any size</span>
+                      {updateDocDriveUrl.trim() ? (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-bold">Selected</span>
+                      ) : (
+                        <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-normal">Any size</span>
+                      )}
                     </button>
                   </div>
 
