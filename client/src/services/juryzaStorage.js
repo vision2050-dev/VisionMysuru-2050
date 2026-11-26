@@ -1239,7 +1239,7 @@ export const clientRegisterSubmission = ({
 };
 
 /**
- * Client-Side Stage Updater (Both Admin and Jury can change stage)
+ * Client-Side Stage Updater (Admin Exclusive - round progression and selection decisions)
  */
 export const updateStoredSubmissionStage = (teamId, newStage) => {
   const subs = getStoredSubmissions();
@@ -1564,15 +1564,59 @@ export const autoAllocateStoredSubmissions = () => {
 };
 
 /**
- * Client-Side Rubric Score Submission
+ * Client-Side Rubric Score Submission (Preserves admin-controlled stage/round)
  */
-export const submitStoredRubricScore = ({ teamId, judgeEmail, totalScore, feedback }) => {
+export const submitStoredRubricScore = ({
+  teamId,
+  judgeEmail,
+  judgeName = "",
+  round,
+  rubric,
+  totalScore,
+  feedback,
+}) => {
   const subs = getStoredSubmissions();
   const index = subs.findIndex((s) => s.teamId === teamId);
   if (index !== -1) {
-    subs[index].rubricAverage = totalScore;
-    subs[index].stage = "under evaluation";
-    subs[index].judgeFeedback = feedback;
+    const cleanEmail = (judgeEmail || "").toLowerCase().trim();
+    const stageStr = String(subs[index].stage || "Round 1").toLowerCase();
+    const evalRound = Number(round) || (stageStr.includes("3") ? 3 : stageStr.includes("2") ? 2 : 1);
+    const existingEvals = Array.isArray(subs[index].evaluations)
+      ? [...subs[index].evaluations]
+      : [];
+
+    const entry = {
+      judgeEmail: cleanEmail,
+      judgeName: judgeName || cleanEmail || "Jury Member",
+      round: evalRound,
+      rubric: rubric || {},
+      totalScore: Number(totalScore) || 0,
+      notes: feedback || "",
+      submittedAt: new Date().toISOString(),
+    };
+
+    const existingIdx = existingEvals.findIndex(
+      (ev) =>
+        (ev.judgeEmail || "").toLowerCase().trim() === cleanEmail &&
+        Number(ev.round || 1) === evalRound,
+    );
+    if (existingIdx !== -1) {
+      existingEvals[existingIdx] = entry;
+    } else {
+      existingEvals.push(entry);
+    }
+
+    subs[index].evaluations = existingEvals;
+    subs[index].evaluationCount = existingEvals.length;
+    subs[index].rubricAverage = Number(
+      (
+        existingEvals.reduce((sum, ev) => sum + Number(ev.totalScore || 0), 0) /
+        existingEvals.length
+      ).toFixed(2),
+    );
+    subs[index].judgeFeedback = feedback || "";
+    subs[index].updatedAt = new Date().toISOString();
+
     saveStoredSubmissions(subs);
     pushCloudState({ submissions: subs }).catch(() => {});
     return subs[index];

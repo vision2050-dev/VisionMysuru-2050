@@ -28,7 +28,6 @@ import {
   getStoredSubmissions,
   getStoredUsers,
   submitStoredRubricScore,
-  updateStoredSubmissionStage,
   clientSignIn,
   resolveSubmissionMedia,
   sanitizeSubmissionForStorage,
@@ -67,9 +66,6 @@ export const JuryzaHub = () => {
   });
   const [feedback, setFeedback] = useState("");
   const [submittingScore, setSubmittingScore] = useState(false);
-
-  // Status changer state
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Duel State
   const [duelPair, setDuelPair] = useState(null);
@@ -344,59 +340,97 @@ export const JuryzaHub = () => {
     setScores((prev) => ({ ...prev, [criteria]: Number(val) }));
   };
 
+  const getStageRoundNum = (stageStr) => {
+    const s = String(stageStr || "Round 1").toLowerCase();
+    if (s.includes("3")) return 3;
+    if (s.includes("2")) return 2;
+    return 1;
+  };
+
+  useEffect(() => {
+    if (!selectedSubmission) return;
+    const myEmail = (
+      judgeEmail ||
+      localStorage.getItem("juryzaJudgeEmail") ||
+      localStorage.getItem("juryzaEmail") ||
+      ""
+    ).toLowerCase().trim();
+    const activeRound = getStageRoundNum(selectedSubmission.stage);
+    const evs = Array.isArray(selectedSubmission.evaluations) ? selectedSubmission.evaluations : [];
+    const existing =
+      evs.find(
+        (ev) =>
+          (ev.judgeEmail || "").toLowerCase().trim() === myEmail &&
+          Number(ev.round || 1) === activeRound,
+      ) ||
+      evs.find((ev) => (ev.judgeEmail || "").toLowerCase().trim() === myEmail);
+
+    if (existing?.rubric) {
+      setScores({
+        problemClarity: Number(existing.rubric.problemClarity ?? 8),
+        innovationImpact: Number(existing.rubric.innovationImpact ?? 8),
+        feasibilityScalability: Number(existing.rubric.feasibilityScalability ?? 7),
+        technicalDepth: Number(existing.rubric.technicalDepth ?? 8),
+        videoPitchDelivery: Number(existing.rubric.videoPitchDelivery ?? 8),
+      });
+      setFeedback(existing.notes || "");
+    } else {
+      setScores({
+        problemClarity: 8,
+        innovationImpact: 8,
+        feasibilityScalability: 7,
+        technicalDepth: 8,
+        videoPitchDelivery: 8,
+      });
+      setFeedback("");
+    }
+  }, [selectedSubmission?.teamId, judgeEmail]);
+
   const submitEvaluation = async () => {
     if (!selectedSubmission) return;
     setSubmittingScore(true);
+
+    const activeRound = getStageRoundNum(selectedSubmission.stage);
 
     try {
       await api.post("/api/v2/jury/rubric", {
         submissionId: selectedSubmission.teamId || selectedSubmission._id,
         rubric: scores,
         notes: feedback,
+        round: activeRound,
       });
     } catch (err) {
       console.warn("Backend evaluation post failed, applying local fallback:", err.message);
     }
 
-    // Always record locally
-    submitStoredRubricScore({
+    // Record locally while strictly preserving admin-controlled round/selection stage
+    const updatedSub = submitStoredRubricScore({
       teamId: selectedSubmission.teamId,
       judgeEmail,
+      judgeName,
+      round: activeRound,
+      rubric: scores,
       totalScore,
       feedback,
     });
 
     toast.success(
-      `Evaluation recorded for ${selectedSubmission.teamName}! Total Score: ${totalScore}/50`,
+      `Evaluation recorded for ${selectedSubmission.teamName} (Round ${activeRound})! Total Score: ${totalScore}/50`,
     );
-    setFeedback("");
-    setSelectedSubmission((prev) => ({
-      ...prev,
-      rubricAverage: totalScore,
-      stage: "under evaluation",
-    }));
+    if (updatedSub) {
+      setSelectedSubmission((prev) =>
+        prev && prev.teamId === updatedSub.teamId
+          ? {
+              ...updatedSub,
+              videoBlobUrl: prev.videoBlobUrl,
+              docBlobUrl: prev.docBlobUrl,
+              _blobsVerified: prev._blobsVerified,
+            }
+          : prev,
+      );
+    }
     fetchSubmissions();
     setSubmittingScore(false);
-  };
-
-  const handleStatusChange = async (newStage) => {
-    if (!selectedSubmission) return;
-    setUpdatingStatus(true);
-
-    try {
-      await api.patch(`/api/v2/submissions/${selectedSubmission.teamId}/status`, {
-        stage: newStage,
-      });
-    } catch (err) {
-      console.warn("Backend status patch failed, applying local fallback:", err.message);
-    }
-
-    // Always update locally
-    updateStoredSubmissionStage(selectedSubmission.teamId, newStage);
-    toast.success(`Team stage updated to '${newStage}'!`);
-    setSelectedSubmission((prev) => ({ ...prev, stage: newStage }));
-    fetchSubmissions();
-    setUpdatingStatus(false);
   };
 
   const voteDuel = async (winnerId, loserId) => {
@@ -736,23 +770,14 @@ export const JuryzaHub = () => {
                         </p>
                       </div>
 
-                      {/* Judge Stage Selector: Round 1, Round 2, Round 3, followed by Selected / Not Selected */}
-                      <div className="flex flex-col items-end gap-1.5">
+                      {/* Read-Only Stage Badge (Progression & Selection are Admin-Exclusive) */}
+                      <div className="flex flex-col items-end gap-1">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">
-                          Judge Decision / Stage:
+                          Current Round / Status (Admin Managed):
                         </span>
-                        <select
-                          disabled={updatingStatus}
-                          value={selectedSubmission.stage || "Round 1"}
-                          onChange={(e) => handleStatusChange(e.target.value)}
-                          className="rounded-xl border border-[var(--primary)]/50 bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)] focus:outline-none cursor-pointer"
-                        >
-                          <option value="Round 1">Round 1</option>
-                          <option value="Round 2">Round 2</option>
-                          <option value="Round 3">Round 3</option>
-                          <option value="Selected">Selected</option>
-                          <option value="Not Selected">Not Selected</option>
-                        </select>
+                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--primary)]/40 bg-[var(--surface-2)] px-3 py-1.5 text-xs font-bold text-[var(--text)]">
+                          {selectedSubmission.stage || "Round 1"}
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -86,10 +86,11 @@ router.get(
 router.get("/submissions/:id/video-stream", streamSubmissionVideo);
 router.get("/submissions/:id/document-preview", previewSubmissionDocument);
 
-// Both Admin and Jury can change the state of the submission
+// Admin-only progression, selection, and round status management
 router.patch(
   "/submissions/:id/status",
   verifyAuthToken,
+  requireAdmin,
   updateSubmissionStatus,
 );
 

@@ -1095,20 +1095,23 @@ export const allocateSubmission = async (req, res) => {
 };
 
 /**
- * Update Submission Stage (Admin or Alloted Judge)
- * States:
- * - submitted
- * - allocated to a judge
- * - under evaluation
- * - shortlisted to next round
- * - not shortlisted to next round
+ * Update Submission Stage (Admin Exclusive)
+ * Judges are strictly restricted to evaluation and scoring.
  */
 export const updateSubmissionStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { stage, notes } = req.body;
+    const { stage } = req.body;
 
-    const judgeAllowedStages = [
+    const actorEmail = (req.user?.email || "").toLowerCase().trim();
+    const isAdmin = req.user?.role === "admin" || actorEmail === ADMIN_EMAIL.toLowerCase();
+    if (!isAdmin) {
+      return res.status(403).json({
+        message: "Access denied. Only administrators can update round progression, selection, or rejection status.",
+      });
+    }
+
+    const adminAllowedStages = [
       "Round 1",
       "Round 2",
       "Round 3",
@@ -1119,23 +1122,12 @@ export const updateSubmissionStatus = async (req, res) => {
       "round 3",
       "selected",
       "not selected",
+      "submitted",
+      "allocated to a judge",
       "under evaluation",
       "shortlisted to next round",
       "not shortlisted to next round",
     ];
-
-    const adminAllowedStages = [
-      "submitted",
-      "allocated to a judge",
-      ...judgeAllowedStages,
-    ];
-
-    const isJudge = req.user?.role === "judge";
-    if (isJudge && !judgeAllowedStages.includes(stage)) {
-      return res.status(403).json({
-        message: "Judges can change the stage to Round 1, Round 2, Round 3, Selected, or Not Selected.",
-      });
-    }
 
     if (!adminAllowedStages.includes(stage)) {
       return res.status(400).json({
@@ -1181,8 +1173,8 @@ export const updateSubmissionStatus = async (req, res) => {
 
 export const submitRubricEvaluation = async (req, res) => {
   try {
-    const { submissionId, rubric, notes } = req.body;
-    const judgeEmail = req.user?.email || "judge@sdmimd.ac.in";
+    const { submissionId, rubric, notes, round } = req.body;
+    const judgeEmail = (req.user?.email || "judge@sdmimd.ac.in").toLowerCase().trim();
     const judgeName = req.user?.name || "Jury Member";
 
     if (!submissionId || !rubric) {
@@ -1197,6 +1189,11 @@ export const submitRubricEvaluation = async (req, res) => {
       return res.status(404).json({ message: "Submission not found." });
     }
 
+    // Determine active evaluation round from submission stage or request
+    const stageStr = String(sub.stage || "Round 1").toLowerCase();
+    const inferredRound = stageStr.includes("3") ? 3 : stageStr.includes("2") ? 2 : 1;
+    const evalRound = Number(round) || inferredRound;
+
     // Calculate total
     const totalScore = Object.values(rubric).reduce((a, b) => Number(a) + Number(b), 0);
 
@@ -1204,23 +1201,36 @@ export const submitRubricEvaluation = async (req, res) => {
       sub.evaluations = [];
     }
 
-    sub.evaluations.push({
+    // Upsert evaluation by (judgeEmail, round) so re-scoring updates cleanly without duplicates
+    const existingIdx = sub.evaluations.findIndex(
+      (ev) =>
+        (ev.judgeEmail || "").toLowerCase().trim() === judgeEmail &&
+        Number(ev.round || 1) === evalRound,
+    );
+
+    const evalEntry = {
       judgeEmail,
       judgeName,
+      round: evalRound,
       rubric,
       totalScore,
       notes: notes || "",
       submittedAt: new Date(),
-    });
+    };
+
+    if (existingIdx !== -1) {
+      sub.evaluations[existingIdx] = evalEntry;
+    } else {
+      sub.evaluations.push(evalEntry);
+    }
 
     sub.evaluationCount = sub.evaluations.length;
-    sub.rubricAverage =
-      sub.evaluations.reduce((acc, curr) => acc + curr.totalScore, 0) / sub.evaluations.length;
-
-    // Automatically advance state to "under evaluation" if it was "allocated to a judge"
-    if (sub.stage === "allocated to a judge" || sub.stage === "submitted") {
-      sub.stage = "under evaluation";
-    }
+    sub.rubricAverage = Number(
+      (
+        sub.evaluations.reduce((acc, curr) => acc + Number(curr.totalScore || 0), 0) /
+        sub.evaluations.length
+      ).toFixed(2),
+    );
 
     if (isDbConnected()) {
       await sub.save();
@@ -1232,6 +1242,7 @@ export const submitRubricEvaluation = async (req, res) => {
       message: "Evaluation submitted successfully!",
       rubricAverage: sub.rubricAverage,
       stage: sub.stage,
+      evaluations: sub.evaluations,
     });
   } catch (error) {
     console.error("Rubric evaluation error:", error);
