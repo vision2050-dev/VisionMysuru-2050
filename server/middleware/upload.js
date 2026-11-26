@@ -99,14 +99,16 @@ export const submissionUpload = (req, res, next) => {
     }
 
     const videoDriveUrl = (req.body?.videoDriveUrl || req.body?.videoUrl || "").trim();
+    const documentDriveUrl = (req.body?.documentDriveUrl || req.body?.documentUrl || "").trim();
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile[0]);
     const hasDocumentFile = Boolean(req.files && req.files.documentFile && req.files.documentFile[0]);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
+    const hasDocument = Boolean(documentDriveUrl || hasDocumentFile);
 
-    // Strictly disallow YouTube links
+    // Strictly disallow YouTube links for pitch video or proposal document
     if (
-      videoDriveUrl &&
-      (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))
+      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
+      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
     ) {
       if (hasVideoFile) {
         try { fs.unlinkSync(req.files.videoFile[0].path); } catch {}
@@ -116,23 +118,43 @@ export const submissionUpload = (req, res, next) => {
       }
       return res.status(400).json({
         message:
-          "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
+          "YouTube links are strictly not allowed. Please upload your media to Google Drive and provide a Google Drive view link.",
       });
     }
 
     // At least one submission format (video or PDF, preferably both) is required
-    if (!hasVideo && !hasDocumentFile) {
+    if (!hasVideo && !hasDocument) {
       return res.status(400).json({
         message:
-          "Please provide your pitch video (Google Drive link or .mp4 ≤ 25 MB) and/or proposal document (.pdf ≤ 5 MB). Submitting both is strongly recommended.",
+          "Please provide your pitch video (Google Drive link or .mp4 <= 25 MB) and/or proposal document (Google Drive link or .pdf <= 5 MB). Submitting both is strongly recommended.",
       });
     }
 
     // If a video link is provided, verify it is a valid Google Drive URL
     if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
+      if (hasVideoFile) {
+        try { fs.unlinkSync(req.files.videoFile[0].path); } catch {}
+      }
+      if (hasDocumentFile) {
+        try { fs.unlinkSync(req.files.documentFile[0].path); } catch {}
+      }
       return res.status(400).json({
         message:
           "Pitch video link must be a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).",
+      });
+    }
+
+    // If a document link is provided, verify it is a valid Google Drive URL
+    if (documentDriveUrl && !documentDriveUrl.includes("drive.google.com")) {
+      if (hasVideoFile) {
+        try { fs.unlinkSync(req.files.videoFile[0].path); } catch {}
+      }
+      if (hasDocumentFile) {
+        try { fs.unlinkSync(req.files.documentFile[0].path); } catch {}
+      }
+      return res.status(400).json({
+        message:
+          "Proposal document link must be a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).",
       });
     }
 

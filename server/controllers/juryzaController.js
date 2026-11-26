@@ -578,28 +578,39 @@ export const registerEdition2Submission = async (req, res) => {
     }
 
     const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
+    const documentDriveUrl = (req.body.documentDriveUrl || req.body.documentUrl || "").trim();
 
     // Strictly disallow YouTube links
-    if (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) {
+    if (
+      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
+      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
+    ) {
       return res.status(400).json({
-        message: "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
+        message: "YouTube links are strictly not allowed. Please upload your media to Google Drive and provide a Google Drive view link.",
       });
     }
 
     // Allow uploading both Pitch Video and Proposal Document simultaneously (at least one required)
     const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
+    const hasDoc = Boolean(documentDriveUrl || hasDocFile);
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
 
-    if (!hasVideo && !hasDocFile) {
+    if (!hasVideo && !hasDoc) {
       return res.status(400).json({
-        message: "Please provide at least one submission: pitch video (Google Drive link or .mp4 ≤ 25 MB) and/or proposal document (.pdf ≤ 5 MB).",
+        message: "Please provide at least one submission: pitch video (Google Drive link or .mp4 <= 25 MB) and/or proposal document (Google Drive link or .pdf <= 5 MB). Submitting both is strongly recommended.",
       });
     }
 
     if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
       return res.status(400).json({
         message: "Pitch video link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
+      });
+    }
+
+    if (documentDriveUrl && !documentDriveUrl.includes("drive.google.com")) {
+      return res.status(400).json({
+        message: "Proposal document link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
       });
     }
 
@@ -613,7 +624,7 @@ export const registerEdition2Submission = async (req, res) => {
 
     // Rename files with Team ID prefix for clean separation
     const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const videoNewName = hasVideo ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
+    const videoNewName = hasVideoFile ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
     const docNewName = hasDocFile ? `[${teamId}]_${cleanTeamName}_Proposal.pdf` : "";
 
     const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
@@ -682,13 +693,18 @@ export const registerEdition2Submission = async (req, res) => {
         webViewLink: "",
         driveFileId: null,
       },
-      document: hasDocFile ? {
-        name: docNewName,
-        originalName: docNewName,
-        localPath: finalDocPath,
-        size: docFile ? docFile.size : 0,
-        url: "",
-        webViewLink: "",
+      document: hasDoc ? {
+        name: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
+        originalName: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
+        localPath: finalDocPath || "",
+        size: docFile ? docFile.size : 2000000,
+        url: documentDriveUrl || "",
+        webViewLink: documentDriveUrl || "",
+        driveFileId: documentDriveUrl
+          ? (documentDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
+             documentDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
+             null)
+          : null,
       } : {
         name: "",
         originalName: "",
@@ -696,6 +712,7 @@ export const registerEdition2Submission = async (req, res) => {
         size: 0,
         url: "",
         webViewLink: "",
+        driveFileId: null,
       },
       members: parsedMembers,
       institution: institution || "N/A",
@@ -1016,6 +1033,198 @@ export const getParticipantSubmission = async (req, res) => {
   } catch (error) {
     console.error("Get participant submission error:", error);
     return res.status(500).json({ message: "Failed to retrieve participant submission." });
+  }
+};
+
+/**
+ * Participant: Update or Attach Pitch Video and/or Proposal Document
+ */
+export const updateParticipantSubmissionMedia = async (req, res) => {
+  try {
+    const rawTeamId = req.body?.teamId;
+    const email = (req.user?.email || req.body?.email || req.body?.participantEmail || "").toLowerCase().trim();
+
+    let submission = null;
+    if (isDbConnected()) {
+      if (rawTeamId) {
+        submission = await Edition2Submission.findOne({ teamId: rawTeamId });
+      }
+      if (!submission && email) {
+        submission = await Edition2Submission.findOne({
+          $or: [{ participantEmail: email }, { "members.email": email }],
+        }).sort({ createdAt: -1 });
+      }
+    } else {
+      if (rawTeamId) {
+        submission = localSubmissionsStore.find((s) => s.teamId === rawTeamId);
+      }
+      if (!submission && email) {
+        submission = localSubmissionsStore.find(
+          (s) =>
+            s.participantEmail === email ||
+            s.members?.some((m) => m.email?.toLowerCase() === email)
+        );
+      }
+    }
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found for this participant." });
+    }
+
+    const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
+    const documentDriveUrl = (req.body.documentDriveUrl || req.body.documentUrl || "").trim();
+
+    if (
+      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
+      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
+    ) {
+      return res.status(400).json({
+        message: "YouTube links are strictly not allowed. Please provide a Google Drive link.",
+      });
+    }
+
+    const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
+    const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
+    const videoFile = hasVideoFile ? req.files.videoFile[0] : null;
+    const docFile = hasDocFile ? req.files.documentFile[0] : null;
+
+    const teamId = submission.teamId;
+    const cleanTeamName = (submission.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const videoNewName = `[${teamId}]_${cleanTeamName}_Video.mp4`;
+    const docNewName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
+
+    const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
+    const finalDocPath = docFile ? path.join(DOCUMENTS_SUBDIR, docNewName) : null;
+
+    try {
+      if (videoFile && fs.existsSync(videoFile.path) && videoFile.path !== finalVideoPath) {
+        fs.renameSync(videoFile.path, finalVideoPath);
+      }
+      if (docFile && fs.existsSync(docFile.path) && docFile.path !== finalDocPath) {
+        fs.renameSync(docFile.path, finalDocPath);
+      }
+    } catch (moveErr) {
+      console.warn("Media update rename notice:", moveErr.message);
+    }
+
+    // Update Video if provided
+    if (videoDriveUrl) {
+      submission.video = {
+        originalName: "Google Drive Pitch Video",
+        localPath: "",
+        size: 15000000,
+        url: videoDriveUrl,
+        webViewLink: videoDriveUrl,
+        driveFileId:
+          videoDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
+          videoDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
+          null,
+      };
+    } else if (hasVideoFile) {
+      submission.video = {
+        originalName: videoFile.originalname || videoNewName,
+        localPath: finalVideoPath || "",
+        size: videoFile.size,
+        url: "",
+        webViewLink: "",
+        driveFileId: null,
+      };
+    }
+
+    // Update Document if provided
+    if (documentDriveUrl) {
+      submission.document = {
+        name: "Google Drive Proposal Deck",
+        originalName: "Google Drive Proposal Deck",
+        localPath: "",
+        size: 2000000,
+        url: documentDriveUrl,
+        webViewLink: documentDriveUrl,
+        driveFileId:
+          documentDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
+          documentDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
+          null,
+      };
+    } else if (hasDocFile) {
+      submission.document = {
+        name: docNewName,
+        originalName: docFile.originalname || docNewName,
+        localPath: finalDocPath || "",
+        size: docFile.size,
+        url: "",
+        webViewLink: "",
+        driveFileId: null,
+      };
+    }
+
+    if (isDbConnected()) {
+      await submission.save();
+    }
+
+    // Trigger async sync to Google Drive
+    (async () => {
+      try {
+        const uploadPromises = [];
+        if (docFile && finalDocPath) {
+          uploadPromises.push(
+            uploadToGoogleDrive({
+              filePath: finalDocPath,
+              fileName: docNewName,
+              mimeType: "application/pdf",
+              folderType: "Documents",
+              teamId,
+            }).then((res) => ({ type: "doc", res }))
+          );
+        }
+        if (videoFile && finalVideoPath) {
+          uploadPromises.push(
+            uploadToGoogleDrive({
+              filePath: finalVideoPath,
+              fileName: videoNewName,
+              mimeType: "video/mp4",
+              folderType: "Videos",
+              teamId,
+            }).then((res) => ({ type: "video", res }))
+          );
+        }
+
+        const results = await Promise.allSettled(uploadPromises);
+        let updatedInDrive = false;
+
+        for (const item of results) {
+          if (item.status === "fulfilled" && item.value?.res) {
+            const { type, res: driveResult } = item.value;
+            if (type === "doc" && driveResult.webViewLink) {
+              submission.document.url = driveResult.webViewLink;
+              submission.document.webViewLink = driveResult.webViewLink;
+              submission.document.driveFileId = driveResult.fileId;
+              updatedInDrive = true;
+            } else if (type === "video" && driveResult.webViewLink) {
+              submission.video.url = driveResult.webViewLink;
+              submission.video.webViewLink = driveResult.webViewLink;
+              submission.video.driveFileId = driveResult.fileId;
+              updatedInDrive = true;
+            }
+          }
+        }
+
+        if (updatedInDrive && isDbConnected()) {
+          await submission.save();
+        }
+
+        await updateMasterSpreadsheet(submission);
+      } catch (syncErr) {
+        console.warn("Background Drive sync for media update notice:", syncErr.message);
+      }
+    })();
+
+    return res.status(200).json({
+      message: "Submission media files updated successfully.",
+      submission,
+    });
+  } catch (error) {
+    console.error("Update participant submission media error:", error);
+    return res.status(500).json({ message: "Failed to update submission media." });
   }
 };
 

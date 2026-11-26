@@ -1270,6 +1270,7 @@ export const clientRegisterSubmission = ({
   videoBlobUrl,
   docBlobUrl,
   videoDriveUrl,
+  documentDriveUrl,
 }) => {
   const subs = getStoredSubmissions();
   const teamId = `VM2-${category.substring(0, 2).toUpperCase()}-${Math.random()
@@ -1282,8 +1283,10 @@ export const clientRegisterSubmission = ({
   const docName = `[${teamId}]_${cleanTeamName}_Proposal.pdf`;
   const cleanDriveUrl = (videoDriveUrl || "").trim();
   const driveVidId = getDriveFileId(cleanDriveUrl);
+  const cleanDocDriveUrl = (documentDriveUrl || "").trim();
+  const driveDocId = getDriveFileId(cleanDocDriveUrl);
   const hasVideo = Boolean(cleanDriveUrl || videoBlobUrl || videoFileName);
-  const hasDoc = Boolean(documentFileName || docBlobUrl);
+  const hasDoc = Boolean(cleanDocDriveUrl || documentFileName || docBlobUrl);
 
   const newSub = {
     _id: `sub-${Date.now()}`,
@@ -1310,17 +1313,19 @@ export const clientRegisterSubmission = ({
       driveFileId: null,
     },
     document: hasDoc ? {
-      name: documentFileName || docName,
-      originalName: documentFileName || docName,
+      name: cleanDocDriveUrl ? (documentFileName || "Google Drive Proposal Deck") : (documentFileName || docName),
+      originalName: cleanDocDriveUrl ? (documentFileName || "Google Drive Proposal Deck") : (documentFileName || docName),
       size: 2000000,
-      url: "",
-      webViewLink: "",
+      url: cleanDocDriveUrl || "",
+      webViewLink: cleanDocDriveUrl || "",
+      driveFileId: driveDocId || null,
     } : {
       name: "",
       originalName: "",
       size: 0,
       url: "",
       webViewLink: "",
+      driveFileId: null,
     },
     videoBlobUrl: videoBlobUrl || null,
     docBlobUrl: docBlobUrl || null,
@@ -2203,6 +2208,10 @@ export const syncSubmissionFilesToCloudDrive = async ({
 
   // 1 & 2. Upload Document and Video SIMULTANEOUSLY in parallel
   const uploadDocPromise = (async () => {
+    // If the submission already has a valid Google Drive document URL, skip uploading document file
+    if (submission.document?.url && submission.document.url.includes("drive.google.com")) {
+      return { webViewLink: submission.document.url, fileId: submission.document.driveFileId };
+    }
     if (!documentFile) return null;
     try {
       const data = await uploadFileToAppsScript({
@@ -2328,6 +2337,122 @@ export const syncSubmissionFilesToCloudDrive = async ({
   await pushCloudState({ submissions: allSubs }).catch(() => {});
 
   return submission;
+};
+
+/**
+ * Client-Side Participant Media Updater
+ * Updates pitch video and/or proposal deck for an existing submission,
+ * stores raw files in IndexedDB, triggers background Google Drive sync,
+ * and pushes updated state to cloud KV / remote store.
+ */
+export const clientUpdateSubmissionMedia = async ({
+  teamId,
+  userEmail,
+  videoDriveUrl,
+  videoFile,
+  documentDriveUrl,
+  documentFile,
+}) => {
+  const subs = getStoredSubmissions();
+  const cleanEmail = (userEmail || "").toLowerCase().trim();
+  const idx = subs.findIndex(
+    (s) =>
+      (teamId && s.teamId === teamId) ||
+      (cleanEmail &&
+        (s.participantEmail?.toLowerCase() === cleanEmail ||
+          s.members?.some((m) => m.email?.toLowerCase() === cleanEmail)))
+  );
+
+  if (idx === -1) {
+    throw new Error("Submission not found in local storage.");
+  }
+
+  const existing = subs[idx];
+  const targetTeamId = existing.teamId;
+  const cleanTeamName = (existing.teamName || "Team").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const videoNewName = `[${targetTeamId}]_${cleanTeamName}_Video.mp4`;
+  const docNewName = `[${targetTeamId}]_${cleanTeamName}_Proposal.pdf`;
+
+  const cleanVideoDrive = (videoDriveUrl || "").trim();
+  const driveVidId = getDriveFileId(cleanVideoDrive);
+  const cleanDocDrive = (documentDriveUrl || "").trim();
+  const driveDocId = getDriveFileId(cleanDocDrive);
+
+  let localVideoBlob = existing.videoBlobUrl || null;
+  let localDocBlob = existing.docBlobUrl || null;
+
+  const updatedSub = {
+    ...existing,
+    video: { ...(existing.video || {}) },
+    document: { ...(existing.document || {}) },
+  };
+
+  // Video Update
+  if (cleanVideoDrive) {
+    updatedSub.video = {
+      originalName: "Google Drive Pitch Video",
+      size: 15000000,
+      url: cleanVideoDrive,
+      webViewLink: cleanVideoDrive,
+      driveFileId: driveVidId || null,
+    };
+    updatedSub.videoBlobUrl = null;
+  } else if (videoFile) {
+    localVideoBlob = URL.createObjectURL(videoFile);
+    updatedSub.videoBlobUrl = localVideoBlob;
+    updatedSub.video = {
+      originalName: videoFile.name || videoNewName,
+      size: videoFile.size,
+      url: "",
+      webViewLink: "",
+      driveFileId: null,
+    };
+    await storeMediaBlob(`video_${targetTeamId}`, videoFile);
+    if (cleanEmail) {
+      await storeMediaBlob(`participant_video_${cleanEmail}`, videoFile);
+    }
+  }
+
+  // Document Update
+  if (cleanDocDrive) {
+    updatedSub.document = {
+      name: "Google Drive Proposal Deck",
+      originalName: "Google Drive Proposal Deck",
+      size: 2000000,
+      url: cleanDocDrive,
+      webViewLink: cleanDocDrive,
+      driveFileId: driveDocId || null,
+    };
+    updatedSub.docBlobUrl = null;
+  } else if (documentFile) {
+    localDocBlob = URL.createObjectURL(documentFile);
+    updatedSub.docBlobUrl = localDocBlob;
+    updatedSub.document = {
+      name: documentFile.name || docNewName,
+      originalName: documentFile.name || docNewName,
+      size: documentFile.size,
+      url: "",
+      webViewLink: "",
+      driveFileId: null,
+    };
+    await storeMediaBlob(`doc_${targetTeamId}`, documentFile);
+    if (cleanEmail) {
+      await storeMediaBlob(`participant_doc_${cleanEmail}`, documentFile);
+    }
+  }
+
+  updatedSub._blobsVerified = Boolean(updatedSub.videoBlobUrl || updatedSub.docBlobUrl);
+  subs[idx] = sanitizeSubmissionForStorage(updatedSub);
+  saveStoredSubmissions(subs);
+
+  // Background sync to Google Drive
+  syncSubmissionFilesToCloudDrive({
+    submission: updatedSub,
+    videoFile: videoFile || null,
+    documentFile: documentFile || null,
+  }).catch((e) => console.warn("Background media update sync:", e));
+
+  return updatedSub;
 };
 
 /**
