@@ -187,9 +187,22 @@ export const getStoredSubmissions = () => {
   }
 };
 
+/**
+ * Strip transient session-only blob: URLs before persisting to localStorage or pushing to Cloud
+ */
+export const sanitizeSubmissionForStorage = (sub) => {
+  if (!sub || typeof sub !== "object") return sub;
+  const clean = { ...sub };
+  delete clean.videoBlobUrl;
+  delete clean.docBlobUrl;
+  delete clean._blobsVerified;
+  return clean;
+};
+
 export const saveStoredSubmissions = (subs) => {
   try {
-    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(subs));
+    const cleaned = Array.isArray(subs) ? subs.map(sanitizeSubmissionForStorage) : [];
+    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(cleaned));
   } catch (e) {
     console.warn("Storage warning:", e);
   }
@@ -204,35 +217,47 @@ export const CLOUD_SYNC_ENDPOINT = `https://api.restful-api.dev/objects/${CLOUD_
 
 let isSyncing = false;
 
+const pickRicherMedia = (primary, secondary) => {
+  const hasRealMedia = (m) =>
+    Boolean(
+      (m?.url && !String(m.url).includes("/drive/folders/")) ||
+        m?.driveFileId ||
+        (m?.webViewLink && !String(m.webViewLink).includes("/drive/folders/"))
+    );
+  if (hasRealMedia(primary)) return primary;
+  if (hasRealMedia(secondary)) return secondary;
+  return primary?.originalName || primary?.name || primary?.localPath ? primary : secondary || primary;
+};
+
 /**
  * Merge two lists of submissions, deduplicating by teamId and keeping newer or richer versions
  */
 export const mergeSubmissions = (localSubs = [], remoteSubs = []) => {
   const map = new Map();
   for (const s of localSubs) {
-    if (s && s.teamId) map.set(s.teamId, s);
+    if (s && s.teamId) map.set(s.teamId, sanitizeSubmissionForStorage(s));
   }
-  for (const r of remoteSubs) {
-    if (!r || !r.teamId) continue;
+  for (const rawRemote of remoteSubs) {
+    if (!rawRemote || !rawRemote.teamId) continue;
+    const r = sanitizeSubmissionForStorage(rawRemote);
     if (!map.has(r.teamId)) {
       map.set(r.teamId, r);
     } else {
       const existing = map.get(r.teamId);
       const rTime = new Date(r.updatedAt || r.createdAt || 0).getTime();
       const eTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-      if (rTime >= eTime) {
-        map.set(r.teamId, {
-          ...r,
-          videoBlobUrl: existing.videoBlobUrl || r.videoBlobUrl,
-          docBlobUrl: existing.docBlobUrl || r.docBlobUrl,
-          plainPassword: r.plainPassword || existing.plainPassword,
-        });
-      } else {
-        map.set(r.teamId, {
-          ...existing,
-          plainPassword: existing.plainPassword || r.plainPassword,
-        });
-      }
+      const winner = rTime >= eTime ? r : existing;
+      const loser = rTime >= eTime ? existing : r;
+      map.set(r.teamId, {
+        ...winner,
+        video: pickRicherMedia(winner.video, loser.video),
+        document: pickRicherMedia(winner.document, loser.document),
+        plainPassword: winner.plainPassword || loser.plainPassword,
+        evaluations:
+          Array.isArray(winner.evaluations) && winner.evaluations.length >= (loser.evaluations?.length || 0)
+            ? winner.evaluations
+            : loser.evaluations || [],
+      });
     }
   }
   return Array.from(map.values()).sort(
@@ -331,17 +356,19 @@ export const parseSubmissionsFromRows = (rows) => {
       shortDescription: solutionName,
       detailedProposal: solutionName,
       video: {
-        originalName: `${teamName}_Video.mp4`,
-        size: 15000000,
+        originalName: videoUrl ? `${teamName}_Video.mp4` : "",
+        size: videoUrl ? 15000000 : 0,
         url: videoUrl,
         webViewLink: videoUrl,
+        driveFileId: getDriveFileId(videoUrl),
       },
       document: {
-        name: `${teamName}_Proposal.pdf`,
-        originalName: `${teamName}_Proposal.pdf`,
-        size: 2000000,
+        name: docUrl ? `${teamName}_Proposal.pdf` : "",
+        originalName: docUrl ? `${teamName}_Proposal.pdf` : "",
+        size: docUrl ? 2000000 : 0,
         url: docUrl,
         webViewLink: docUrl,
+        driveFileId: getDriveFileId(docUrl),
       },
       members: [
         {
@@ -523,7 +550,7 @@ export const pushCloudState = async ({ submissions, users, isReset = false } = {
       }
     }
 
-    currentSubs = isReset ? [] : (currentSubs || getStoredSubmissions());
+    currentSubs = isReset ? [] : (currentSubs || getStoredSubmissions()).map(sanitizeSubmissionForStorage);
     currentUsers = currentUsers || getStoredUsers();
 
     const payload = {
@@ -1203,9 +1230,12 @@ export const clientRegisterSubmission = ({
     createdAt: new Date().toISOString(),
   };
 
-  subs.unshift(newSub);
+  subs.unshift(sanitizeSubmissionForStorage(newSub));
   saveStoredSubmissions(subs);
-  return newSub;
+  return {
+    ...newSub,
+    _blobsVerified: Boolean(videoBlobUrl || docBlobUrl),
+  };
 };
 
 /**
@@ -1572,6 +1602,195 @@ export const getDrivePreviewUrl = (url) => {
   return url || "";
 };
 
+/**
+ * Shared media resolver used across Participant Portal, Jury Hub, and Admin Portal.
+ * Ignores dead persisted blob: URLs from old sessions and prioritizes verified blobs,
+ * Google Drive preview embeds, direct .mp4/.pdf links, and backend streaming endpoints.
+ */
+export const resolveSubmissionMedia = (sub, apiBaseUrl = "") => {
+  if (!sub) {
+    return {
+      video: {
+        hasVideo: false,
+        type: "none",
+        embedUrl: "",
+        directUrl: "",
+        downloadUrl: "",
+        fileName: "Not Provided",
+      },
+      document: {
+        hasDoc: false,
+        type: "none",
+        embedUrl: "",
+        directUrl: "",
+        downloadUrl: "",
+        fileName: "Not Provided",
+      },
+    };
+  }
+
+  const cleanBase =
+    apiBaseUrl && apiBaseUrl !== "undefined" ? apiBaseUrl.replace(/\/$/, "") : "";
+  const isLiveBlob = (u) =>
+    typeof u === "string" && u.startsWith("blob:") && Boolean(sub._blobsVerified);
+
+  // --- VIDEO RESOLUTION ---
+  const rawVidUrl =
+    sub.video?.url && !String(sub.video.url).includes("/drive/folders/")
+      ? sub.video.url
+      : "";
+  const rawVidLink =
+    sub.video?.webViewLink && !String(sub.video.webViewLink).includes("/drive/folders/")
+      ? sub.video.webViewLink
+      : "";
+  const videoUrlCandidate =
+    rawVidUrl ||
+    rawVidLink ||
+    (sub.videoUrl && !String(sub.videoUrl).includes("/drive/folders/") ? sub.videoUrl : "");
+  const videoDriveId = sub.video?.driveFileId || getDriveFileId(videoUrlCandidate);
+  const videoOrigName = sub.video?.originalName || sub.videoFileName || "";
+  const hasBackendVideoFile = Boolean(
+    sub.teamId &&
+      (sub.video?.localPath ||
+        (videoOrigName &&
+          videoOrigName !== "Not Provided" &&
+          videoOrigName !== "Google Drive Pitch Video"))
+  );
+
+  let videoInfo = {
+    hasVideo: false,
+    type: "none",
+    embedUrl: "",
+    directUrl: "",
+    downloadUrl: "",
+    fileName: videoOrigName || "Not Provided",
+  };
+
+  if (isLiveBlob(sub.videoBlobUrl)) {
+    videoInfo = {
+      hasVideo: true,
+      type: "blob",
+      embedUrl: sub.videoBlobUrl,
+      directUrl: sub.videoBlobUrl,
+      downloadUrl: sub.videoBlobUrl,
+      fileName: videoOrigName || "Pitch Video (.mp4)",
+    };
+  } else if (videoDriveId) {
+    videoInfo = {
+      hasVideo: true,
+      type: "drive",
+      embedUrl: `https://drive.google.com/file/d/${videoDriveId}/preview`,
+      directUrl: `https://drive.google.com/file/d/${videoDriveId}/view`,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${videoDriveId}`,
+      fileName: videoOrigName || "Google Drive Pitch Video",
+    };
+  } else if (
+    videoUrlCandidate &&
+    (videoUrlCandidate.toLowerCase().includes(".mp4") ||
+      videoUrlCandidate.startsWith("http") ||
+      videoUrlCandidate.startsWith("/"))
+  ) {
+    videoInfo = {
+      hasVideo: true,
+      type: videoUrlCandidate.toLowerCase().includes(".mp4") ? "mp4" : "external",
+      embedUrl: videoUrlCandidate,
+      directUrl: videoUrlCandidate,
+      downloadUrl: videoUrlCandidate,
+      fileName: videoOrigName || "Pitch Video",
+    };
+  } else if (hasBackendVideoFile) {
+    const streamEndpoint = `${cleanBase}/api/v2/submissions/${encodeURIComponent(sub.teamId)}/video-stream`;
+    videoInfo = {
+      hasVideo: true,
+      type: "mp4",
+      embedUrl: streamEndpoint,
+      directUrl: streamEndpoint,
+      downloadUrl: streamEndpoint,
+      fileName: videoOrigName || "Pitch Video (.mp4)",
+    };
+  }
+
+  // --- DOCUMENT (PDF) RESOLUTION ---
+  const rawDocUrl =
+    sub.document?.url && !String(sub.document.url).includes("/drive/folders/")
+      ? sub.document.url
+      : "";
+  const rawDocLink =
+    sub.document?.webViewLink &&
+    !String(sub.document.webViewLink).includes("/drive/folders/")
+      ? sub.document.webViewLink
+      : "";
+  const docUrlCandidate =
+    rawDocUrl ||
+    rawDocLink ||
+    (sub.documentUrl && !String(sub.documentUrl).includes("/drive/folders/")
+      ? sub.documentUrl
+      : "");
+  const docDriveId = sub.document?.driveFileId || getDriveFileId(docUrlCandidate);
+  const docOrigName =
+    sub.document?.name || sub.document?.originalName || sub.documentFileName || "";
+  const hasBackendDocFile = Boolean(
+    sub.teamId &&
+      (sub.document?.localPath ||
+        (docOrigName &&
+          docOrigName !== "Not Provided" &&
+          docOrigName.toLowerCase().endsWith(".pdf")))
+  );
+
+  let docInfo = {
+    hasDoc: false,
+    type: "none",
+    embedUrl: "",
+    directUrl: "",
+    downloadUrl: "",
+    fileName: docOrigName || "Not Provided",
+  };
+
+  if (isLiveBlob(sub.docBlobUrl)) {
+    docInfo = {
+      hasDoc: true,
+      type: "blob",
+      embedUrl: sub.docBlobUrl,
+      directUrl: sub.docBlobUrl,
+      downloadUrl: sub.docBlobUrl,
+      fileName: docOrigName || "Proposal.pdf",
+    };
+  } else if (docDriveId) {
+    docInfo = {
+      hasDoc: true,
+      type: "drive",
+      embedUrl: `https://drive.google.com/file/d/${docDriveId}/preview`,
+      directUrl: `https://drive.google.com/file/d/${docDriveId}/view`,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${docDriveId}`,
+      fileName: docOrigName || "Proposal.pdf",
+    };
+  } else if (
+    docUrlCandidate &&
+    (docUrlCandidate.startsWith("http") || docUrlCandidate.startsWith("/"))
+  ) {
+    docInfo = {
+      hasDoc: true,
+      type: docUrlCandidate.toLowerCase().includes(".pdf") ? "pdf" : "external",
+      embedUrl: docUrlCandidate,
+      directUrl: docUrlCandidate,
+      downloadUrl: docUrlCandidate,
+      fileName: docOrigName || "Proposal.pdf",
+    };
+  } else if (hasBackendDocFile) {
+    const previewEndpoint = `${cleanBase}/api/v2/submissions/${encodeURIComponent(sub.teamId)}/document-preview`;
+    docInfo = {
+      hasDoc: true,
+      type: "pdf",
+      embedUrl: previewEndpoint,
+      directUrl: previewEndpoint,
+      downloadUrl: `${previewEndpoint}?download=1`,
+      fileName: docOrigName || "Proposal.pdf",
+    };
+  }
+
+  return { video: videoInfo, document: docInfo };
+};
+
 export const generateSubmissionsCsvContent = (subs = getStoredSubmissions()) => {
   const headers = [
     "Sl No",
@@ -1795,12 +2014,18 @@ export const syncSubmissionFilesToCloudDrive = async ({
         folderType: "Documents",
         teamId: submission.teamId,
       });
-      if (data?.fileId || data?.webViewLink) {
+      const resolvedDocId = data?.fileId || data?.id || getDriveFileId(data?.webViewLink || data?.url);
+      if (resolvedDocId || data?.webViewLink || data?.url) {
         if (!submission.document) submission.document = {};
-        submission.document.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
-        submission.document.webViewLink = submission.document.url;
-        submission.document.driveFileId = data.fileId;
-        submission.document.name = docName;
+        const docUrl =
+          data.webViewLink ||
+          data.url ||
+          `https://drive.google.com/file/d/${resolvedDocId}/view?usp=drivesdk`;
+        submission.document.url = docUrl;
+        submission.document.webViewLink = docUrl;
+        if (resolvedDocId) submission.document.driveFileId = resolvedDocId;
+        submission.document.name = documentFile.name || docName;
+        submission.document.originalName = documentFile.name || docName;
       }
       return data;
     } catch (e) {
@@ -1840,11 +2065,16 @@ export const syncSubmissionFilesToCloudDrive = async ({
         });
       }
 
-      if (data?.fileId || data?.webViewLink) {
+      const resolvedVidId = data?.fileId || data?.id || getDriveFileId(data?.webViewLink || data?.url);
+      if (resolvedVidId || data?.webViewLink || data?.url) {
         if (!submission.video) submission.video = {};
-        submission.video.url = data.webViewLink || `https://drive.google.com/file/d/${data.fileId}/view?usp=drivesdk`;
-        submission.video.webViewLink = submission.video.url;
-        submission.video.driveFileId = data.fileId;
+        const vidUrl =
+          data.webViewLink ||
+          data.url ||
+          `https://drive.google.com/file/d/${resolvedVidId}/view?usp=drivesdk`;
+        submission.video.url = vidUrl;
+        submission.video.webViewLink = vidUrl;
+        if (resolvedVidId) submission.video.driveFileId = resolvedVidId;
         submission.video.originalName = videoFile.name || videoName;
       }
       return data;
@@ -1861,11 +2091,12 @@ export const syncSubmissionFilesToCloudDrive = async ({
     onStatusUpdate("Finalizing submission...");
   }
 
-  // Save updated file URLs in local client state immediately
+  // Save updated file URLs in local client state immediately (strip dead blob URLs)
+  const sanitizedSub = sanitizeSubmissionForStorage(submission);
   const allSubs = getStoredSubmissions();
-  const idx = allSubs.findIndex((s) => s.teamId === submission.teamId);
+  const idx = allSubs.findIndex((s) => s.teamId === sanitizedSub.teamId);
   if (idx !== -1) {
-    allSubs[idx] = { ...allSubs[idx], ...submission };
+    allSubs[idx] = { ...allSubs[idx], ...sanitizedSub };
     saveStoredSubmissions(allSubs);
   }
 
@@ -1874,7 +2105,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
   try {
     const allUsers = getStoredUsers();
     const currentUser = allUsers.find(
-      (u) => u.email?.toLowerCase() === submission.participantEmail?.toLowerCase()
+      (u) => u.email?.toLowerCase() === sanitizedSub.participantEmail?.toLowerCase()
     );
 
     const res = await fetch(APPS_SCRIPT_DRIVE_URL, {
@@ -1882,7 +2113,7 @@ export const syncSubmissionFilesToCloudDrive = async ({
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         action: "register_submission",
-        submission,
+        submission: sanitizedSub,
         user: currentUser || null,
       }),
     });

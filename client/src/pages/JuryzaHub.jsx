@@ -30,7 +30,9 @@ import {
   submitStoredRubricScore,
   updateStoredSubmissionStage,
   clientSignIn,
-  getDriveFileId,
+  resolveSubmissionMedia,
+  sanitizeSubmissionForStorage,
+  mergeSubmissions,
   getMediaBlobUrl,
   syncCloudPortalState,
 } from "../services/juryzaStorage";
@@ -207,7 +209,24 @@ export const JuryzaHub = () => {
       const res = await api.get("/api/v2/submissions", {
         params: { judgeEmail: myEmail },
       });
-      const list = Array.isArray(res.data) ? res.data : [];
+      const rawList = Array.isArray(res.data) ? res.data : null;
+      let list = rawList ? rawList.map(sanitizeSubmissionForStorage) : [];
+
+      // If backend returned non-array (SPA fallback) or empty, merge cloud/local submissions
+      if (!rawList || list.length === 0) {
+        const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
+        let cloudSubs = [];
+        try {
+          const synced = await syncCloudPortalState();
+          cloudSubs = synced?.submissions || [];
+        } catch (e) {
+          console.warn("Cloud sync on judge load note:", e);
+        }
+        list = mergeSubmissions(localClean, cloudSubs);
+      } else {
+        const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
+        list = mergeSubmissions(localClean, list);
+      }
 
       // Check stored users to see which teams are alloted to this judge
       const storedUsers = getStoredUsers();
@@ -229,23 +248,27 @@ export const JuryzaHub = () => {
       setSubmissions(judgeOnlyList);
       if (judgeOnlyList.length > 0) {
         setSelectedSubmission((prev) => {
-          if (prev && judgeOnlyList.some((s) => s.teamId === prev.teamId)) return prev;
+          if (prev) {
+            const updated = judgeOnlyList.find((s) => s.teamId === prev.teamId);
+            if (updated) return updated;
+          }
           return judgeOnlyList[0];
         });
       } else {
         setSelectedSubmission(null);
       }
     } catch {
-      // Local fallback with Cloud State sync
-      let stored = getStoredSubmissions();
-      if (!stored || stored.length === 0) {
-        try {
-          const synced = await syncCloudPortalState();
-          stored = synced.submissions || [];
-        } catch (e) {
-          console.warn("Cloud sync on judge load note:", e);
-        }
+      // Local fallback with Cloud State sync - always sync cloud so cross-device Drive links stay fresh
+      const localClean = getStoredSubmissions().map(sanitizeSubmissionForStorage);
+      let cloudSubs = [];
+      try {
+        const synced = await syncCloudPortalState();
+        cloudSubs = synced?.submissions || [];
+      } catch (e) {
+        console.warn("Cloud sync on judge load note:", e);
       }
+      const stored = mergeSubmissions(localClean, cloudSubs);
+
       const myEmail = (
         overrideEmail ||
         judgeEmail ||
@@ -273,7 +296,10 @@ export const JuryzaHub = () => {
       setSubmissions(myTeams);
       if (myTeams.length > 0) {
         setSelectedSubmission((prev) => {
-          if (prev && myTeams.some((s) => s.teamId === prev.teamId)) return prev;
+          if (prev) {
+            const updated = myTeams.find((s) => s.teamId === prev.teamId);
+            if (updated) return updated;
+          }
           return myTeams[0];
         });
       } else {
@@ -389,12 +415,12 @@ export const JuryzaHub = () => {
 
   useEffect(() => {
     if (selectedSubmission?.teamId) {
-      // Always look up fresh IndexedDB blobs for the selected team
+      // Always look up fresh IndexedDB blobs for the selected team on this browser
       getMediaBlobUrl(`video_${selectedSubmission.teamId}`).then((blobUrl) => {
         if (blobUrl) {
           setSelectedSubmission((prev) =>
             prev && prev.teamId === selectedSubmission.teamId
-              ? { ...prev, videoBlobUrl: blobUrl }
+              ? { ...prev, videoBlobUrl: blobUrl, _blobsVerified: true }
               : prev,
           );
         }
@@ -403,37 +429,13 @@ export const JuryzaHub = () => {
         if (blobUrl) {
           setSelectedSubmission((prev) =>
             prev && prev.teamId === selectedSubmission.teamId
-              ? { ...prev, docBlobUrl: blobUrl }
+              ? { ...prev, docBlobUrl: blobUrl, _blobsVerified: true }
               : prev,
           );
         }
       });
     }
   }, [selectedSubmission?.teamId]);
-
-  const getVideoSrc = (sub) => {
-    if (!sub) return "/speech.mp4";
-    if (sub.videoBlobUrl) return sub.videoBlobUrl;
-    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
-    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
-    }
-    return "/speech.mp4";
-  };
-
-  const getDocHref = (sub) => {
-    if (!sub) return "/sample_proposal.pdf";
-    if (sub.docBlobUrl) return sub.docBlobUrl;
-    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
-    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
-    }
-    return "/sample_proposal.pdf";
-  };
 
   if (!isAuthenticated) {
     return (
@@ -755,153 +757,159 @@ export const JuryzaHub = () => {
                     </div>
                   </div>
 
-                  {/* Pitch Video (.mp4) Player */}
+                  {/* Pitch Video & Proposal Deck using Shared Visibility Resolver */}
                   {(() => {
-                    const driveVidId =
-                      selectedSubmission.video?.driveFileId ||
-                      getDriveFileId(selectedSubmission.video?.url || selectedSubmission.video?.webViewLink);
-                    const activeVideoBlob = selectedSubmission.videoBlobUrl;
-                    const isDirectMp4 =
-                      (selectedSubmission.video?.url && selectedSubmission.video.url.toLowerCase().endsWith(".mp4")) ||
-                      (selectedSubmission.video?.webViewLink && selectedSubmission.video.webViewLink.toLowerCase().endsWith(".mp4"));
-                    const directMp4Url = isDirectMp4
-                      ? selectedSubmission.video.url || selectedSubmission.video.webViewLink
-                      : null;
-                    const hasValidVideo = Boolean(
-                      driveVidId ||
-                      activeVideoBlob ||
-                      directMp4Url ||
-                      (selectedSubmission.video?.url && !selectedSubmission.video.url.includes("/drive/folders/"))
+                    const resolvedMedia = resolveSubmissionMedia(
+                      selectedSubmission,
+                      api.defaults.baseURL,
                     );
-
-                    if (!hasValidVideo) {
-                      return (
-                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
-                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)] mb-3">
-                            <FiVideo className="h-4 w-4 text-[var(--muted)] opacity-50" />
-                            <span>Pitch Video (.mp4)</span>
-                          </div>
-                          <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                            <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
-                            <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
-                            <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                              This team chose to submit only a Proposal Document (.pdf).
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    }
+                    const vid = resolvedMedia.video;
+                    const doc = resolvedMedia.document;
 
                     return (
-                      <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                            <FiVideo className="h-4 w-4 text-[var(--primary)]" />
-                            <span>Pitch Video (.mp4)</span>
+                      <>
+                        {/* Pitch Video (.mp4 / Google Drive) Player */}
+                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                              <FiVideo className={`h-4 w-4 ${vid.hasVideo ? "text-[var(--primary)]" : "text-[var(--muted)] opacity-50"}`} />
+                              <span>Pitch Video (.mp4 / Drive Link)</span>
+                            </div>
+                            {vid.hasVideo && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-[var(--muted)] font-mono truncate max-w-[150px]">
+                                  {vid.fileName}
+                                </span>
+                                {vid.directUrl && (
+                                  <a
+                                    href={vid.directUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--primary)] hover:border-[var(--primary)] transition"
+                                  >
+                                    <span>Open Video</span>
+                                    <FiExternalLink className="h-3 w-3" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-[var(--muted)] font-mono truncate max-w-[150px]">
-                              {selectedSubmission.video?.originalName || "Team Pitch Video"}
-                            </span>
-                          </div>
-                        </div>
 
-                        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
-                          {activeVideoBlob ? (
-                            <video
-                              key={`blob-${selectedSubmission.teamId}-${activeVideoBlob}`}
-                              src={activeVideoBlob}
-                              className="h-full w-full object-cover"
-                              controls
-                              preload="metadata"
-                              playsInline
-                            />
-                          ) : driveVidId ? (
-                            <iframe
-                              key={`drive-${selectedSubmission.teamId}-${driveVidId}`}
-                              src={`https://drive.google.com/file/d/${driveVidId}/preview`}
-                              title="Team Pitch Video"
-                              className="h-full w-full border-0 rounded-2xl"
-                              allow="autoplay; fullscreen"
-                            />
-                          ) : directMp4Url ? (
-                            <video
-                              key={`mp4-${selectedSubmission.teamId}-${directMp4Url}`}
-                              src={directMp4Url}
-                              className="h-full w-full object-cover"
-                              controls
-                              preload="metadata"
-                              playsInline
-                            />
+                          {!vid.hasVideo ? (
+                            <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                              <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                              <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
+                              <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                                This team submitted a Proposal Document (.pdf) without a Pitch Video.
+                              </p>
+                            </div>
+                          ) : vid.type === "blob" || vid.type === "mp4" ? (
+                            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                              <video
+                                key={`video-${selectedSubmission.teamId}-${vid.embedUrl}`}
+                                src={vid.embedUrl}
+                                className="h-full w-full object-contain bg-black"
+                                controls
+                                preload="metadata"
+                                playsInline
+                              />
+                            </div>
+                          ) : vid.type === "drive" && vid.embedUrl ? (
+                            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                              <iframe
+                                key={`drive-${selectedSubmission.teamId}-${vid.embedUrl}`}
+                                src={vid.embedUrl}
+                                title="Team Pitch Video"
+                                className="h-full w-full border-0 rounded-2xl"
+                                allow="autoplay; fullscreen"
+                              />
+                            </div>
                           ) : (
-                            <video
-                              key={`fallback-${selectedSubmission.teamId}`}
-                              src="/speech.mp4"
-                              className="h-full w-full object-cover"
-                              controls
-                              preload="metadata"
-                              playsInline
-                            />
+                            <div className="aspect-video w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center gap-3">
+                              <FiVideo className="h-8 w-8 text-[var(--primary)]" />
+                              <p className="text-xs font-semibold text-[var(--text)]">
+                                External Video Resource Linked
+                              </p>
+                              <a
+                                href={vid.directUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold transition shadow-sm"
+                              >
+                                <span>Watch Video in New Tab</span>
+                                <FiExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
                           )}
                         </div>
-                      </div>
+
+                        {/* Proposal Deck & Proposal Abstract */}
+                        <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                              <FiFileText className="h-4 w-4 text-[var(--accent)]" />
+                              <span>Proposal Document (.pdf) & Abstract</span>
+                            </div>
+                            {doc.hasDoc && (
+                              <div className="flex items-center gap-2">
+                                {doc.downloadUrl && (
+                                  <a
+                                    href={doc.downloadUrl}
+                                    download={doc.fileName}
+                                    target={doc.type === "blob" ? undefined : "_blank"}
+                                    rel={doc.type === "blob" ? undefined : "noopener noreferrer"}
+                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
+                                  >
+                                    <FiDownload className="h-3 w-3" />
+                                    <span>Download</span>
+                                  </a>
+                                )}
+                                {(doc.directUrl || doc.embedUrl) && (
+                                  <a
+                                    href={doc.directUrl || doc.embedUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
+                                  >
+                                    <span>Fullscreen PDF</span>
+                                    <FiExternalLink className="h-3 w-3" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-[var(--text)] leading-relaxed bg-[var(--surface-2)] p-4 rounded-2xl border border-[var(--border)] mb-4">
+                            {selectedSubmission.shortDescription}
+                          </p>
+
+                          {/* Embedded Interactive PDF Viewer */}
+                          {doc.hasDoc ? (
+                            <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
+                              <iframe
+                                key={`doc-${selectedSubmission.teamId}-${doc.embedUrl}`}
+                                src={
+                                  doc.type === "blob" || doc.type === "pdf"
+                                    ? `${doc.embedUrl}#toolbar=0&navpanes=0`
+                                    : doc.embedUrl
+                                }
+                                title="Proposal PDF Document"
+                                className="h-full w-full border-0 rounded-2xl"
+                              />
+                            </div>
+                          ) : (
+                            <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                              <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
+                              <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
+                              <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                                This team submitted a Pitch Video without a Proposal Document (.pdf).
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     );
                   })()}
-
-                  {/* Proposal Deck & Proposal Abstract */}
-                  <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
-                        <FiFileText className="h-4 w-4 text-[var(--accent)]" />
-                        <span>Proposal Document (.pdf) & Abstract</span>
-                      </div>
-                      {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) && (
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={getDocHref(selectedSubmission)}
-                            download={selectedSubmission.document?.name || "Proposal.pdf"}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] hover:border-[var(--primary)] transition cursor-pointer"
-                          >
-                            <FiDownload className="h-3 w-3" />
-                            <span>Download</span>
-                          </a>
-                          <a
-                            href={getDocHref(selectedSubmission)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[var(--primary)] px-3 py-1.5 rounded-xl hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-sm"
-                          >
-                            <span>Fullscreen PDF</span>
-                            <FiExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-[var(--text)] leading-relaxed bg-[var(--surface-2)] p-4 rounded-2xl border border-[var(--border)] mb-4">
-                      {selectedSubmission.shortDescription}
-                    </p>
-
-                    {/* Embedded Interactive PDF Viewer */}
-                    {Boolean(selectedSubmission.document?.url || selectedSubmission.docBlobUrl || (selectedSubmission.document?.name && selectedSubmission.document.name.endsWith(".pdf"))) ? (
-                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)]">
-                        <iframe
-                          key={selectedSubmission.teamId}
-                          src={`${getDocHref(selectedSubmission)}#toolbar=0&navpanes=0`}
-                          title="Proposal PDF Document"
-                          className="h-full w-full border-0 rounded-2xl"
-                        />
-                      </div>
-                    ) : (
-                      <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                        <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-30" />
-                        <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
-                        <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                          This team chose to submit only a Pitch Video.
-                        </p>
-                      </div>
-                    )}
-                  </div>
 
                   {/* Rubric Evaluation Form */}
                   <div className="p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-md">

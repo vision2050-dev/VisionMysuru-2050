@@ -44,6 +44,22 @@ let localSubmissionsStore = [];
 // Helper to check if MongoDB is connected
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
+// Helper to build safe query by Mongo ObjectId or teamId without CastError
+const buildIdOrTeamQuery = (id) =>
+  mongoose.isValidObjectId(id) ? { $or: [{ _id: id }, { teamId: id }] } : { teamId: id };
+
+// Helper to extract Google Drive file ID cleanly
+const extractDriveFileId = (url) => {
+  if (!url || typeof url !== "string") return null;
+  const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch) return fileMatch[1];
+  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return idMatch[1];
+  const dMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch) return dMatch[1];
+  return null;
+};
+
 // Helper to trigger spreadsheet sync in background
 const triggerSpreadsheetUpdate = async () => {
   try {
@@ -1129,7 +1145,7 @@ export const updateSubmissionStatus = async (req, res) => {
 
     let sub = null;
     if (isDbConnected()) {
-      sub = await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] });
+      sub = await Edition2Submission.findOne(buildIdOrTeamQuery(id));
       if (sub) {
         sub.stage = stage;
         sub.status = stage;
@@ -1174,7 +1190,7 @@ export const submitRubricEvaluation = async (req, res) => {
     }
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne({ $or: [{ _id: submissionId }, { teamId: submissionId }] })
+      ? await Edition2Submission.findOne(buildIdOrTeamQuery(submissionId))
       : localSubmissionsStore.find((s) => s._id === submissionId || s.teamId === submissionId);
 
     if (!sub) {
@@ -1363,30 +1379,30 @@ export const streamSubmissionVideo = async (req, res) => {
     const { id } = req.params;
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
+      ? await Edition2Submission.findOne(buildIdOrTeamQuery(id))
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    if (!sub || !sub.video || (!sub.video.localPath && !sub.video.url && !sub.video.originalName)) {
-      return res.status(404).json({ message: "No pitch video was submitted for this team." });
-    }
-
-    if (sub.video.localPath && fs.existsSync(sub.video.localPath)) {
+    // Fallback to filename match in local disk directory if sub lookup missed (e.g. local fallback)
+    if (sub && sub.video?.localPath && fs.existsSync(sub.video.localPath)) {
       return streamVideoFile(sub.video.localPath, req, res);
     }
 
-    // Try finding in Videos directory by teamId
-    const videoFiles = fs.readdirSync(VIDEOS_SUBDIR);
-    const matched = videoFiles.find((f) => f.includes(sub.teamId));
-    if (matched) {
-      const p = path.join(VIDEOS_SUBDIR, matched);
-      return streamVideoFile(p, req, res);
+    if (fs.existsSync(VIDEOS_SUBDIR)) {
+      const videoFiles = fs.readdirSync(VIDEOS_SUBDIR);
+      const searchKey = sub?.teamId || id;
+      const matched = videoFiles.find((f) => f.includes(searchKey));
+      if (matched) {
+        const p = path.join(VIDEOS_SUBDIR, matched);
+        return streamVideoFile(p, req, res);
+      }
     }
 
-    if (sub.video.url) {
-      return res.redirect(sub.video.url);
+    const remoteUrl = sub?.video?.url || sub?.video?.webViewLink;
+    if (remoteUrl && !remoteUrl.includes("/drive/folders/")) {
+      return res.redirect(remoteUrl);
     }
 
-    return res.status(404).json({ message: "Video file is not available locally." });
+    return res.status(404).json({ message: "Video file is not available on this server." });
   } catch (error) {
     console.error("Video streaming error:", error);
     return res.status(500).json({ message: "Error streaming video." });
@@ -1396,36 +1412,51 @@ export const streamSubmissionVideo = async (req, res) => {
 export const previewSubmissionDocument = async (req, res) => {
   try {
     const { id } = req.params;
+    const isDownload = req.query.download === "1" || req.query.download === "true";
 
     let sub = isDbConnected()
-      ? await Edition2Submission.findOne({ $or: [{ _id: id }, { teamId: id }] })
+      ? await Edition2Submission.findOne(buildIdOrTeamQuery(id))
       : localSubmissionsStore.find((s) => s._id === id || s.teamId === id);
 
-    if (!sub || !sub.document || (!sub.document.localPath && !sub.document.url && !sub.document.name)) {
-      return res.status(404).json({ message: "No proposal document was submitted for this team." });
-    }
-
-    if (sub.document.localPath && fs.existsSync(sub.document.localPath)) {
+    if (sub && sub.document?.localPath && fs.existsSync(sub.document.localPath)) {
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="${sub.document.name || "proposal.pdf"}"`);
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader(
+        "Content-Disposition",
+        `${isDownload ? "attachment" : "inline"}; filename="${sub.document.name || "proposal.pdf"}"`,
+      );
       return fs.createReadStream(sub.document.localPath).pipe(res);
     }
 
-    // Try finding in Documents directory by teamId
-    const docFiles = fs.readdirSync(DOCUMENTS_SUBDIR);
-    const matched = docFiles.find((f) => f.includes(sub.teamId));
-    if (matched) {
-      const p = path.join(DOCUMENTS_SUBDIR, matched);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="${matched}"`);
-      return fs.createReadStream(p).pipe(res);
+    if (fs.existsSync(DOCUMENTS_SUBDIR)) {
+      const docFiles = fs.readdirSync(DOCUMENTS_SUBDIR);
+      const searchKey = sub?.teamId || id;
+      const matched = docFiles.find((f) => f.includes(searchKey));
+      if (matched) {
+        const p = path.join(DOCUMENTS_SUBDIR, matched);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader(
+          "Content-Disposition",
+          `${isDownload ? "attachment" : "inline"}; filename="${matched}"`,
+        );
+        return fs.createReadStream(p).pipe(res);
+      }
     }
 
-    if (sub.document.url) {
-      return res.redirect(sub.document.url);
+    const remoteUrl = sub?.document?.url || sub?.document?.webViewLink;
+    if (remoteUrl && !remoteUrl.includes("/drive/folders/")) {
+      const driveId = sub?.document?.driveFileId || extractDriveFileId(remoteUrl);
+      if (driveId) {
+        const redirectTarget = isDownload
+          ? `https://drive.google.com/uc?export=download&id=${driveId}`
+          : `https://drive.google.com/file/d/${driveId}/preview`;
+        return res.redirect(redirectTarget);
+      }
+      return res.redirect(remoteUrl);
     }
 
-    return res.status(404).json({ message: "Document file is not available locally." });
+    return res.status(404).json({ message: "Document file is not available on this server." });
   } catch (error) {
     console.error("Document preview error:", error);
     return res.status(500).json({ message: "Error previewing document." });

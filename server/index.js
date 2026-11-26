@@ -49,6 +49,8 @@ app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
+    frameguard: false,
+    contentSecurityPolicy: false,
   }),
 );
 app.use(morgan("dev"));

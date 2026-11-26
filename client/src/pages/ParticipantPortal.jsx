@@ -31,6 +31,9 @@ import {
   syncSubmissionFilesToCloudDrive,
   autoRecoverDriveMedia,
   getDriveFileId,
+  resolveSubmissionMedia,
+  sanitizeSubmissionForStorage,
+  mergeSubmissions,
   storeMediaBlob,
   getMediaBlobUrl,
   clientResetParticipantPassword,
@@ -178,27 +181,41 @@ export const ParticipantPortal = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [submitting]);
 
+  const hydrateSubmissionBlobs = async (sub, cleanEmail) => {
+    const cleanSub = sanitizeSubmissionForStorage(sub);
+    let hasVerifiedBlob = false;
+    try {
+      const storedBlobUrl =
+        (await getMediaBlobUrl(`video_${cleanSub.teamId}`)) ||
+        (await getMediaBlobUrl(`participant_video_${cleanEmail}`));
+      if (storedBlobUrl) {
+        cleanSub.videoBlobUrl = storedBlobUrl;
+        hasVerifiedBlob = true;
+      }
+
+      const storedDocBlob =
+        (await getMediaBlobUrl(`doc_${cleanSub.teamId}`)) ||
+        (await getMediaBlobUrl(`participant_doc_${cleanEmail}`));
+      if (storedDocBlob) {
+        cleanSub.docBlobUrl = storedDocBlob;
+        hasVerifiedBlob = true;
+      }
+    } catch (e) {
+      console.warn("IndexedDB load note:", e);
+    }
+    if (hasVerifiedBlob) {
+      cleanSub._blobsVerified = true;
+    }
+    return cleanSub;
+  };
+
   const fetchParticipantSubmission = async (email) => {
     const clean = (email || "").toLowerCase().trim();
     try {
       setLoading(true);
       const res = await api.get(`/api/v2/participant/my-submission?email=${encodeURIComponent(email)}`);
       if (res.data?.hasRegistered && res.data?.submission) {
-        const sub = res.data.submission;
-        // Check IndexedDB for persisted video and doc blobs
-        const storedBlobUrl =
-          (await getMediaBlobUrl(`video_${sub.teamId}`)) ||
-          (await getMediaBlobUrl(`participant_video_${clean}`));
-        if (storedBlobUrl) {
-          sub.videoBlobUrl = storedBlobUrl;
-        }
-
-        const storedDocBlob =
-          (await getMediaBlobUrl(`doc_${sub.teamId}`)) ||
-          (await getMediaBlobUrl(`participant_doc_${clean}`));
-        if (storedDocBlob) {
-          sub.docBlobUrl = storedDocBlob;
-        }
+        const sub = await hydrateSubmissionBlobs(res.data.submission, clean);
         setHasRegistered(true);
         setMySubmission(sub);
         setLoading(false);
@@ -208,51 +225,28 @@ export const ParticipantPortal = () => {
       console.warn("Could not load participant submission from backend, checking local storage:", err.message);
     }
 
-    // Local fallback
+    // Local + cloud sync fallback
     let subs = getStoredSubmissions();
-    let mySub = subs.find(
+    try {
+      const synced = await syncCloudPortalState();
+      if (synced?.submissions) {
+        subs = mergeSubmissions(subs, synced.submissions);
+      }
+    } catch (syncErr) {
+      console.warn("Cloud sync on participant load:", syncErr.message);
+    }
+
+    const mySub = subs.find(
       (s) =>
         (s.participantEmail || "").toLowerCase() === clean ||
         (s.members || []).some((m) => (m.email || "").toLowerCase() === clean),
     );
 
-    // If not found locally, try syncing with cloud state (multi-device sync)
-    if (!mySub) {
-      try {
-        const synced = await syncCloudPortalState();
-        subs = synced.submissions || [];
-        mySub = subs.find(
-          (s) =>
-            (s.participantEmail || "").toLowerCase() === clean ||
-            (s.members || []).some((m) => (m.email || "").toLowerCase() === clean),
-        );
-      } catch (syncErr) {
-        console.warn("Cloud sync on participant load:", syncErr.message);
-      }
-    }
-
     if (mySub) {
       setHasRegistered(true);
-      // Retrieve persistent video and doc blobs from IndexedDB if not currently set
-      try {
-        const storedBlobUrl =
-          (await getMediaBlobUrl(`video_${mySub.teamId}`)) ||
-          (await getMediaBlobUrl(`participant_video_${clean}`));
-        if (storedBlobUrl) {
-          mySub.videoBlobUrl = storedBlobUrl;
-        }
-
-        const storedDocBlob =
-          (await getMediaBlobUrl(`doc_${mySub.teamId}`)) ||
-          (await getMediaBlobUrl(`participant_doc_${clean}`));
-        if (storedDocBlob) {
-          mySub.docBlobUrl = storedDocBlob;
-        }
-      } catch (e) {
-        console.warn("IndexedDB load note:", e);
-      }
-      setMySubmission(mySub);
-      autoRecoverDriveMedia(mySub, clean).catch(() => {});
+      const hydrated = await hydrateSubmissionBlobs(mySub, clean);
+      setMySubmission(hydrated);
+      autoRecoverDriveMedia(hydrated, clean).catch(() => {});
     } else {
       setHasRegistered(false);
     }
@@ -511,6 +505,7 @@ export const ParticipantPortal = () => {
           await storeMediaBlob(`participant_video_${currentUserEmail.toLowerCase().trim()}`, videoFile);
         }
         returnedSub.videoBlobUrl = URL.createObjectURL(videoFile);
+        returnedSub._blobsVerified = true;
       }
       if (documentFile && returnedSub.teamId) {
         await storeMediaBlob(`doc_${returnedSub.teamId}`, documentFile);
@@ -518,6 +513,7 @@ export const ParticipantPortal = () => {
           await storeMediaBlob(`participant_doc_${currentUserEmail.toLowerCase().trim()}`, documentFile);
         }
         returnedSub.docBlobUrl = URL.createObjectURL(documentFile);
+        returnedSub._blobsVerified = true;
       }
 
       setUploadProgress(100);
@@ -583,6 +579,7 @@ export const ParticipantPortal = () => {
         ...(updatedSub || newSub),
         videoBlobUrl: localVideoBlob,
         docBlobUrl: localDocBlob,
+        _blobsVerified: Boolean(localVideoBlob || localDocBlob),
       };
 
       setUploadProgress(100);
@@ -625,30 +622,6 @@ export const ParticipantPortal = () => {
     if (stepIndex < currentIndex) return "completed";
     if (stepIndex === currentIndex) return "active";
     return "pending";
-  };
-
-  const getVideoSrc = (sub) => {
-    if (!sub) return "/speech.mp4";
-    if (sub.videoBlobUrl) return sub.videoBlobUrl;
-    if (sub.video?.url && sub.video.url.toLowerCase().endsWith(".mp4")) return sub.video.url;
-    if (sub.video?.webViewLink && sub.video.webViewLink.toLowerCase().endsWith(".mp4")) return sub.video.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
-    }
-    return "/speech.mp4";
-  };
-
-  const getDocHref = (sub) => {
-    if (!sub) return "/sample_proposal.pdf";
-    if (sub.docBlobUrl) return sub.docBlobUrl;
-    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
-    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
-    }
-    return "/sample_proposal.pdf";
   };
 
   return (
@@ -881,149 +854,155 @@ export const ParticipantPortal = () => {
             </div>
 
             {/* Submission Details Card */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Pitch Video (.mp4) Review Card */}
-              <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
-                    <FiVideo className="h-4 w-4 text-[var(--accent)]" />
-                    <span>Pitch Video (.mp4)</span>
-                  </div>
-                </div>
+            {(() => {
+              const { video: resolvedVideo, document: resolvedDoc } = resolveSubmissionMedia(
+                mySubmission,
+                api.defaults.baseURL,
+              );
+              const docFrameSrc =
+                resolvedDoc.type === "blob" || resolvedDoc.type === "pdf"
+                  ? `${resolvedDoc.embedUrl}#toolbar=0&navpanes=0`
+                  : resolvedDoc.embedUrl;
 
-                {(() => {
-                  const driveVidId =
-                    mySubmission.video?.driveFileId ||
-                    getDriveFileId(mySubmission.video?.url || mySubmission.video?.webViewLink);
-                  const activeVideoBlob = mySubmission.videoBlobUrl;
-                  const isDirectMp4 =
-                    (mySubmission.video?.url && mySubmission.video.url.toLowerCase().endsWith(".mp4")) ||
-                    (mySubmission.video?.webViewLink && mySubmission.video.webViewLink.toLowerCase().endsWith(".mp4"));
-                  const directMp4Url = isDirectMp4
-                    ? mySubmission.video.url || mySubmission.video.webViewLink
-                    : null;
-                  const hasValidVideo = Boolean(driveVidId || activeVideoBlob || directMp4Url || (mySubmission.video?.url && !mySubmission.video.url.includes("/drive/folders/")));
-
-                  if (!hasValidVideo) {
-                    return (
-                      <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                        <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
-                        <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
-                        <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                          Your team opted to submit a Proposal Document (.pdf) for evaluation.
-                        </p>
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Pitch Video (.mp4) Review Card */}
+                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
+                          <FiVideo className="h-4 w-4 text-[var(--accent)]" />
+                          <span>Pitch Video</span>
+                        </div>
+                        {resolvedVideo.hasVideo && (
+                          <a
+                            href={resolvedVideo.directUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] hover:underline"
+                          >
+                            <span>Open Video</span>
+                            <FiExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
                       </div>
-                    );
-                  }
 
-                  return (
-                    <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
-                      {activeVideoBlob ? (
-                        <video
-                          key={`blob-${mySubmission.teamId}-${activeVideoBlob}`}
-                          src={activeVideoBlob}
-                          className="h-full w-full object-cover"
-                          controls
-                          preload="metadata"
-                          playsInline
-                        />
-                      ) : driveVidId ? (
-                        <iframe
-                          key={`drive-${mySubmission.teamId}-${driveVidId}`}
-                          src={`https://drive.google.com/file/d/${driveVidId}/preview`}
-                          title="Pitch Video Preview"
-                          className="h-full w-full border-0 rounded-2xl"
-                          allow="autoplay; fullscreen"
-                        />
-                      ) : directMp4Url ? (
-                        <video
-                          key={`mp4-${mySubmission.teamId}-${directMp4Url}`}
-                          src={directMp4Url}
-                          className="h-full w-full object-cover"
-                          controls
-                          preload="metadata"
-                          playsInline
-                        />
+                      {!resolvedVideo.hasVideo ? (
+                        <div className="aspect-video w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                          <FiVideo className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
+                          <p className="text-xs font-semibold text-[var(--text)]">No Pitch Video Submitted</p>
+                          <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                            No pitch video file or Google Drive link was attached to this submission.
+                          </p>
+                        </div>
+                      ) : resolvedVideo.type === "drive" ? (
+                        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                          <iframe
+                            key={`drive-${mySubmission.teamId}-${resolvedVideo.embedUrl}`}
+                            src={resolvedVideo.embedUrl}
+                            title="Pitch Video Preview"
+                            className="h-full w-full border-0 rounded-2xl"
+                            allow="autoplay; fullscreen"
+                          />
+                        </div>
+                      ) : resolvedVideo.type === "external" ? (
+                        <div className="aspect-video w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center gap-3">
+                          <FiVideo className="h-9 w-9 text-[var(--accent)]" />
+                          <p className="text-xs font-semibold text-[var(--text)]">External Pitch Video Linked</p>
+                          <a
+                            href={resolvedVideo.directUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent)] text-white px-4 py-2 text-xs font-bold hover:brightness-110 transition"
+                          >
+                            <span>Watch Video</span>
+                            <FiExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
                       ) : (
-                        <video
-                          key={`fallback-${mySubmission.teamId}`}
-                          src="/speech.mp4"
-                          className="h-full w-full object-cover"
-                          controls
-                          preload="metadata"
-                          playsInline
-                        />
+                        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-black relative shadow-lg">
+                          <video
+                            key={`vid-${mySubmission.teamId}-${resolvedVideo.embedUrl}`}
+                            src={resolvedVideo.embedUrl}
+                            className="h-full w-full object-cover"
+                            controls
+                            preload="metadata"
+                            playsInline
+                          />
+                        </div>
                       )}
                     </div>
-                  );
-                })()}
 
-                <div className="flex items-center justify-between mt-2.5">
-                  <p className="text-xs text-[var(--muted)]">
-                    File: <strong className="text-[var(--text)]">{mySubmission.video?.originalName || (mySubmission.video?.url ? "Google Drive Pitch Video" : "Not Provided")}</strong>
-                  </p>
-                </div>
-              </div>
-
-              {/* Proposal Document (.pdf) Review Card */}
-              <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
-                      <FiFileText className="h-4 w-4 text-[var(--primary)]" />
-                      <span>Proposal Deck (.pdf)</span>
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[var(--border)]">
+                      <p className="text-xs text-[var(--muted)] truncate">
+                        File: <strong className="text-[var(--text)]">{resolvedVideo.fileName}</strong>
+                      </p>
                     </div>
                   </div>
 
-                  {/* Embedded PDF Viewer Preview */}
-                  {Boolean(mySubmission.document?.url || mySubmission.docBlobUrl || (mySubmission.document?.name && mySubmission.document.name.endsWith(".pdf"))) ? (
-                    <>
-                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
-                        <iframe
-                          src={`${getDocHref(mySubmission)}#toolbar=0&navpanes=0`}
-                          title="Proposal PDF Document"
-                          className="h-full w-full border-0 rounded-2xl"
-                        />
+                  {/* Proposal Document (.pdf) Review Card */}
+                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-md flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-[var(--text)]">
+                          <FiFileText className="h-4 w-4 text-[var(--primary)]" />
+                          <span>Proposal Deck (.pdf)</span>
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between">
-                        <p className="text-xs text-[var(--muted)] truncate">
-                          File: <strong className="text-[var(--text)]">{mySubmission.document?.name || "Proposal.pdf"}</strong>
-                        </p>
-                      </div>
+                      {resolvedDoc.hasDoc ? (
+                        <>
+                          <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] relative">
+                            <iframe
+                              key={`doc-${mySubmission.teamId}-${docFrameSrc}`}
+                              src={docFrameSrc}
+                              title="Proposal PDF Document"
+                              className="h-full w-full border-0 rounded-2xl"
+                            />
+                          </div>
 
-                      <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
-                        <a
-                          href={getDocHref(mySubmission)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-md"
-                        >
-                          <FiEye className="h-4 w-4" />
-                          <span>View Fullscreen</span>
-                        </a>
-                        <a
-                          href={getDocHref(mySubmission)}
-                          download={mySubmission.document?.name || "Proposal.pdf"}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] px-4 py-2.5 text-xs font-semibold hover:border-[var(--primary)] transition cursor-pointer"
-                        >
-                          <FiDownload className="h-4 w-4" />
-                          <span>Download</span>
-                        </a>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
-                      <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
-                      <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
-                      <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
-                        Your team opted to submit a Pitch Video for evaluation.
-                      </p>
+                          <div className="mt-3 flex items-center justify-between">
+                            <p className="text-xs text-[var(--muted)] truncate">
+                              File: <strong className="text-[var(--text)]">{resolvedDoc.fileName}</strong>
+                            </p>
+                          </div>
+
+                          <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-2">
+                            <a
+                              href={resolvedDoc.directUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] text-white py-2.5 text-xs font-semibold hover:bg-[var(--primary-hover)] transition cursor-pointer shadow-md"
+                            >
+                              <FiEye className="h-4 w-4" />
+                              <span>View Fullscreen</span>
+                            </a>
+                            <a
+                              href={resolvedDoc.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={resolvedDoc.fileName || "Proposal.pdf"}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)] px-4 py-2.5 text-xs font-semibold hover:border-[var(--primary)] transition cursor-pointer"
+                            >
+                              <FiDownload className="h-4 w-4" />
+                              <span>Download</span>
+                            </a>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="aspect-[4/3] w-full rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] flex flex-col items-center justify-center p-6 text-center">
+                          <FiFileText className="h-8 w-8 text-[var(--muted)] mb-2 opacity-40" />
+                          <p className="text-xs font-semibold text-[var(--text)]">No Proposal Document Submitted</p>
+                          <p className="text-[11px] text-[var(--muted)] mt-1 max-w-xs">
+                            No PDF proposal deck was attached to this submission.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         ) : (
           /* ==================================================== */

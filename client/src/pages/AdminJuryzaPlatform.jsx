@@ -54,6 +54,10 @@ import {
   fetchDriveMasterState,
   importSubmissionsFromFile,
   getMasterSpreadsheetUrl,
+  resolveSubmissionMedia,
+  sanitizeSubmissionForStorage,
+  mergeSubmissions,
+  getDriveFileId,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -78,6 +82,9 @@ export const AdminJuryzaPlatform = () => {
 
   // Allocation state
   const [allocating, setAllocating] = useState(false);
+
+  // Media Inspection Modal State
+  const [previewingSubmission, setPreviewingSubmission] = useState(null);
 
   // Add Judge Modal States
   const [showAddJudgeModal, setShowAddJudgeModal] = useState(false);
@@ -162,7 +169,12 @@ export const AdminJuryzaPlatform = () => {
       syncCloudPortalState()
         .then((synced) => {
           if (synced?.submissions && synced.submissions.length > 0) {
-            setSubmissions(synced.submissions);
+            setSubmissions((prev) =>
+              mergeSubmissions(
+                prev.map(sanitizeSubmissionForStorage),
+                synced.submissions,
+              ),
+            );
             if (synced.judges && synced.judges.length > 0) {
               setJudges(synced.judges);
             }
@@ -290,6 +302,44 @@ export const AdminJuryzaPlatform = () => {
     }
   };
 
+  const hydrateSubmissionMediaBlobs = (list = []) => {
+    for (const s of list) {
+      if (!s?.teamId) continue;
+      getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
+        if (url) {
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.teamId === s.teamId
+                ? { ...sub, docBlobUrl: url, _blobsVerified: true }
+                : sub,
+            ),
+          );
+          setPreviewingSubmission((prev) =>
+            prev && prev.teamId === s.teamId
+              ? { ...prev, docBlobUrl: url, _blobsVerified: true }
+              : prev,
+          );
+        }
+      });
+      getMediaBlobUrl(`video_${s.teamId}`).then((url) => {
+        if (url) {
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.teamId === s.teamId
+                ? { ...sub, videoBlobUrl: url, _blobsVerified: true }
+                : sub,
+            ),
+          );
+          setPreviewingSubmission((prev) =>
+            prev && prev.teamId === s.teamId
+              ? { ...prev, videoBlobUrl: url, _blobsVerified: true }
+              : prev,
+          );
+        }
+      });
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -298,53 +348,38 @@ export const AdminJuryzaPlatform = () => {
         api.get("/api/v2/admin/judges"),
       ]);
 
-      const subList = Array.isArray(subRes.data) ? subRes.data : [];
+      const rawSubs = Array.isArray(subRes.data) ? subRes.data : [];
       const judgeList = Array.isArray(judgeRes.data) ? judgeRes.data : [];
+      const cleanBackendSubs = rawSubs.map(sanitizeSubmissionForStorage);
 
-      if (subList.length === 0) {
-        const synced = await syncCloudPortalState();
-        if (synced.submissions && synced.submissions.length > 0) {
-          setSubmissions(synced.submissions);
-          setJudges(synced.judges || judgeList);
-          return;
-        }
+      const synced = await syncCloudPortalState().catch(() => null);
+      const cloudSubs = synced?.submissions || [];
+      const mergedSubs = mergeSubmissions(
+        getStoredSubmissions().map(sanitizeSubmissionForStorage),
+        mergeSubmissions(cloudSubs, cleanBackendSubs),
+      );
+      const mergedJudges = judgeList.length > 0 ? judgeList : synced?.judges || [];
+
+      setSubmissions(mergedSubs);
+      setJudges(mergedJudges);
+
+      saveStoredSubmissions(mergedSubs);
+      if (mergedJudges.length > 0) {
+        const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
+        saveStoredUsers([...otherUsers, ...mergedJudges]);
       }
-
-      setSubmissions(subList);
-      setJudges(judgeList);
-
-      saveStoredSubmissions(subList);
-      const otherUsers = getStoredUsers().filter((u) => u.role !== "judge");
-      saveStoredUsers([...otherUsers, ...judgeList]);
+      hydrateSubmissionMediaBlobs(mergedSubs);
     } catch (err) {
       console.warn("Backend API unreachable, synchronizing with cloud state:", err.message);
       const synced = await syncCloudPortalState();
-      const activeSubs = synced.submissions || [];
+      const activeSubs = mergeSubmissions(
+        getStoredSubmissions().map(sanitizeSubmissionForStorage),
+        synced.submissions || [],
+      );
       const activeJudges = synced.judges || [];
       setSubmissions(activeSubs);
       setJudges(activeJudges);
-
-      // Enrich with local IndexedDB media if available
-      for (const s of activeSubs) {
-        if (!s.docBlobUrl) {
-          getMediaBlobUrl(`doc_${s.teamId}`).then((url) => {
-            if (url) {
-              setSubmissions((prev) =>
-                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, docBlobUrl: url } : sub)),
-              );
-            }
-          });
-        }
-        if (!s.videoBlobUrl) {
-          getMediaBlobUrl(`video_${s.teamId}`).then((url) => {
-            if (url) {
-              setSubmissions((prev) =>
-                prev.map((sub) => (sub.teamId === s.teamId ? { ...sub, videoBlobUrl: url } : sub)),
-              );
-            }
-          });
-        }
-      }
+      hydrateSubmissionMediaBlobs(activeSubs);
     } finally {
       setLoading(false);
     }
@@ -722,27 +757,13 @@ export const AdminJuryzaPlatform = () => {
   };
 
   const getDocHref = (sub) => {
-    if (!sub) return "/sample_proposal.pdf";
-    if (sub.docBlobUrl) return sub.docBlobUrl;
-    if (sub.document?.url && sub.document.url.toLowerCase().endsWith(".pdf")) return sub.document.url;
-    if (sub.document?.webViewLink && sub.document.webViewLink.toLowerCase().endsWith(".pdf")) return sub.document.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/document-preview`;
-    }
-    return "/sample_proposal.pdf";
+    const { document: doc } = resolveSubmissionMedia(sub, api.defaults.baseURL);
+    return doc.directUrl || doc.embedUrl || doc.downloadUrl || "";
   };
 
   const getVideoHref = (sub) => {
-    if (!sub) return "/speech.mp4";
-    if (sub.videoBlobUrl) return sub.videoBlobUrl;
-    if (sub.video?.url) return sub.video.url;
-    if (sub.video?.webViewLink) return sub.video.webViewLink;
-    const base = api.defaults.baseURL || "";
-    if (base && sub.teamId) {
-      return `${base}/api/v2/submissions/${sub.teamId}/video-stream`;
-    }
-    return "/speech.mp4";
+    const { video: vid } = resolveSubmissionMedia(sub, api.defaults.baseURL);
+    return vid.directUrl || vid.embedUrl || vid.downloadUrl || "";
   };
 
   // Render Login Card if not authenticated as Admin
@@ -1121,10 +1142,13 @@ export const AdminJuryzaPlatform = () => {
                       const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
                       const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
                       const focusArea = sub.theme || sub.thematicArea || "Focus Area";
-                      const hasSubVideo = Boolean(sub.videoBlobUrl || sub.video?.url || (sub.video?.originalName && sub.video.originalName !== "Not Provided"));
-                      const hasSubDoc = Boolean(sub.document?.url || (sub.document?.name && sub.document.name !== "Not Provided" && sub.document.name.endsWith(".pdf")));
-                      const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
-                      const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
+                      const resolvedMedia = resolveSubmissionMedia(sub, api.defaults.baseURL);
+                      const hasSubVideo = resolvedMedia.video.hasVideo;
+                      const hasSubDoc = resolvedMedia.document.hasDoc;
+                      const videoName = resolvedMedia.video.fileName;
+                      const docName = resolvedMedia.document.fileName;
+                      const videoHref = resolvedMedia.video.directUrl || resolvedMedia.video.embedUrl;
+                      const docHref = resolvedMedia.document.directUrl || resolvedMedia.document.embedUrl;
 
                       return (
                         <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
@@ -1186,7 +1210,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
                                 <a
-                                  href={getVideoHref(sub)}
+                                  href={videoHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1199,7 +1223,7 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiVideo className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">PDF only</span>
+                                <span className="italic">No video uploaded</span>
                               </div>
                             )}
 
@@ -1207,7 +1231,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
                                 <a
-                                  href={getDocHref(sub)}
+                                  href={docHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1220,8 +1244,19 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiFileText className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">Video only</span>
+                                <span className="italic">No PDF uploaded</span>
                               </div>
+                            )}
+
+                            {(hasSubVideo || hasSubDoc) && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewingSubmission(sub)}
+                                className="mt-1 inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px] font-bold text-[var(--text)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition cursor-pointer"
+                              >
+                                <FiEye className="h-3 w-3" />
+                                <span>Preview Media</span>
+                              </button>
                             )}
                           </td>
 
@@ -2139,6 +2174,166 @@ export const AdminJuryzaPlatform = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Media Inspection Modal */}
+      <AnimatePresence>
+        {previewingSubmission && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6 space-y-5"
+            >
+              {(() => {
+                const media = resolveSubmissionMedia(previewingSubmission, api.defaults.baseURL);
+                const vid = media.video;
+                const doc = media.document;
+                return (
+                  <>
+                    <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-4">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-[var(--primary)]">
+                          {previewingSubmission.teamId}
+                        </span>
+                        <h3 className="oswald text-xl font-bold text-[var(--text)]">
+                          {previewingSubmission.teamName} - {previewingSubmission.solutionName}
+                        </h3>
+                        <p className="text-xs text-[var(--muted)] mt-1">
+                          {previewingSubmission.shortDescription}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewingSubmission(null)}
+                        className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                      >
+                        <FiX className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      {/* Pitch Video Preview */}
+                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                            <FiVideo className="h-4 w-4 text-red-500" />
+                            <span className="truncate max-w-[200px]">{vid.fileName}</span>
+                          </div>
+                          {vid.hasVideo && (vid.directUrl || vid.embedUrl) && (
+                            <a
+                              href={vid.directUrl || vid.embedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--primary)] hover:underline"
+                            >
+                              <span>Open Tab</span>
+                              <FiExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+
+                        {!vid.hasVideo ? (
+                          <div className="aspect-video rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] flex items-center justify-center text-xs text-[var(--muted)]">
+                            No Pitch Video Uploaded
+                          </div>
+                        ) : vid.type === "blob" || vid.type === "mp4" ? (
+                          <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                            <video
+                              src={vid.embedUrl}
+                              controls
+                              preload="metadata"
+                              playsInline
+                              className="h-full w-full object-contain"
+                            />
+                          </div>
+                        ) : vid.type === "drive" && vid.embedUrl ? (
+                          <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                            <iframe
+                              src={vid.embedUrl}
+                              title="Admin Pitch Video Preview"
+                              className="h-full w-full border-0"
+                              allow="autoplay; fullscreen"
+                            />
+                          </div>
+                        ) : (
+                          <div className="aspect-video rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-2 p-4 text-center">
+                            <p className="text-xs text-[var(--muted)]">External Video Link</p>
+                            <a
+                              href={vid.directUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-bold"
+                            >
+                              <span>Open Video</span>
+                              <FiExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Proposal PDF Preview */}
+                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs font-bold text-[var(--text)]">
+                            <FiFileText className="h-4 w-4 text-amber-500" />
+                            <span className="truncate max-w-[180px]">{doc.fileName}</span>
+                          </div>
+                          {doc.hasDoc && (
+                            <div className="flex items-center gap-2">
+                              {doc.downloadUrl && (
+                                <a
+                                  href={doc.downloadUrl}
+                                  download={doc.fileName}
+                                  target={doc.type === "blob" ? undefined : "_blank"}
+                                  rel={doc.type === "blob" ? undefined : "noopener noreferrer"}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--text)] hover:text-[var(--primary)]"
+                                >
+                                  <FiDownload className="h-3 w-3" />
+                                  <span>Download</span>
+                                </a>
+                              )}
+                              {(doc.directUrl || doc.embedUrl) && (
+                                <a
+                                  href={doc.directUrl || doc.embedUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] hover:underline"
+                                >
+                                  <span>Open PDF</span>
+                                  <FiExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {!doc.hasDoc ? (
+                          <div className="aspect-[4/3] rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] flex items-center justify-center text-xs text-[var(--muted)]">
+                            No Proposal Document Uploaded
+                          </div>
+                        ) : (
+                          <div className="aspect-[4/3] rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)]">
+                            <iframe
+                              src={
+                                doc.type === "blob" || doc.type === "pdf"
+                                  ? `${doc.embedUrl}#toolbar=0&navpanes=0`
+                                  : doc.embedUrl
+                              }
+                              title="Admin Proposal PDF Preview"
+                              className="h-full w-full border-0"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </motion.div>
           </div>
         )}
