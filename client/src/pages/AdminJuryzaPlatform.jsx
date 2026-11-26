@@ -54,6 +54,8 @@ import {
   fetchDriveMasterState,
   importSubmissionsFromFile,
   getMasterSpreadsheetUrl,
+  resolveSubmissionMedia,
+  getAllocatedJudgesForRound,
 } from "../services/juryzaStorage";
 import ThemeToggle from "../Components/ThemeToggle";
 
@@ -365,8 +367,8 @@ export const AdminJuryzaPlatform = () => {
     );
   };
 
-  // Manual Allocation & Unallocation
-  const handleAllocate = async (teamId, judgeEmailToAssign) => {
+  // Manual Round-Wise Allocation & Unallocation
+  const handleAllocate = async (teamId, judgeEmailToAssign, round = null) => {
     const cleanEmail = (judgeEmailToAssign || "").toLowerCase().trim();
     const isUnallocating = !cleanEmail;
 
@@ -376,58 +378,24 @@ export const AdminJuryzaPlatform = () => {
         teamId,
         judgeEmail: cleanEmail,
         judgeEmails: isUnallocating ? [] : [cleanEmail],
+        round: round || undefined,
       });
       if (isUnallocating) {
-        toast.success("Team marked as unallocated.");
+        toast.success(round ? `Cleared judge for ${round.toUpperCase()}.` : "Team marked as unallocated.");
       } else {
-        toast.success("Team assigned to judge successfully!");
+        toast.success(round ? `Assigned judge for ${round.toUpperCase()}!` : "Team assigned to judge successfully!");
       }
     } catch {
       console.warn("API unavailable, allocating locally...");
     }
 
-    allocateStoredSubmission(teamId, cleanEmail);
-
-    // Update submissions state reactively
-    setSubmissions((prev) =>
-      prev.map((s) => {
-        if (s.teamId !== teamId) return s;
-        if (isUnallocating) {
-          return {
-            ...s,
-            allotedJudges: [],
-            allotedJudgeNames: [],
-            stage: s.stage === "allocated to a judge" ? "submitted" : s.stage,
-          };
-        }
-        const targetJudge = judges.find((j) => j.email.toLowerCase() === cleanEmail);
-        return {
-          ...s,
-          allotedJudges: [cleanEmail],
-          allotedJudgeNames: [targetJudge?.name || cleanEmail],
-          stage: s.stage === "submitted" ? "allocated to a judge" : s.stage,
-        };
-      }),
-    );
-
-    // Update judges state as well
-    setJudges((prev) =>
-      prev.map((j) => {
-        const jEmail = (j.email || "").toLowerCase().trim();
-        const currentTeams = Array.isArray(j.allotedTeams) ? j.allotedTeams : [];
-        if (isUnallocating) {
-          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
-        }
-        if (jEmail === cleanEmail) {
-          return {
-            ...j,
-            allotedTeams: currentTeams.includes(teamId) ? currentTeams : [...currentTeams, teamId],
-          };
-        } else {
-          return { ...j, allotedTeams: currentTeams.filter((id) => id !== teamId) };
-        }
-      }),
-    );
+    const res = allocateStoredSubmission(teamId, cleanEmail, round);
+    if (res?.subs) {
+      setSubmissions([...res.subs]);
+    }
+    if (res?.users) {
+      setJudges([...res.users.filter((u) => u.role === "judge")]);
+    }
 
     setAllocating(false);
   };
@@ -1116,15 +1084,20 @@ export const AdminJuryzaPlatform = () => {
                       </tr>
                     )}
                     {submissions.map((sub) => {
-                      const alloted = (sub.allotedJudges || [])[0] || "";
+                      const r1Judge = getAllocatedJudgesForRound(sub, "round1")[0] || "";
+                      const r2Judge = getAllocatedJudgesForRound(sub, "round2")[0] || "";
+                      const r3Judge = getAllocatedJudgesForRound(sub, "round3")[0] || "";
                       const leader = sub.members?.find((m) => m.isLeader) || sub.members?.[0] || {};
                       const leaderName = leader.name || sub.leadName || sub.leaderName || sub.teamLeadName || "Team Leader";
                       const leaderEmail = leader.email || sub.leadEmail || sub.participantEmail || sub.teamLeadEmail || "N/A";
                       const focusArea = sub.theme || sub.thematicArea || "Focus Area";
-                      const hasSubVideo = Boolean(sub.videoBlobUrl || sub.video?.url || (sub.video?.originalName && sub.video.originalName !== "Not Provided"));
-                      const hasSubDoc = Boolean(sub.document?.url || (sub.document?.name && sub.document.name !== "Not Provided" && sub.document.name.endsWith(".pdf")));
-                      const videoName = sub.video?.originalName || sub.videoFileName || "Pitch Video (.mp4)";
-                      const docName = sub.document?.name || sub.document?.originalName || sub.proposalDeckFileName || sub.docFileName || "Proposal (.pdf)";
+                      const resolvedMedia = resolveSubmissionMedia(sub, api.defaults.baseURL);
+                      const hasSubVideo = resolvedMedia.video.hasVideo;
+                      const hasSubDoc = resolvedMedia.document.hasDoc;
+                      const videoName = resolvedMedia.video.fileName;
+                      const docName = resolvedMedia.document.fileName;
+                      const videoHref = resolvedMedia.video.directUrl || resolvedMedia.video.embedUrl;
+                      const docHref = resolvedMedia.document.directUrl || resolvedMedia.document.embedUrl;
 
                       return (
                         <tr key={sub.teamId} className="hover:bg-[var(--surface-2)]/50 transition">
@@ -1186,7 +1159,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiVideo className="h-3 w-3 text-red-500 shrink-0" />
                                 <a
-                                  href={getVideoHref(sub)}
+                                  href={videoHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--primary)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1199,7 +1172,7 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiVideo className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">PDF only</span>
+                                <span className="italic">No Video</span>
                               </div>
                             )}
 
@@ -1207,7 +1180,7 @@ export const AdminJuryzaPlatform = () => {
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <FiFileText className="h-3 w-3 text-amber-500 shrink-0" />
                                 <a
-                                  href={getDocHref(sub)}
+                                  href={docHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="truncate max-w-[130px] text-[var(--accent)] font-semibold hover:underline inline-flex items-center gap-1"
@@ -1220,26 +1193,39 @@ export const AdminJuryzaPlatform = () => {
                             ) : (
                               <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
                                 <FiFileText className="h-3 w-3 shrink-0 opacity-40" />
-                                <span className="italic">Video only</span>
+                                <span className="italic">No PDF</span>
                               </div>
                             )}
                           </td>
 
-                          {/* Judge Allocation Dropdown */}
+                          {/* Round-Wise Judge Allocation Dropdowns (R1, R2, R3) */}
                           <td className="px-4 py-3.5">
-                            <select
-                              value={alloted}
-                              disabled={allocating}
-                              onChange={(e) => handleAllocate(sub.teamId, e.target.value)}
-                              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer max-w-[160px]"
-                            >
-                              <option value="">Unallocated</option>
-                              {judges.map((j) => (
-                                <option key={j.email} value={j.email}>
-                                  {j.name} ({j.email})
-                                </option>
+                            <div className="space-y-1.5 min-w-[180px]">
+                              {[
+                                { key: "round1", label: "R1", val: r1Judge },
+                                { key: "round2", label: "R2", val: r2Judge },
+                                { key: "round3", label: "R3", val: r3Judge },
+                              ].map((r) => (
+                                <div key={r.key} className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold font-mono w-5 text-[var(--muted)] shrink-0">
+                                    {r.label}
+                                  </span>
+                                  <select
+                                    value={r.val}
+                                    disabled={allocating}
+                                    onChange={(e) => handleAllocate(sub.teamId, e.target.value, r.key)}
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] text-[var(--text)] focus:border-[var(--accent)] focus:outline-none transition cursor-pointer max-w-[155px]"
+                                  >
+                                    <option value="">Unallocated</option>
+                                    {judges.map((j) => (
+                                      <option key={j.email} value={j.email}>
+                                        {j.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                               ))}
-                            </select>
+                            </div>
                           </td>
 
                           {/* Stage Dropdown */}

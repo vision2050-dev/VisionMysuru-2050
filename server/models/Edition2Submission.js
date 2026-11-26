@@ -31,7 +31,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
     shortDescription: { type: String, required: true, trim: true },
     detailedProposal: { type: String, trim: true },
 
-    // Compulsory Video Pitch (.mp4, max 50 MB)
+    // Pitch Video (.mp4 <= 25 MB or Google Drive link)
     video: {
       url: { type: String },
       title: { type: String },
@@ -45,7 +45,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       size: { type: Number },
     },
 
-    // Compulsory Supplementary Document / Pitch Deck (.pdf, max 5 MB)
+    // Proposal Document / Pitch Deck (.pdf <= 5 MB or Google Drive link)
     document: {
       name: { type: String },
       url: { type: String },
@@ -102,7 +102,7 @@ const Edition2SubmissionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Alloted Judge Gmail IDs
+    // Alloted Judge Gmail IDs (for active round / legacy compatibility)
     allotedJudges: {
       type: [String],
       default: [],
@@ -111,6 +111,16 @@ const Edition2SubmissionSchema = new mongoose.Schema(
     allotedJudgeNames: {
       type: [String],
       default: [],
+    },
+    // Round-wise Judge Allocations managed exclusively by Admins
+    roundAllocations: {
+      round1: { type: [String], default: [] },
+      round2: { type: [String], default: [] },
+      round3: { type: [String], default: [] },
+    },
+    roundAllocationsConfigured: {
+      type: Boolean,
+      default: false,
     },
 
     // Evaluation Engine Metrics

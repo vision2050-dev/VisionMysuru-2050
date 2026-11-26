@@ -86,10 +86,11 @@ router.get(
 router.get("/submissions/:id/video-stream", streamSubmissionVideo);
 router.get("/submissions/:id/document-preview", previewSubmissionDocument);
 
-// Both Admin and Jury can change the state of the submission
+// Admin-exclusive stage/selection decision endpoint (Judges cannot change stage/selection)
 router.patch(
   "/submissions/:id/status",
   verifyAuthToken,
+  requireAdmin,
   updateSubmissionStatus,
 );
 

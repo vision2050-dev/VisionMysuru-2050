@@ -80,10 +80,10 @@ const multerUploader = multer({
 
 /**
  * Middleware wrapper enforcing:
- * 1. Mutually exclusive submission: Teams must upload either a Pitch Video
- *    (Google Drive link or .mp4 ≤ 25 MB) OR a Proposal Deck (.pdf ≤ 5 MB).
- *    Submitting both is strictly disallowed.
- * 2. YouTube links are strictly disallowed for pitch videos.
+ * 1. Teams can upload BOTH a Pitch Video (Google Drive link or .mp4 <= 25 MB)
+ *    AND a Proposal Deck (Google Drive link or .pdf <= 5 MB) without one replacing the other.
+ *    Submitting both is encouraged; at least one is required.
+ * 2. YouTube links are strictly disallowed.
  */
 export const submissionUpload = (req, res, next) => {
   multerUploader(req, res, (err) => {
@@ -91,7 +91,7 @@ export const submissionUpload = (req, res, next) => {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
           message:
-            "File size limit exceeded. Uploaded pitch video must be ≤ 25 MB and PDF proposal must be ≤ 5 MB. Alternatively, provide a Google Drive link for your pitch video.",
+            "File size limit exceeded. Uploaded pitch video must be <= 25 MB and PDF proposal must be <= 5 MB. Alternatively, provide a Google Drive link.",
         });
       }
       return res.status(400).json({ message: `Upload error: ${err.message}` });
@@ -100,44 +100,28 @@ export const submissionUpload = (req, res, next) => {
     }
 
     const videoDriveUrl = (req.body?.videoDriveUrl || req.body?.videoUrl || "").trim();
+    const documentDriveUrl = (req.body?.documentDriveUrl || req.body?.documentUrl || "").trim();
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile[0]);
     const hasDocumentFile = Boolean(req.files && req.files.documentFile && req.files.documentFile[0]);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
+    const hasDocument = Boolean(documentDriveUrl || hasDocumentFile);
 
     // Strictly disallow YouTube links
     if (
-      videoDriveUrl &&
-      (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))
+      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
+      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
     ) {
       return res.status(400).json({
         message:
-          "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
+          "YouTube links are strictly not allowed. Please upload your file to Google Drive and provide a Google Drive view link.",
       });
     }
 
-    // Teams are NOT allowed to submit both formats
-    if (hasVideo && hasDocumentFile) {
-      if (hasVideoFile) {
-        try {
-          fs.unlinkSync(req.files.videoFile[0].path);
-        } catch {}
-      }
-      if (hasDocumentFile) {
-        try {
-          fs.unlinkSync(req.files.documentFile[0].path);
-        } catch {}
-      }
+    // At least one submission format (video and/or PDF) is required
+    if (!hasVideo && !hasDocument) {
       return res.status(400).json({
         message:
-          "Teams are not allowed to submit both. Please provide either a pitch video OR a proposal document, not both.",
-      });
-    }
-
-    // Exactly one submission format (video OR PDF) is required
-    if (!hasVideo && !hasDocumentFile) {
-      return res.status(400).json({
-        message:
-          "Please provide your submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) OR a proposal document (.pdf ≤ 5 MB).",
+          "Please provide at least one submission: your pitch video (Google Drive link or .mp4 <= 25 MB) and/or your proposal document (Google Drive link or .pdf <= 5 MB). Submitting both is encouraged.",
       });
     }
 
@@ -146,6 +130,14 @@ export const submissionUpload = (req, res, next) => {
       return res.status(400).json({
         message:
           "Pitch video link must be a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).",
+      });
+    }
+
+    // If a document link is provided, verify it is a valid Google Drive URL
+    if (documentDriveUrl && !documentDriveUrl.includes("drive.google.com")) {
+      return res.status(400).json({
+        message:
+          "Proposal document link must be a valid Google Drive link (e.g. https://drive.google.com/file/d/.../view).",
       });
     }
 

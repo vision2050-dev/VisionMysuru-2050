@@ -562,34 +562,39 @@ export const registerEdition2Submission = async (req, res) => {
     }
 
     const videoDriveUrl = (req.body.videoDriveUrl || req.body.videoUrl || "").trim();
+    const documentDriveUrl = (req.body.documentDriveUrl || req.body.documentUrl || "").trim();
 
     // Strictly disallow YouTube links
-    if (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) {
+    if (
+      (videoDriveUrl && (/youtube\.com/i.test(videoDriveUrl) || /youtu\.be/i.test(videoDriveUrl))) ||
+      (documentDriveUrl && (/youtube\.com/i.test(documentDriveUrl) || /youtu\.be/i.test(documentDriveUrl)))
+    ) {
       return res.status(400).json({
-        message: "YouTube links are strictly not allowed. Please upload your video to Google Drive and provide a Google Drive view link.",
+        message: "YouTube links are strictly not allowed. Please upload your file to Google Drive and provide a Google Drive view link.",
       });
     }
 
-    // Verify mutually exclusive submission: Teams must upload either a Pitch Video OR a Proposal Document, NOT both
+    // Allow both Pitch Video and Proposal Document simultaneously (at least one required)
     const hasDocFile = Boolean(req.files && req.files.documentFile && req.files.documentFile.length > 0);
     const hasVideoFile = Boolean(req.files && req.files.videoFile && req.files.videoFile.length > 0);
     const hasVideo = Boolean(videoDriveUrl || hasVideoFile);
+    const hasDocument = Boolean(documentDriveUrl || hasDocFile);
 
-    if (hasVideo && hasDocFile) {
+    if (!hasVideo && !hasDocument) {
       return res.status(400).json({
-        message: "Teams are not allowed to submit both. Please provide either a pitch video OR a proposal document, not both.",
-      });
-    }
-
-    if (!hasVideo && !hasDocFile) {
-      return res.status(400).json({
-        message: "Please provide your submission: either a pitch video (Google Drive link or .mp4 ≤ 25 MB) OR a proposal document (.pdf ≤ 5 MB).",
+        message: "Please provide at least one submission: your pitch video (Google Drive link or .mp4 <= 25 MB) and/or your proposal document (Google Drive link or .pdf <= 5 MB). Submitting both is encouraged.",
       });
     }
 
     if (videoDriveUrl && !videoDriveUrl.includes("drive.google.com")) {
       return res.status(400).json({
         message: "Pitch video link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
+      });
+    }
+
+    if (documentDriveUrl && !documentDriveUrl.includes("drive.google.com")) {
+      return res.status(400).json({
+        message: "Proposal document link must be a valid Google Drive URL (e.g. https://drive.google.com/file/d/...).",
       });
     }
 
@@ -604,7 +609,7 @@ export const registerEdition2Submission = async (req, res) => {
     // Rename files with Team ID prefix for clean separation
     const cleanTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, "_");
     const videoNewName = hasVideo ? `[${teamId}]_${cleanTeamName}_Video.mp4` : "";
-    const docNewName = hasDocFile ? `[${teamId}]_${cleanTeamName}_Proposal.pdf` : "";
+    const docNewName = hasDocument ? `[${teamId}]_${cleanTeamName}_Proposal.pdf` : "";
 
     const finalVideoPath = videoFile ? path.join(VIDEOS_SUBDIR, videoNewName) : null;
     const finalDocPath = docFile ? path.join(DOCUMENTS_SUBDIR, docNewName) : null;
@@ -672,13 +677,18 @@ export const registerEdition2Submission = async (req, res) => {
         webViewLink: "",
         driveFileId: null,
       },
-      document: hasDocFile ? {
-        name: docNewName,
-        originalName: docNewName,
-        localPath: finalDocPath,
-        size: docFile ? docFile.size : 0,
-        url: "",
-        webViewLink: "",
+      document: hasDocument ? {
+        name: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
+        originalName: documentDriveUrl ? "Google Drive Proposal Deck" : docNewName,
+        localPath: finalDocPath || "",
+        size: docFile ? docFile.size : 2000000,
+        url: documentDriveUrl || "",
+        webViewLink: documentDriveUrl || "",
+        driveFileId: documentDriveUrl
+          ? (documentDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)?.[1] ||
+             documentDriveUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ||
+             null)
+          : null,
       } : {
         name: "",
         originalName: "",
@@ -686,6 +696,7 @@ export const registerEdition2Submission = async (req, res) => {
         size: 0,
         url: "",
         webViewLink: "",
+        driveFileId: null,
       },
       members: parsedMembers,
       institution: institution || "N/A",
@@ -695,6 +706,8 @@ export const registerEdition2Submission = async (req, res) => {
       stage: "submitted",
       allotedJudges: [],
       allotedJudgeNames: [],
+      roundAllocations: { round1: [], round2: [], round3: [] },
+      roundAllocationsConfigured: false,
       eloRating: 1200,
       zScore: 0,
       rubricAverage: 0,
@@ -845,11 +858,27 @@ export const getEdition2Submissions = async (req, res) => {
       }
     }
 
-    // Judges MUST ONLY see submissions alloted to their account
+    // Judges MUST ONLY see submissions alloted to their account for the submission's active round
     if (isJudge && userEmail) {
       const judgeAllotedTeams = Array.isArray(judgeUser?.allotedTeams) ? judgeUser.allotedTeams : [];
+      const getRoundKey = (stage) => {
+        const s = String(stage || "round 1").toLowerCase();
+        if (s.includes("round 2") || s.includes("round_2") || s === "2") return "round2";
+        if (s.includes("round 3") || s.includes("round_3") || s === "3") return "round3";
+        return "round1";
+      };
 
       const filtered = allSubs.filter((sub) => {
+        const ra = sub.roundAllocations;
+        const hasRoundConfig = Boolean(
+          sub.roundAllocationsConfigured ||
+            (ra && ((ra.round1 && ra.round1.length > 0) || (ra.round2 && ra.round2.length > 0) || (ra.round3 && ra.round3.length > 0)))
+        );
+        if (hasRoundConfig && ra) {
+          const activeRoundKey = getRoundKey(sub.stage);
+          const roundList = Array.isArray(ra[activeRoundKey]) ? ra[activeRoundKey] : [];
+          return roundList.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
+        }
         const inSubJudges =
           Array.isArray(sub.allotedJudges) &&
           sub.allotedJudges.map((e) => String(e).toLowerCase().trim()).includes(userEmail);
@@ -949,7 +978,22 @@ export const getJudges = async (req, res) => {
  */
 export const allocateSubmission = async (req, res) => {
   try {
-    const { teamId, judgeEmail, mode = "single" } = req.body;
+    const { teamId, judgeEmail, mode = "single", round } = req.body;
+
+    const normalizeRoundKey = (r, fallbackStage) => {
+      const val = String(r || fallbackStage || "round1").toLowerCase().trim();
+      if (val === "all") return "all";
+      if (val.includes("2")) return "round2";
+      if (val.includes("3")) return "round3";
+      return "round1";
+    };
+
+    const getStageRoundKey = (stage) => {
+      const s = String(stage || "round 1").toLowerCase();
+      if (s.includes("2")) return "round2";
+      if (s.includes("3")) return "round3";
+      return "round1";
+    };
 
     let submissions = isDbConnected()
       ? await Edition2Submission.find()
@@ -966,15 +1010,33 @@ export const allocateSubmission = async (req, res) => {
     }
 
     if (mode === "auto") {
-      // Evenly distribute unallocated or all submissions across registered judges
+      // Evenly distribute submissions across registered judges for the specified round (or active round)
       let judgeIndex = 0;
       for (const sub of submissions) {
         const assignedJudge = judges[judgeIndex % judges.length];
         const jEmail = assignedJudge.email.toLowerCase();
+        const targetRound = round ? normalizeRoundKey(round, sub.stage) : getStageRoundKey(sub.stage);
 
-        sub.allotedJudges = [jEmail];
-        sub.allotedJudgeNames = [assignedJudge.name];
-        if (sub.stage === "submitted") {
+        if (!sub.roundAllocations) {
+          sub.roundAllocations = { round1: [], round2: [], round3: [] };
+        }
+        if (targetRound === "all") {
+          sub.roundAllocations.round1 = [jEmail];
+          sub.roundAllocations.round2 = [jEmail];
+          sub.roundAllocations.round3 = [jEmail];
+        } else {
+          sub.roundAllocations[targetRound] = [jEmail];
+        }
+        sub.roundAllocationsConfigured = true;
+
+        const activeRound = getStageRoundKey(sub.stage);
+        const activeEmails = Array.isArray(sub.roundAllocations[activeRound]) ? sub.roundAllocations[activeRound] : [];
+        sub.allotedJudges = activeEmails;
+        sub.allotedJudgeNames = activeEmails.map((em) => {
+          const found = judges.find((j) => j.email.toLowerCase() === em);
+          return found ? found.name : em;
+        });
+        if (sub.stage === "submitted" && activeEmails.length > 0) {
           sub.stage = "allocated to a judge";
         }
 
@@ -998,9 +1060,13 @@ export const allocateSubmission = async (req, res) => {
       });
     }
 
-    // Single Allocation or Unallocation
+    // Single or Multi-Judge Round-wise Allocation / Unallocation
     const { judgeEmails } = req.body;
-    const targetEmail = (judgeEmail || (Array.isArray(judgeEmails) && judgeEmails[0]) || "").toLowerCase().trim();
+    const requestedEmails = Array.isArray(judgeEmails)
+      ? judgeEmails.map((e) => String(e).toLowerCase().trim()).filter((e) => e && e !== "unallocated")
+      : judgeEmail && String(judgeEmail).toLowerCase().trim() !== "unallocated"
+      ? [String(judgeEmail).toLowerCase().trim()]
+      : [];
 
     if (!teamId) {
       return res.status(400).json({ message: "Team ID is required." });
@@ -1011,72 +1077,81 @@ export const allocateSubmission = async (req, res) => {
       return res.status(404).json({ message: "Team submission not found." });
     }
 
-    // If Unallocated
-    if (!targetEmail || targetEmail === "unallocated") {
-      // Remove teamId from all judges
-      for (const j of judges) {
-        if (Array.isArray(j.allotedTeams)) {
-          j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
-          if (isDbConnected()) await j.save();
-        }
-      }
-
-      targetSub.allotedJudges = [];
-      targetSub.allotedJudgeNames = [];
-      if (targetSub.stage === "allocated to a judge") {
-        targetSub.stage = "submitted";
-      }
-
-      if (isDbConnected()) {
-        await targetSub.save();
-      }
-
-      triggerSpreadsheetUpdate();
-
-      return res.status(200).json({
-        message: `Team ${teamId} has been unallocated.`,
-        submission: targetSub,
-        unallocated: true,
-      });
+    const targetRound = normalizeRoundKey(round, targetSub.stage);
+    if (!targetSub.roundAllocations) {
+      targetSub.roundAllocations = {
+        round1: Array.isArray(targetSub.allotedJudges) ? [...targetSub.allotedJudges] : [],
+        round2: [],
+        round3: [],
+      };
     }
 
-    // Allocate to specific judge
-    const judge = judges.find((j) => j.email.toLowerCase() === targetEmail);
-    if (!judge) {
-      return res.status(404).json({ message: "Judge not found with this email." });
-    }
-
-    // Remove from other judges first so team is not duplicated
-    for (const j of judges) {
-      if (j.email.toLowerCase() !== targetEmail && Array.isArray(j.allotedTeams)) {
-        j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
-        if (isDbConnected()) await j.save();
+    // Validate requested judges exist
+    const validEmails = [];
+    for (const em of requestedEmails) {
+      const found = judges.find((j) => j.email.toLowerCase() === em);
+      if (!found) {
+        return res.status(404).json({ message: `Judge not found with email: ${em}` });
       }
+      if (!validEmails.includes(em)) validEmails.push(em);
     }
 
-    targetSub.allotedJudges = [targetEmail];
-    targetSub.allotedJudgeNames = [judge.name];
-    if (targetSub.stage === "submitted") {
+    if (targetRound === "all") {
+      targetSub.roundAllocations.round1 = [...validEmails];
+      targetSub.roundAllocations.round2 = [...validEmails];
+      targetSub.roundAllocations.round3 = [...validEmails];
+    } else {
+      targetSub.roundAllocations[targetRound] = [...validEmails];
+    }
+    targetSub.roundAllocationsConfigured = true;
+
+    // Sync active-round allotedJudges & judge.allotedTeams
+    const activeRound = getStageRoundKey(targetSub.stage);
+    const activeEmails = Array.isArray(targetSub.roundAllocations[activeRound])
+      ? targetSub.roundAllocations[activeRound]
+      : [];
+    const allRoundEmails = new Set([
+      ...(targetSub.roundAllocations.round1 || []),
+      ...(targetSub.roundAllocations.round2 || []),
+      ...(targetSub.roundAllocations.round3 || []),
+    ]);
+
+    targetSub.allotedJudges = activeEmails;
+    targetSub.allotedJudgeNames = activeEmails.map((em) => {
+      const found = judges.find((j) => j.email.toLowerCase() === em);
+      return found ? found.name : em;
+    });
+
+    if (activeEmails.length === 0 && targetSub.stage === "allocated to a judge") {
+      targetSub.stage = "submitted";
+    } else if (activeEmails.length > 0 && targetSub.stage === "submitted") {
       targetSub.stage = "allocated to a judge";
     }
 
-    if (!Array.isArray(judge.allotedTeams)) {
-      judge.allotedTeams = [];
-    }
-    if (!judge.allotedTeams.includes(teamId)) {
-      judge.allotedTeams.push(teamId);
+    for (const j of judges) {
+      const jEmail = j.email.toLowerCase();
+      if (!Array.isArray(j.allotedTeams)) j.allotedTeams = [];
+      if (allRoundEmails.has(jEmail)) {
+        if (!j.allotedTeams.includes(teamId)) j.allotedTeams.push(teamId);
+      } else {
+        j.allotedTeams = j.allotedTeams.filter((id) => id !== teamId);
+      }
+      if (isDbConnected()) await j.save();
     }
 
     if (isDbConnected()) {
       await targetSub.save();
-      await judge.save();
     }
 
     triggerSpreadsheetUpdate();
 
     return res.status(200).json({
-      message: `Team ${teamId} successfully alloted to judge ${judge.name}.`,
+      message:
+        validEmails.length > 0
+          ? `Team ${teamId} allocated for ${targetRound === "all" ? "all rounds" : targetRound}.`
+          : `Team ${teamId} unallocated for ${targetRound === "all" ? "all rounds" : targetRound}.`,
       submission: targetSub,
+      unallocated: validEmails.length === 0,
     });
   } catch (error) {
     console.error("Allocation error:", error);
@@ -1085,20 +1160,22 @@ export const allocateSubmission = async (req, res) => {
 };
 
 /**
- * Update Submission Stage (Admin or Alloted Judge)
- * States:
- * - submitted
- * - allocated to a judge
- * - under evaluation
- * - shortlisted to next round
- * - not shortlisted to next round
+ * Update Submission Stage (Admin Exclusive)
  */
 export const updateSubmissionStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { stage, notes } = req.body;
+    if (req.user?.role !== "admin") {
+      return res.status(403).json({
+        message: "Only Admins can update submission rounds or selection status.",
+      });
+    }
 
-    const judgeAllowedStages = [
+    const { id } = req.params;
+    const { stage } = req.body;
+
+    const adminAllowedStages = [
+      "submitted",
+      "allocated to a judge",
       "Round 1",
       "Round 2",
       "Round 3",
@@ -1114,24 +1191,18 @@ export const updateSubmissionStatus = async (req, res) => {
       "not shortlisted to next round",
     ];
 
-    const adminAllowedStages = [
-      "submitted",
-      "allocated to a judge",
-      ...judgeAllowedStages,
-    ];
-
-    const isJudge = req.user?.role === "judge";
-    if (isJudge && !judgeAllowedStages.includes(stage)) {
-      return res.status(403).json({
-        message: "Judges can change the stage to Round 1, Round 2, Round 3, Selected, or Not Selected.",
-      });
-    }
-
     if (!adminAllowedStages.includes(stage)) {
       return res.status(400).json({
         message: `Invalid stage. Must be one of: ${adminAllowedStages.join(", ")}`,
       });
     }
+
+    const getStageRoundKey = (st) => {
+      const s = String(st || "round 1").toLowerCase();
+      if (s.includes("2")) return "round2";
+      if (s.includes("3")) return "round3";
+      return "round1";
+    };
 
     let sub = null;
     if (isDbConnected()) {
@@ -1139,6 +1210,16 @@ export const updateSubmissionStatus = async (req, res) => {
       if (sub) {
         sub.stage = stage;
         sub.status = stage;
+        if (sub.roundAllocationsConfigured && sub.roundAllocations) {
+          const rk = getStageRoundKey(stage);
+          const roundEmails = Array.isArray(sub.roundAllocations[rk]) ? sub.roundAllocations[rk] : [];
+          sub.allotedJudges = roundEmails;
+          const judges = await JuryzaUser.find({ role: "judge" });
+          sub.allotedJudgeNames = roundEmails.map((em) => {
+            const f = judges.find((j) => j.email.toLowerCase() === String(em).toLowerCase());
+            return f ? f.name : em;
+          });
+        }
         await sub.save();
       }
     } else {
@@ -1146,6 +1227,15 @@ export const updateSubmissionStatus = async (req, res) => {
       if (sub) {
         sub.stage = stage;
         sub.status = stage;
+        if (sub.roundAllocationsConfigured && sub.roundAllocations) {
+          const rk = getStageRoundKey(stage);
+          const roundEmails = Array.isArray(sub.roundAllocations[rk]) ? sub.roundAllocations[rk] : [];
+          sub.allotedJudges = roundEmails;
+          sub.allotedJudgeNames = roundEmails.map((em) => {
+            const f = localUsersStore.find((j) => j.role === "judge" && j.email.toLowerCase() === String(em).toLowerCase());
+            return f ? f.name : em;
+          });
+        }
       }
     }
 
